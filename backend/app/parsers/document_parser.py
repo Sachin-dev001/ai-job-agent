@@ -25,5 +25,8 @@ def parse_resume_file(file_path: str) -> str:
         return extract_text_from_pdf(file_path)
     elif lower_path.endswith(".docx") or lower_path.endswith(".doc"):
         return extract_text_from_docx(file_path)
+    elif lower_path.endswith(".txt"):
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            return f.read()
     else:
-        raise ValueError(f"Unsupported resume format: {file_path}. Please supply a PDF or DOCX.")
+        raise ValueError(f"Unsupported resume format: {file_path}. Please supply a PDF, DOCX, or TXT file.")

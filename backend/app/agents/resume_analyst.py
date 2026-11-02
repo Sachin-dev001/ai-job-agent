@@ -1,31 +1,37 @@
+import os
 import json
-from typing import Optional
 import groq
 from app.config import settings
-from app.parsers.models import ResumeAnalysisResult, JobTitleRecommendation
 from app.parsers.document_parser import parse_resume_file
+from app.parsers.models import ResumeAnalysisResult, JobTitleRecommendation
+from app.llm.gemini_service import gemini_service
 
-RESUME_EXTRACTION_SYSTEM_PROMPT = """You are an elite AI Technical Recruiter and Career Strategist.
-Analyze the provided resume text.
-You MUST output valid, parseable JSON conforming strictly to this structure:
+RESUME_EXTRACTION_SYSTEM_PROMPT = """You are an expert technical recruiter and resume analyst.
+Extract structured information from the provided resume text.
+
+Output MUST be a single valid JSON object adhering strictly to this schema:
 {
-  "candidate_name": "string or null",
-  "email": "string or null",
-  "phone": "string or null",
-  "skills": ["string"],
-  "experience_years": float,
-  "education": "string or null",
+  "candidate_name": "Full Name or null",
+  "email": "Email address or null",
+  "phone": "Phone number or null",
+  "skills": ["Python", "FastAPI", "React", "Docker", "Machine Learning"],
+  "experience_years": 2.5,
+  "education": "Degree and University or null",
   "recommended_job_titles": [
     {
-      "title": "string, e.g. AI Engineer, ML Engineer, Python Developer",
-      "confidence_score": float between 0.0 and 1.0,
-      "reasoning": "brief explanation"
+      "title": "AI Engineer",
+      "confidence_score": 0.95,
+      "reasoning": "Strong match with Python, agent workflows, and machine learning"
+    },
+    {
+      "title": "Python Developer",
+      "confidence_score": 0.90,
+      "reasoning": "Solid foundation in Python backend frameworks"
     }
   ]
-}
-Identify top 3 to 5 industry job titles that best align with their technical skill patterns."""
+}"""
 
-class ResumeAnalystAgent:
+class ResumeAnalyst:
     def __init__(self):
         pass
 
@@ -35,25 +41,50 @@ class ResumeAnalystAgent:
         if not raw_text.strip():
             raise ValueError("Could not extract any readable text from the uploaded document.")
 
-        # 2. Use Groq with Qwen 27B / Llama high speed JSON model
-        client = groq.Groq(api_key=settings.GROQ_API_KEY)
-        
         prompt = f"Resume Content:\n-----------------\n{raw_text[:6000]}\n-----------------\nExtract information and output JSON strictly conforming to schema."
-        
-        response = client.chat.completions.create(
-            model="qwen/qwen3.8-27b",
-            messages=[
-                {"role": "system", "content": RESUME_EXTRACTION_SYSTEM_PROMPT},
-                {"role": "user", "content": prompt}
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.1
-        )
 
-        content = response.choices[0].message.content
+        content = None
+        # 2. Try Google Gemini Flash Lite first (via Google AI Studio key)
+        if gemini_service.is_available():
+            content = gemini_service.generate(
+                prompt=prompt,
+                system_prompt=RESUME_EXTRACTION_SYSTEM_PROMPT,
+                json_mode=True,
+                temperature=0.1
+            )
+
+        # 3. Fallback to Groq if Gemini is not available or failed
+        if not content and settings.GROQ_API_KEY:
+            client = groq.Groq(api_key=settings.GROQ_API_KEY)
+            response = client.chat.completions.create(
+                model="qwen/qwen3.8-27b",
+                messages=[
+                    {"role": "system", "content": RESUME_EXTRACTION_SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt}
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.1
+            )
+            content = response.choices[0].message.content
+
+        if not content:
+            raise ValueError("Failed to analyze resume with LLM. Please check your GEMINI_API_KEY or GROQ_API_KEY.")
+
         data = json.loads(content)
-        
-        # Parse into Pydantic model
+
+        # Robust field normalization
+        if "candidate_name" not in data and "name" in data:
+            data["candidate_name"] = data["name"]
+        if "skills" not in data:
+            data["skills"] = data.get("technical_skills", []) + data.get("soft_skills", [])
+        if "experience_years" not in data:
+            data["experience_years"] = float(data.get("years_of_experience", 2.0))
+
+        if "recommended_job_titles" in data:
+            for item in data["recommended_job_titles"]:
+                if "confidence_score" not in item:
+                    item["confidence_score"] = float(item.get("match_confidence", 0.9))
+
         return ResumeAnalysisResult(**data)
 
-resume_analyst = ResumeAnalystAgent()
+resume_analyst = ResumeAnalyst()
