@@ -115,12 +115,17 @@ async def analyze_resume(file: UploadFile = File(...), user: CurrentUser = Depen
         result = await resume_analyst.analyze(file_path)
         LATEST_PROFILE = result.dict()
         # Save extracted candidate details to profile
-        if result.name or result.email or result.phone:
+        cand_name = getattr(result, 'candidate_name', None) or getattr(result, 'name', None) or user.name
+        cand_email = getattr(result, 'email', None) or user.email
+        cand_phone = getattr(result, 'phone', None)
+        cand_exp = getattr(result, 'experience_years', None) or getattr(result, 'years_of_experience', 2.0)
+
+        if cand_name or cand_email or cand_phone:
             await cloud_db.update_profile(user.id, {
-                "full_name": result.name or user.name,
-                "email": result.email or user.email,
-                "phone": result.phone,
-                "experience_years": result.years_of_experience
+                'full_name': cand_name,
+                'email': cand_email,
+                'phone': cand_phone,
+                'experience_years': cand_exp
             })
         return result
     except Exception as e:

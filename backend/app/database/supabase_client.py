@@ -1,5 +1,6 @@
 import os
 import json
+import uuid
 import logging
 from typing import Dict, List, Optional, Any
 from datetime import datetime
@@ -13,13 +14,20 @@ _supabase_client = None
 
 if SUPABASE_URL and SUPABASE_KEY:
     try:
-        from supabase import create_client, Client
+        from supabase import create_client
         _supabase_client = create_client(SUPABASE_URL, SUPABASE_KEY)
         logger.info("[Supabase] Cloud client initialized successfully.")
     except Exception as e:
         logger.warning(f"[Supabase] Could not initialize cloud client: {e}. Falling back to local storage.")
 else:
-    logger.info("[Supabase] No cloud credentials provided. Operating in local storage mode.")
+    logger.info("[Supabase] Operating in local storage mode.")
+
+def is_valid_uuid(val: str) -> bool:
+    try:
+        uuid.UUID(str(val))
+        return True
+    except (ValueError, AttributeError):
+        return False
 
 class CloudDatabaseService:
     """
@@ -34,7 +42,7 @@ class CloudDatabaseService:
     # User Profile Operations
     # --------------------------------------------------------------------------
     async def get_profile(self, user_id: str) -> Optional[Dict[str, Any]]:
-        if self.is_cloud_enabled():
+        if self.is_cloud_enabled() and is_valid_uuid(user_id):
             try:
                 res = _supabase_client.table("profiles").select("*").eq("id", user_id).execute()
                 if res.data:
@@ -52,7 +60,7 @@ class CloudDatabaseService:
         }
 
     async def update_profile(self, user_id: str, updates: Dict[str, Any]) -> bool:
-        if self.is_cloud_enabled():
+        if self.is_cloud_enabled() and is_valid_uuid(user_id):
             try:
                 updates["updated_at"] = datetime.utcnow().isoformat()
                 _supabase_client.table("profiles").update(updates).eq("id", user_id).execute()
@@ -66,19 +74,18 @@ class CloudDatabaseService:
     # Q&A Memory Vault Operations
     # --------------------------------------------------------------------------
     async def get_memories(self, user_id: str) -> List[Dict[str, Any]]:
-        if self.is_cloud_enabled():
+        if self.is_cloud_enabled() and is_valid_uuid(user_id):
             try:
                 res = _supabase_client.table("qa_memory").select("*").eq("user_id", user_id).order("learned_at", desc=True).execute()
                 return res.data or []
             except Exception as e:
                 logger.error(f"[Supabase] Error getting memories for {user_id}: {e}")
-        # Local fallback via legacy JSON
         from app.memory.qa_vault import qa_vault
         return qa_vault.get_all_memories()
 
     async def save_memory(self, user_id: str, question: str, answer: str, category: str = "custom", keywords: List[str] = None) -> Dict[str, Any]:
         keywords = keywords or []
-        if self.is_cloud_enabled():
+        if self.is_cloud_enabled() and is_valid_uuid(user_id):
             try:
                 payload = {
                     "user_id": user_id,
@@ -98,7 +105,7 @@ class CloudDatabaseService:
         return qa_vault.learn(question=question, answer=answer, category=category)
 
     async def delete_memory(self, user_id: str, memory_id: str) -> bool:
-        if self.is_cloud_enabled():
+        if self.is_cloud_enabled() and is_valid_uuid(user_id):
             try:
                 _supabase_client.table("qa_memory").delete().eq("id", memory_id).eq("user_id", user_id).execute()
                 return True
@@ -112,7 +119,7 @@ class CloudDatabaseService:
     # Job Application Tracker Operations
     # --------------------------------------------------------------------------
     async def get_applications(self, user_id: str, limit: int = 50) -> List[Dict[str, Any]]:
-        if self.is_cloud_enabled():
+        if self.is_cloud_enabled() and is_valid_uuid(user_id):
             try:
                 res = _supabase_client.table("job_applications").select("*").eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute()
                 return res.data or []
@@ -121,7 +128,7 @@ class CloudDatabaseService:
         return []
 
     async def create_application(self, user_id: str, job_data: Dict[str, Any]) -> Dict[str, Any]:
-        if self.is_cloud_enabled():
+        if self.is_cloud_enabled() and is_valid_uuid(user_id):
             try:
                 payload = {
                     "user_id": user_id,
@@ -140,7 +147,7 @@ class CloudDatabaseService:
         return job_data
 
     async def update_application_status(self, user_id: str, app_id: str, status: str, proof_url: str = None, error: str = None) -> bool:
-        if self.is_cloud_enabled():
+        if self.is_cloud_enabled() and is_valid_uuid(user_id):
             try:
                 updates = {"status": status}
                 if status == "applied":
@@ -171,7 +178,6 @@ class CloudDatabaseService:
                 return public_url
             except Exception as e:
                 logger.warning(f"[Supabase Storage] Could not upload proof to bucket: {e}")
-        # Return local static URL fallback
         return f"/proofs/{os.path.basename(local_path)}"
 
 cloud_db = CloudDatabaseService()

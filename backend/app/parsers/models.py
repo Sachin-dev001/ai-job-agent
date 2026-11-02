@@ -10,7 +10,19 @@ class ResumeAnalysisResult(BaseModel):
     candidate_name: Optional[str] = Field(default=None, description="Candidate's full name")
     email: Optional[str] = Field(default=None, description="Contact email address")
     phone: Optional[str] = Field(default=None, description="Contact phone number")
-    skills: List[str] = Field(description="List of extracted technical and domain skills")
+    skills: List[str] = Field(default_factory=list, description="List of extracted technical and domain skills")
     experience_years: Optional[float] = Field(default=0.0, description="Estimated total professional experience in years")
     education: Optional[str] = Field(default=None, description="Highest degree or university information")
-    recommended_job_titles: List[JobTitleRecommendation] = Field(description="List of top 3 to 5 matching job titles ranked by relevance")
+    recommended_job_titles: List[JobTitleRecommendation] = Field(default_factory=list, description="List of top 3 to 5 matching job titles ranked by relevance")
+
+    @property
+    def name(self) -> Optional[str]:
+        return self.candidate_name
+
+    @property
+    def years_of_experience(self) -> float:
+        return self.experience_years or 0.0
+
+    @property
+    def technical_skills(self) -> List[str]:
+        return self.skills
