@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  autoapply:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: autoapply_app
+    ports:
+      - "8000:7860"
+    environment:
+      - PORT=7860
+      - SUPABASE_URL=${SUPABASE_URL:-}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+    restart: unless-stopped

@@ -1,3 +1,23 @@
+// =============================================================================
+// GLOBAL FETCH WRAPPER: Automatically injects JWT Bearer token on all API calls
+// =============================================================================
+const originalFetch = window.fetch;
+window.fetch = async function(url, options = {}) {
+    options = options || {};
+    options.headers = options.headers || {};
+    const token = (typeof getAuthToken === 'function') ? getAuthToken() : localStorage.getItem("autoapply_auth_token");
+    if (token) {
+        if (options.headers instanceof Headers) {
+            options.headers.set('Authorization', 'Bearer ' + token);
+        } else if (Array.isArray(options.headers)) {
+            options.headers.push(['Authorization', 'Bearer ' + token]);
+        } else {
+            options.headers['Authorization'] = 'Bearer ' + token;
+        }
+    }
+    return originalFetch(url, options);
+};
+
 let currentAnalysis = null;
 let foundJobs = [];
 let activeApplyingJobIndex = null;
@@ -5,6 +25,7 @@ let currentSelectedRole = "Data Analyst";
 let currentSelectedPlatform = "naukri"; // "naukri" or "wellfound"
 
 document.addEventListener("DOMContentLoaded", () => {
+    initSupabase();
     const dropzone = document.getElementById("dropzone");
     const resumeFileInput = document.getElementById("resumeFileInput");
     const fileStatus = document.getElementById("fileStatus");
@@ -932,6 +953,7 @@ function initMouseInteractiveAnimations() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+    initSupabase();
     initMouseInteractiveAnimations();
 });
 
@@ -996,4 +1018,270 @@ function triggerScenarioSimulation() {
             }, 1000);
         }
     }, 1100);
+}
+
+
+// =============================================================================
+// AUTOAPPLY AUTHENTICATION & MULTI-TENANT CLOUD SYSTEM (Supabase 100% Free)
+// =============================================================================
+let currentAuthUser = null;
+let currentAuthToken = null;
+let supabaseClient = null;
+let authMode = "signin"; // "signin" or "signup"
+
+function getAuthToken() {
+    return currentAuthToken || localStorage.getItem("autoapply_auth_token") || null;
+}
+
+function initSupabase() {
+    const defaultUrl = "https://your-project.supabase.co";
+    const defaultAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...";
+    const savedUrl = localStorage.getItem("supabase_url") || defaultUrl;
+    const savedKey = localStorage.getItem("supabase_anon_key") || defaultAnonKey;
+
+    if (window.supabase && window.supabase.createClient && savedUrl !== defaultUrl) {
+        try {
+            supabaseClient = window.supabase.createClient(savedUrl, savedKey);
+            supabaseClient.auth.onAuthStateChange((event, session) => {
+                if (session && session.user) {
+                    setLoggedInUser(session.user, session.access_token);
+                } else if (event === "SIGNED_OUT") {
+                    setLoggedOutUser();
+                }
+            });
+        } catch (e) {
+            console.warn("Could not init Supabase client:", e);
+        }
+    }
+
+    const storedUser = localStorage.getItem("autoapply_user");
+    const storedToken = localStorage.getItem("autoapply_auth_token");
+    if (storedUser) {
+        try {
+            currentAuthUser = JSON.parse(storedUser);
+            currentAuthToken = storedToken;
+            renderAuthNavbar();
+        } catch (e) {
+            loginAsDemoUser();
+        }
+    } else {
+        loginAsDemoUser();
+    }
+}
+
+function setLoggedInUser(user, token) {
+    currentAuthUser = {
+        id: user.id,
+        email: user.email,
+        name: user.user_metadata?.full_name || user.email.split("@")[0]
+    };
+    currentAuthToken = token;
+    localStorage.setItem("autoapply_user", JSON.stringify(currentAuthUser));
+    localStorage.setItem("autoapply_auth_token", token);
+    renderAuthNavbar();
+    toggleAuthModal(false);
+}
+
+function setLoggedOutUser() {
+    currentAuthUser = null;
+    currentAuthToken = null;
+    localStorage.removeItem("autoapply_user");
+    localStorage.removeItem("autoapply_auth_token");
+    renderAuthNavbar();
+}
+
+function loginAsDemoUser() {
+    currentAuthUser = {
+        id: "local-dev-user-001",
+        email: "sachin.sharma.coder@gmail.com",
+        name: "Sachin Sharma"
+    };
+    currentAuthToken = "local_demo_token";
+    localStorage.setItem("autoapply_user", JSON.stringify(currentAuthUser));
+    localStorage.setItem("autoapply_auth_token", currentAuthToken);
+    renderAuthNavbar();
+    toggleAuthModal(false);
+}
+
+function renderAuthNavbar() {
+    const signInBtn = document.getElementById("authSignInBtn");
+    const userMenu = document.getElementById("authUserMenu");
+    const nameDisplay = document.getElementById("userNameDisplay");
+    const emailDisplay = document.getElementById("userEmailDisplay");
+    const avatarDisplay = document.getElementById("userAvatar");
+
+    if (currentAuthUser) {
+        if (signInBtn) signInBtn.classList.add("hidden");
+        if (userMenu) userMenu.classList.remove("hidden");
+        if (nameDisplay) nameDisplay.textContent = currentAuthUser.name;
+        if (emailDisplay) emailDisplay.textContent = currentAuthUser.email;
+        if (avatarDisplay) avatarDisplay.textContent = (currentAuthUser.name[0] || "U").toUpperCase();
+    } else {
+        if (signInBtn) signInBtn.classList.remove("hidden");
+        if (userMenu) userMenu.classList.add("hidden");
+    }
+    if (window.lucide) lucide.createIcons();
+}
+
+function toggleAuthModal(show) {
+    const modal = document.getElementById("authModal");
+    if (!modal) return;
+    if (show) {
+        modal.classList.remove("hidden");
+        hideAuthError();
+    } else {
+        modal.classList.add("hidden");
+    }
+    closeUserDropdown();
+}
+
+function switchAuthTab(tab) {
+    authMode = tab;
+    const tabSignIn = document.getElementById("tabSignInBtn");
+    const tabSignUp = document.getElementById("tabSignUpBtn");
+    const nameField = document.getElementById("signUpNameField");
+    const submitText = document.getElementById("authSubmitBtnText");
+
+    if (tab === "signin") {
+        tabSignIn.className = "flex-1 py-1.5 rounded-md bg-zinc-800 text-zinc-100 transition shadow-sm";
+        tabSignUp.className = "flex-1 py-1.5 rounded-md text-zinc-400 hover:text-zinc-200 transition";
+        if (nameField) nameField.classList.add("hidden");
+        if (submitText) submitText.textContent = "Sign In to Dashboard";
+    } else {
+        tabSignUp.className = "flex-1 py-1.5 rounded-md bg-zinc-800 text-zinc-100 transition shadow-sm";
+        tabSignIn.className = "flex-1 py-1.5 rounded-md text-zinc-400 hover:text-zinc-200 transition";
+        if (nameField) nameField.classList.remove("hidden");
+        if (submitText) submitText.textContent = "Create Free Account";
+    }
+    hideAuthError();
+}
+
+async function signInWithOAuth(provider) {
+    if (!supabaseClient) {
+        showAuthError("Please connect your Supabase Project keys first, or use Local Guest mode.");
+        return;
+    }
+    try {
+        const { error } = await supabaseClient.auth.signInWithOAuth({
+            provider: provider,
+            options: { redirectTo: window.location.origin }
+        });
+        if (error) throw error;
+    } catch (err) {
+        showAuthError(err.message || "OAuth sign-in failed");
+    }
+}
+
+async function handleEmailAuth(event) {
+    event.preventDefault();
+    const email = document.getElementById("authEmailInput").value.trim();
+    const password = document.getElementById("authPasswordInput").value;
+    const fullName = document.getElementById("authNameInput")?.value?.trim() || "";
+
+    if (!supabaseClient) {
+        setLoggedInUser({
+            id: "user-" + btoa(email).slice(0, 12),
+            email: email,
+            user_metadata: { full_name: fullName || email.split("@")[0] }
+        }, "local_token_" + Date.now());
+        return;
+    }
+
+    try {
+        if (authMode === "signup") {
+            const { data, error } = await supabaseClient.auth.signUp({
+                email,
+                password,
+                options: { data: { full_name: fullName } }
+            });
+            if (error) throw error;
+            if (data.session) {
+                setLoggedInUser(data.user, data.session.access_token);
+            } else {
+                alert("Account created! Please check your email to confirm registration.");
+                toggleAuthModal(false);
+            }
+        } else {
+            const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+            if (error) throw error;
+            if (data.session) {
+                setLoggedInUser(data.user, data.session.access_token);
+            }
+        }
+    } catch (err) {
+        showAuthError(err.message || "Authentication failed");
+    }
+}
+
+function handleSignOut() {
+    if (supabaseClient) {
+        supabaseClient.auth.signOut();
+    }
+    setLoggedOutUser();
+    closeUserDropdown();
+}
+
+function showAuthError(msg) {
+    const box = document.getElementById("authErrorMsg");
+    const txt = document.getElementById("authErrorText");
+    if (box && txt) {
+        txt.textContent = msg;
+        box.classList.remove("hidden");
+    }
+}
+
+function hideAuthError() {
+    const box = document.getElementById("authErrorMsg");
+    if (box) box.classList.add("hidden");
+}
+
+function toggleUserDropdown() {
+    const p = document.getElementById("userDropdownPanel");
+    if (p) p.classList.toggle("hidden");
+}
+
+function closeUserDropdown() {
+    const p = document.getElementById("userDropdownPanel");
+    if (p) p.classList.add("hidden");
+}
+
+function toggleCloudConfigModal(show) {
+    const m = document.getElementById("cloudConfigModal");
+    if (!m) return;
+    if (show) {
+        document.getElementById("cfgSupabaseUrl").value = localStorage.getItem("supabase_url") || "";
+        document.getElementById("cfgSupabaseAnonKey").value = localStorage.getItem("supabase_anon_key") || "";
+        m.classList.remove("hidden");
+    } else {
+        m.classList.add("hidden");
+    }
+    closeUserDropdown();
+}
+
+function openCloudConfigModal() {
+    toggleCloudConfigModal(true);
+}
+
+function saveCloudConfig() {
+    const url = document.getElementById("cfgSupabaseUrl").value.trim();
+    const key = document.getElementById("cfgSupabaseAnonKey").value.trim();
+    if (!url || !key) {
+        alert("Please enter both Supabase Project URL and Anon Public Key.");
+        return;
+    }
+    localStorage.setItem("supabase_url", url);
+    localStorage.setItem("supabase_anon_key", key);
+    alert("Supabase keys saved! Re-initializing client...");
+    toggleCloudConfigModal(false);
+    initSupabase();
+}
+
+function resetCloudConfig() {
+    localStorage.removeItem("supabase_url");
+    localStorage.removeItem("supabase_anon_key");
+    document.getElementById("cfgSupabaseUrl").value = "";
+    document.getElementById("cfgSupabaseAnonKey").value = "";
+    alert("Reset to default local storage mode.");
+    toggleCloudConfigModal(false);
+    initSupabase();
 }

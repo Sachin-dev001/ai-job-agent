@@ -2,7 +2,7 @@ import os
 import shutil
 import asyncio
 from typing import List, Optional
-from fastapi import FastAPI, UploadFile, File, HTTPException, Query
+from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -19,6 +19,8 @@ from app.scrapers.base_scraper import ScrapedJob
 from app.notifications.notifier import notifier
 from app.memory.qa_vault import qa_vault
 from app.notifications.telegram_listener import telegram_listener
+from app.auth.auth_handler import get_current_user, CurrentUser
+from app.database.supabase_client import cloud_db
 
 app = FastAPI(title=settings.PROJECT_NAME, version=settings.VERSION)
 
@@ -54,22 +56,72 @@ async def serve_index():
 
 @app.get("/api/health")
 async def health_check():
-    return {"status": "ok", "app": settings.PROJECT_NAME, "version": settings.VERSION}
+    return {
+        "status": "ok",
+        "app": settings.PROJECT_NAME,
+        "version": settings.VERSION,
+        "cloud_database": "supabase" if cloud_db.is_cloud_enabled() else "local_sqlite"
+    }
 
+# ==============================================================================
+# Multi-User Authentication & Profile Endpoints
+# ==============================================================================
+@app.get("/api/auth/me")
+async def get_auth_me(user: CurrentUser = Depends(get_current_user)):
+    """Returns the authenticated user's identity and cloud status."""
+    return {
+        "user_id": user.id,
+        "email": user.email,
+        "name": user.name,
+        "is_authenticated": user.is_authenticated,
+        "cloud_enabled": cloud_db.is_cloud_enabled()
+    }
+
+@app.get("/api/user/profile")
+async def get_user_profile(user: CurrentUser = Depends(get_current_user)):
+    """Fetches user candidate profile."""
+    profile = await cloud_db.get_profile(user.id)
+    return profile
+
+@app.post("/api/user/profile")
+async def update_user_profile(updates: dict, user: CurrentUser = Depends(get_current_user)):
+    """Updates candidate profile in Supabase/local DB."""
+    success = await cloud_db.update_profile(user.id, updates)
+    return {"success": success}
+
+@app.get("/api/user/applications")
+async def get_user_applications(limit: int = 50, user: CurrentUser = Depends(get_current_user)):
+    """Retrieves tracked job applications for the authenticated tenant."""
+    apps = await cloud_db.get_applications(user.id, limit=limit)
+    return {"applications": apps}
+
+# ==============================================================================
+# Resume Analysis & Processing
+# ==============================================================================
 @app.post("/api/resume/analyze", response_model=ResumeAnalysisResult)
-async def analyze_resume(file: UploadFile = File(...)):
+async def analyze_resume(file: UploadFile = File(...), user: CurrentUser = Depends(get_current_user)):
     global LATEST_PROFILE
     file_ext = os.path.splitext(file.filename)[1].lower()
     if file_ext not in [".pdf", ".docx", ".txt"]:
         raise HTTPException(status_code=400, detail="Only .pdf, .docx, and .txt files are supported.")
 
-    file_path = os.path.join(UPLOAD_DIR, file.filename)
+    user_upload_dir = os.path.join(UPLOAD_DIR, user.id)
+    os.makedirs(user_upload_dir, exist_ok=True)
+    file_path = os.path.join(user_upload_dir, file.filename)
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
     try:
         result = await resume_analyst.analyze(file_path)
         LATEST_PROFILE = result.dict()
+        # Save extracted candidate details to profile
+        if result.name or result.email or result.phone:
+            await cloud_db.update_profile(user.id, {
+                "full_name": result.name or user.name,
+                "email": result.email or user.email,
+                "phone": result.phone,
+                "experience_years": result.years_of_experience
+            })
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -94,13 +146,13 @@ class ApplicationPrepRequest(BaseModel):
     description: Optional[str] = ""
 
 @app.post("/api/jobs/prepare-application")
-async def prepare_application(req: ApplicationPrepRequest):
+async def prepare_application(req: ApplicationPrepRequest, user: CurrentUser = Depends(get_current_user)):
     candidate_skills = LATEST_PROFILE.get("technical_skills", ["Python", "FastAPI", "AI Agents"])
     exp_years = LATEST_PROFILE.get("years_of_experience", 2)
     role_pitch = LATEST_PROFILE.get("primary_domain", "AI/Software Engineer")
 
     cover_letter = await cover_letter_agent.generate_cover_letter(
-        candidate_name="Sachin",
+        candidate_name=user.name or "Candidate",
         candidate_skills=candidate_skills,
         experience_summary=f"{exp_years} years building production applications and autonomous AI systems.",
         target_role=req.job_title,
@@ -129,13 +181,22 @@ class LiveApplyRequest(BaseModel):
     limit: int = 3
 
 @app.post("/api/naukri/auto-apply-live")
-async def execute_live_naukri_apply(req: LiveApplyRequest):
+async def execute_live_naukri_apply(req: LiveApplyRequest, user: CurrentUser = Depends(get_current_user)):
     """
     Launches autonomous Playwright browser, clicks real 'Apply on Naukri' buttons,
     submits real applications, and returns proof screenshots.
     """
     try:
         result = await naukri_live_runner.execute_live_apply(query=req.query, limit=req.limit)
+        # Record application
+        await cloud_db.create_application(user.id, {
+            "platform": "naukri",
+            "job_title": req.query,
+            "company_name": "Naukri Matched Employer",
+            "job_url": "https://www.naukri.com",
+            "status": "applied" if result.get("success") else "failed",
+            "match_score": 94.0
+        })
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -145,7 +206,7 @@ class SingleJobApplyRequest(BaseModel):
     job_title: str = "AI Engineer"
 
 @app.post("/api/naukri/apply-single")
-async def apply_single_job(req: SingleJobApplyRequest):
+async def apply_single_job(req: SingleJobApplyRequest, user: CurrentUser = Depends(get_current_user)):
     """
     Directly navigates to the specified job URL, clicks Apply,
     navigates questionnaires, and saves screenshot proof.
@@ -162,7 +223,7 @@ class WellfoundSingleApplyRequest(BaseModel):
     company: str = "Tech Startup"
 
 @app.post("/api/wellfound/apply-single")
-async def apply_single_wellfound_job(req: WellfoundSingleApplyRequest):
+async def apply_single_wellfound_job(req: WellfoundSingleApplyRequest, user: CurrentUser = Depends(get_current_user)):
     """
     Directly navigates to the specified Wellfound startup job,
     submits application with user profile & pitch, and takes screenshot proof.
@@ -178,7 +239,7 @@ async def apply_single_wellfound_job(req: WellfoundSingleApplyRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/wellfound/auto-apply-live")
-async def execute_live_wellfound_apply(req: LiveApplyRequest):
+async def execute_live_wellfound_apply(req: LiveApplyRequest, user: CurrentUser = Depends(get_current_user)):
     """
     Batch auto-apply on Wellfound startup jobs matching query.
     """
@@ -207,30 +268,36 @@ class SkipPendingRequest(BaseModel):
     question_id: str
 
 @app.get("/api/memory/qa")
-async def get_qa_memory():
-    """Returns all stored candidate memory facts and any pending unanswered recruiter questions."""
+async def get_qa_memory(user: CurrentUser = Depends(get_current_user)):
+    """Returns all stored candidate memory facts for this user and any pending unanswered recruiter questions."""
+    memories = await cloud_db.get_memories(user.id)
     return {
-        "memories": qa_vault.get_all_memories(),
+        "memories": memories,
         "pending": qa_vault.get_pending_questions()
     }
 
 @app.post("/api/memory/qa")
-async def save_qa_memory(req: QAPairRequest):
+async def save_qa_memory(req: QAPairRequest, user: CurrentUser = Depends(get_current_user)):
     """Saves or updates a permanent question-answer pair into candidate memory."""
-    entry = qa_vault.learn(question=req.question, answer=req.answer, category=req.category or "custom")
+    entry = await cloud_db.save_memory(
+        user_id=user.id,
+        question=req.question,
+        answer=req.answer,
+        category=req.category or "custom"
+    )
     return {"status": "saved", "entry": entry}
 
 @app.delete("/api/memory/qa/{memory_id}")
-async def delete_qa_memory(memory_id: str):
+async def delete_qa_memory(memory_id: str, user: CurrentUser = Depends(get_current_user)):
     """Deletes an entry from memory."""
-    success = qa_vault.delete_memory(memory_id)
+    success = await cloud_db.delete_memory(user_id=user.id, memory_id=memory_id)
     if not success:
         raise HTTPException(status_code=404, detail="Memory entry not found")
     return {"status": "deleted", "id": memory_id}
 
 @app.post("/api/memory/answer-pending")
-async def answer_pending_question(req: AnswerPendingRequest):
-    """Answers a pending question from the dashboard and permanently saves it."""
+async def answer_pending_question(req: AnswerPendingRequest, user: CurrentUser = Depends(get_current_user)):
+    """Answers a pending question from the dashboard and permanently saves it to user memory."""
     pending_items = qa_vault.get_pending_questions()
     matched = None
     for p in pending_items:
@@ -240,6 +307,13 @@ async def answer_pending_question(req: AnswerPendingRequest):
     if not matched:
         raise HTTPException(status_code=404, detail="Pending question not found")
 
+    await cloud_db.save_memory(
+        user_id=user.id,
+        question=matched["question"],
+        answer=req.answer,
+        category="recruiter_qa"
+    )
+    # Also resolve in local cache
     qa_vault.learn(question=matched["question"], answer=req.answer, category="recruiter_qa")
     return {"status": "answered_and_remembered", "question": matched["question"], "answer": req.answer}
 
