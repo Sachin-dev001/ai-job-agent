@@ -5,6 +5,17 @@ const originalFetch = window.fetch;
 window.fetch = async function(url, options = {}) {
     options = options || {};
     options.headers = options.headers || {};
+    
+    // Auto-resolve relative API paths when running on external Vercel domain
+    if (typeof url === 'string' && url.startsWith('/api/')) {
+        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        if (!isLocal) {
+            const remoteBackend = localStorage.getItem('backend_api_url') || '';
+            if (remoteBackend) {
+                url = remoteBackend.replace(/\/$/, '') + url;
+            }
+        }
+    }
     const token = (typeof getAuthToken === 'function') ? getAuthToken() : localStorage.getItem("autoapply_auth_token");
     if (token) {
         if (options.headers instanceof Headers) {
@@ -1251,6 +1262,9 @@ function toggleCloudConfigModal(show) {
     if (show) {
         document.getElementById("cfgSupabaseUrl").value = localStorage.getItem("supabase_url") || "";
         document.getElementById("cfgSupabaseAnonKey").value = localStorage.getItem("supabase_anon_key") || "";
+        if (document.getElementById("cfgBackendUrl")) {
+            document.getElementById("cfgBackendUrl").value = localStorage.getItem("backend_api_url") || "";
+        }
         m.classList.remove("hidden");
     } else {
         m.classList.add("hidden");
@@ -1271,6 +1285,12 @@ function saveCloudConfig() {
     }
     localStorage.setItem("supabase_url", url);
     localStorage.setItem("supabase_anon_key", key);
+    const backendUrl = document.getElementById("cfgBackendUrl")?.value?.trim() || "";
+    if (backendUrl) {
+        localStorage.setItem("backend_api_url", backendUrl);
+    } else {
+        localStorage.removeItem("backend_api_url");
+    }
     alert("Supabase keys saved! Re-initializing client...");
     toggleCloudConfigModal(false);
     initSupabase();
