@@ -14,17 +14,22 @@ class GeminiService:
     """
 
     def __init__(self):
-        self.api_key = settings.GEMINI_API_KEY
         self.model_endpoint = "gemini-flash-lite-latest"
 
+    def get_api_key(self) -> str:
+        key = os.getenv("GEMINI_API_KEY", "") or getattr(settings, "GEMINI_API_KEY", "") or ""
+        return key.strip("'\" \t\r\n")
+
     def is_available(self) -> bool:
-        return bool(self.api_key and len(self.api_key) > 20)
+        key = self.get_api_key()
+        return bool(key and len(key) > 20)
 
     def generate(self, prompt: str, system_prompt: str = "", json_mode: bool = False, temperature: float = 0.2) -> Optional[str]:
-        if not self.is_available():
+        api_key = self.get_api_key()
+        if not api_key:
             return None
 
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model_endpoint}:generateContent?key={self.api_key}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model_endpoint}:generateContent?key={api_key}"
         
         contents = []
         if system_prompt:
@@ -48,12 +53,13 @@ class GeminiService:
                 data=json.dumps(payload).encode("utf-8"),
                 headers={"Content-Type": "application/json"}
             )
-            res = urllib.request.urlopen(req, timeout=15)
+            res = urllib.request.urlopen(req, timeout=20)
             data = json.loads(res.read().decode())
             candidates = data.get("candidates", [])
             if candidates and candidates[0].get("content", {}).get("parts"):
                 return candidates[0]["content"]["parts"][0]["text"].strip()
         except Exception as e:
+            print(f"[Gemini Service] API call notice: {e}")
             logger.warning(f"[Gemini Service] API call failed: {e}")
             return None
 

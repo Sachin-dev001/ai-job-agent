@@ -1,10 +1,13 @@
 import os
 import json
+import logging
 import groq
 from app.config import settings
 from app.parsers.document_parser import parse_resume_file
 from app.parsers.models import ResumeAnalysisResult, JobTitleRecommendation
 from app.llm.gemini_service import gemini_service
+
+logger = logging.getLogger("resume_analyst")
 
 RESUME_EXTRACTION_SYSTEM_PROMPT = """You are an expert technical recruiter and resume analyst.
 Extract structured information from the provided resume text.
@@ -41,36 +44,66 @@ class ResumeAnalyst:
         if not raw_text.strip():
             raise ValueError("Could not extract any readable text from the uploaded document.")
 
-        prompt = f"Resume Content:\n-----------------\n{raw_text[:6000]}\n-----------------\nExtract information and output JSON strictly conforming to schema."
+        # Keep prompt concise to avoid token exhaustion
+        prompt = f"Resume Content:\n-----------------\n{raw_text[:3500]}\n-----------------\nExtract information and output JSON strictly conforming to schema."
 
         content = None
-        # 2. Try Google Gemini Flash Lite first (via Google AI Studio key)
-        if gemini_service.is_available():
-            content = gemini_service.generate(
-                prompt=prompt,
-                system_prompt=RESUME_EXTRACTION_SYSTEM_PROMPT,
-                json_mode=True,
-                temperature=0.1
-            )
 
-        # 3. Fallback to Groq if Gemini is not available or failed
-        if not content and settings.GROQ_API_KEY:
-            client = groq.Groq(api_key=settings.GROQ_API_KEY)
-            response = client.chat.completions.create(
-                model="qwen/qwen3.8-27b",
-                messages=[
-                    {"role": "system", "content": RESUME_EXTRACTION_SYSTEM_PROMPT},
-                    {"role": "user", "content": prompt}
-                ],
-                response_format={"type": "json_object"},
-                temperature=0.1
-            )
-            content = response.choices[0].message.content
+        # 2. Tier 1: Try Google Gemini Flash Lite (Highest free limits & fast)
+        if gemini_service.is_available():
+            try:
+                content = gemini_service.generate(
+                    prompt=prompt,
+                    system_prompt=RESUME_EXTRACTION_SYSTEM_PROMPT,
+                    json_mode=True,
+                    temperature=0.1
+                )
+                if content:
+                    logger.info("[ResumeAnalyst] Successfully extracted resume with Google Gemini Flash")
+            except Exception as gemini_err:
+                logger.warning(f"[ResumeAnalyst] Gemini attempt error: {gemini_err}")
+
+        # 3. Tier 2: Try Groq with multi-model failover and strict max_tokens (prevents OTPM 429)
+        groq_api_key = os.getenv("GROQ_API_KEY", "") or getattr(settings, "GROQ_API_KEY", "") or ""
+        groq_api_key = groq_api_key.strip("'\" \t\r\n")
+
+        if not content and groq_api_key:
+            client = groq.Groq(api_key=groq_api_key)
+            # Models prioritized by high rate-limits & reliable availability
+            groq_models = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"]
+
+            for model_name in groq_models:
+                try:
+                    response = client.chat.completions.create(
+                        model=model_name,
+                        messages=[
+                            {"role": "system", "content": RESUME_EXTRACTION_SYSTEM_PROMPT},
+                            {"role": "user", "content": prompt}
+                        ],
+                        response_format={"type": "json_object"},
+                        max_tokens=700,
+                        temperature=0.1
+                    )
+                    content = response.choices[0].message.content
+                    if content and len(content.strip()) > 10:
+                        logger.info(f"[ResumeAnalyst] Successfully extracted resume with Groq ({model_name})")
+                        break
+                except Exception as groq_err:
+                    logger.warning(f"[ResumeAnalyst] Groq model '{model_name}' failed: {groq_err}")
+                    continue
 
         if not content:
-            raise ValueError("Failed to analyze resume with LLM. Please check your GEMINI_API_KEY or GROQ_API_KEY.")
+            raise ValueError("Failed to analyze resume with LLM. Please verify your GEMINI_API_KEY or GROQ_API_KEY.")
 
-        data = json.loads(content)
+        # Clean codeblock fences if present
+        cleaned_content = content.strip()
+        if cleaned_content.startswith("```"):
+            cleaned_content = cleaned_content.split("\n", 1)[-1]
+            if cleaned_content.endswith("```"):
+                cleaned_content = cleaned_content.rsplit("```", 1)[0]
+        cleaned_content = cleaned_content.strip()
+
+        data = json.loads(cleaned_content)
 
         # Robust field normalization
         if "candidate_name" not in data and "name" in data:

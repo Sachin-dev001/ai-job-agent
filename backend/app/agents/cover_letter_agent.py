@@ -1,3 +1,4 @@
+import os
 import groq
 from app.config import settings
 from app.llm.gemini_service import gemini_service
@@ -32,28 +33,42 @@ Generate a punchy, 3-paragraph tailored cover letter:
 3. Call to action closing.
 """
 
-        # 1. Try Google Gemini Flash Lite first (via Google AI Studio key)
+        # 1. Tier 1: Try Google Gemini Flash Lite
         if gemini_service.is_available():
-            result = gemini_service.generate(
-                prompt=user_content,
-                system_prompt=COVER_LETTER_SYSTEM_PROMPT,
-                temperature=0.3
-            )
-            if result:
-                return result
+            try:
+                result = gemini_service.generate(
+                    prompt=user_content,
+                    system_prompt=COVER_LETTER_SYSTEM_PROMPT,
+                    temperature=0.3
+                )
+                if result and len(result.strip()) > 30:
+                    return result
+            except Exception as e:
+                print(f"[CoverLetterAgent] Gemini attempt notice: {e}")
 
-        # 2. Fallback to Groq
-        if settings.GROQ_API_KEY:
-            client = groq.Groq(api_key=settings.GROQ_API_KEY)
-            response = client.chat.completions.create(
-                model="qwen/qwen3.8-27b",
-                messages=[
-                    {"role": "system", "content": COVER_LETTER_SYSTEM_PROMPT},
-                    {"role": "user", "content": user_content}
-                ],
-                temperature=0.3
-            )
-            return response.choices[0].message.content
+        # 2. Tier 2: Groq failover with safe token limit
+        groq_api_key = os.getenv("GROQ_API_KEY", "") or getattr(settings, "GROQ_API_KEY", "") or ""
+        groq_api_key = groq_api_key.strip("'\" \t\r\n")
+
+        if groq_api_key:
+            client = groq.Groq(api_key=groq_api_key)
+            for model_name in ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"]:
+                try:
+                    response = client.chat.completions.create(
+                        model=model_name,
+                        messages=[
+                            {"role": "system", "content": COVER_LETTER_SYSTEM_PROMPT},
+                            {"role": "user", "content": user_content}
+                        ],
+                        max_tokens=600,
+                        temperature=0.3
+                    )
+                    content = response.choices[0].message.content
+                    if content and len(content.strip()) > 30:
+                        return content
+                except Exception as model_err:
+                    print(f"[CoverLetterAgent] Groq {model_name} notice: {model_err}")
+                    continue
 
         return f"Dear Hiring Team at {company},\n\nI am writing to express my strong interest in the {job_title} role. With experience in {skills}, I am confident in delivering high impact for your team.\n\nBest regards,\n{name}"
 
