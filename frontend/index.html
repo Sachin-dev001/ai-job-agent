@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Antigravity | Autonomous AI Job Hunting Engine</title>
+    <title>AutoApply | Autonomous AI Job Hunting Engine</title>
     
     <!-- Modern Sans-serif Font: Inter & JetBrains Mono -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -32,11 +32,12 @@
                             emerald: '#10b981',
                             amber: '#f59e0b',
                             violet: '#8b5cf6',
+                            purple: '#a855f7',
                         }
                     },
                     backgroundImage: {
                         'hero-glow': 'radial-gradient(ellipse 80% 50% at 50% -20%, rgba(120, 119, 198, 0.18), rgba(255, 255, 255, 0))',
-                        'grid-pattern': 'linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px), linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px)',
+                        'purple-glow': 'radial-gradient(circle at 50% 50%, rgba(168, 85, 247, 0.12), transparent 70%)',
                     }
                 }
             }
@@ -51,9 +52,6 @@
             font-feature-settings: "cv02", "cv03", "cv04", "cv11";
             background-color: #08090a;
             color: #f4f4f5;
-        }
-        .bg-grid {
-            background-size: 32px 32px;
         }
         /* Custom scrollbar */
         ::-webkit-scrollbar {
@@ -104,6 +102,38 @@
         .interactive-card:hover::before {
             opacity: 1;
         }
+
+        /* Make.com Animated Workflow Stream */
+        @keyframes flowDash {
+            to {
+                stroke-dashoffset: -40;
+            }
+        }
+        .flow-line-active {
+            stroke-dasharray: 6 6;
+            animation: flowDash 1.4s linear infinite;
+        }
+        @keyframes pulseGlow {
+            0%, 100% {
+                box-shadow: 0 0 15px rgba(16, 185, 129, 0.3), inset 0 0 10px rgba(16, 185, 129, 0.15);
+            }
+            50% {
+                box-shadow: 0 0 25px rgba(16, 185, 129, 0.7), inset 0 0 15px rgba(16, 185, 129, 0.35);
+            }
+        }
+        .node-active-glow {
+            animation: pulseGlow 2.5s ease-in-out infinite;
+        }
+        @keyframes floatSlow {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-7px); }
+        }
+        .animate-float {
+            animation: floatSlow 4s ease-in-out infinite;
+        }
+        .animate-float-delay {
+            animation: floatSlow 4.5s ease-in-out 1.5s infinite;
+        }
     </style>
 </head>
 <body class="min-h-screen bg-obsidian text-zinc-100 font-sans antialiased selection:bg-zinc-800 selection:text-white relative overflow-x-hidden">
@@ -116,19 +146,19 @@
     <div class="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-96 bg-hero-glow pointer-events-none z-0"></div>
 
     <!-- ========================================================================= -->
-    <!-- STICKY NAVIGATION BAR (Linear & Gumloop Inspired)                         -->
+    <!-- STICKY NAVIGATION BAR (Linear & Make.com Inspired)                        -->
     <!-- ========================================================================= -->
     <header class="sticky top-0 z-50 bg-obsidian/85 backdrop-blur-md hairline-b">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
             
-            <!-- Brand & Nav Links -->
+            <!-- Brand & Nav Links (Antigravity Removed -> AutoApply) -->
             <div class="flex items-center gap-8">
                 <a href="#hero" class="flex items-center gap-2.5 group">
-                    <div class="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-700/60 flex items-center justify-center font-bold text-sm text-white group-hover:border-zinc-500 transition shadow-inner">
-                        <i data-lucide="orbit" class="w-4 h-4 text-emerald-400"></i>
+                    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500/20 via-purple-500/20 to-emerald-500/20 border border-zinc-700/60 flex items-center justify-center font-bold text-sm text-white group-hover:border-zinc-500 transition shadow-inner">
+                        <i data-lucide="zap" class="w-4 h-4 text-emerald-400"></i>
                     </div>
                     <div class="flex items-center gap-2">
-                        <span class="font-bold text-sm tracking-tight text-white">Antigravity</span>
+                        <span class="font-bold text-sm tracking-tight text-white">AutoApply</span>
                         <span class="text-zinc-600 text-xs">/</span>
                         <span class="text-xs text-zinc-400 font-medium">Job Engine</span>
                         <span class="text-[10px] font-mono bg-zinc-900 border border-zinc-800 text-emerald-400 px-1.5 py-0.5 rounded font-medium">v2.5 Live</span>
@@ -137,7 +167,8 @@
 
                 <nav class="hidden md:flex items-center gap-5 text-xs text-zinc-400">
                     <a href="#hero" class="hover:text-zinc-200 transition">Overview</a>
-                    <a href="#workflow" class="hover:text-zinc-200 transition">Architecture</a>
+                    <a href="#scenarioSection" class="hover:text-zinc-200 transition">Scenario Canvas</a>
+                    <a href="#integrationsRibbon" class="hover:text-zinc-200 transition">Integrations</a>
                     <a href="#console" class="text-zinc-200 font-medium hover:text-white transition flex items-center gap-1.5">
                         <span>Live Console</span>
                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
@@ -183,9 +214,9 @@
     </header>
 
     <!-- ========================================================================= -->
-    <!-- COVER PAGE / HERO LANDING SECTION (Linear & Gumloop Design System)        -->
+    <!-- COVER PAGE / HERO LANDING SECTION (Linear & Make.com Design System)       -->
     <!-- ========================================================================= -->
-    <section id="hero" class="relative z-10 pt-16 sm:pt-24 pb-16 px-4 sm:px-6 max-w-7xl mx-auto text-center">
+    <section id="hero" class="relative z-10 pt-16 sm:pt-20 pb-12 px-4 sm:px-6 max-w-7xl mx-auto text-center">
         
         <!-- Top Release Pill Announcement (Linear Style) -->
         <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-zinc-900/90 border border-zinc-700/60 text-xs text-zinc-300 shadow-sm backdrop-blur mb-6 hover:border-zinc-600 transition">
@@ -223,10 +254,10 @@
                 <span>Inspect Memory Vault (21 Saved)</span>
             </button>
 
-            <a href="https://github.com/Sachin-dev001/ai-job-agent" target="_blank" class="px-4 py-2.5 rounded-lg bg-transparent hover:bg-zinc-900 border border-transparent hover:border-zinc-800 text-zinc-400 hover:text-zinc-200 font-medium text-sm transition flex items-center gap-2">
-                <i data-lucide="github" class="w-4 h-4"></i>
-                <span>Private Repo</span>
-            </a>
+            <button onclick="triggerScenarioSimulation()" class="px-4 py-2.5 rounded-lg bg-zinc-900/60 hover:bg-zinc-800 border border-zinc-800 text-emerald-400 font-medium text-sm transition flex items-center gap-2">
+                <i data-lucide="play" class="w-4 h-4 text-emerald-400 fill-emerald-400"></i>
+                <span>Play Scenario Demo</span>
+            </button>
         </div>
 
         <!-- Trust & Telemetry Strip (Linear Cool-Grey Ladder) -->
@@ -256,73 +287,317 @@
     </section>
 
     <!-- ========================================================================= -->
-    <!-- AGENT PIPELINE ARCHITECTURE (Gumloop Workflow Style)                      -->
+    <!-- MAKE.COM FEATURE 1: INTERACTIVE VISUAL SCENARIO CANVAS (from Video Frame 0)-->
     <!-- ========================================================================= -->
-    <section id="workflow" class="py-16 px-4 sm:px-6 max-w-7xl mx-auto relative z-10">
-        <div class="text-center max-w-3xl mx-auto mb-12">
-            <span class="text-[11px] font-mono uppercase tracking-wider text-zinc-400 bg-zinc-900 border border-zinc-800 px-2.5 py-1 rounded-full font-medium">Autonomous Execution Graph</span>
-            <h2 class="text-2xl sm:text-3xl font-bold tracking-tight text-white mt-3">How the Multi-Agent System Operates</h2>
-            <p class="text-xs sm:text-sm text-zinc-400 mt-2">Modeled after modern workflow platforms like Gumloop: deterministic state transitions with human safety gates.</p>
+    <section id="scenarioSection" class="py-12 px-4 sm:px-6 max-w-7xl mx-auto relative z-10">
+        <div class="bg-card hairline-border rounded-2xl p-6 md:p-8 shadow-2xl relative overflow-hidden interactive-card">
+            
+            <!-- Window Titlebar -->
+            <div class="flex items-center justify-between border-b border-zinc-800 pb-4 mb-6">
+                <div class="flex items-center gap-3">
+                    <div class="flex gap-1.5">
+                        <span class="w-3 h-3 rounded-full bg-red-500/80"></span>
+                        <span class="w-3 h-3 rounded-full bg-yellow-500/80"></span>
+                        <span class="w-3 h-3 rounded-full bg-emerald-500/80"></span>
+                    </div>
+                    <span class="text-xs font-mono text-zinc-400 pl-2 border-l border-zinc-800">AutoApply Visual Scenario Builder &middot; Multi-Agent Workflow</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="triggerScenarioSimulation()" class="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs px-3 py-1 rounded-md font-semibold transition flex items-center gap-1.5 shadow-sm">
+                        <i data-lucide="play" class="w-3 h-3 fill-emerald-400"></i>
+                        <span id="simBtnText">Run Simulation</span>
+                    </button>
+                    <span class="text-[10px] font-mono bg-zinc-900 border border-zinc-800 text-zinc-400 px-2 py-0.5 rounded">Scenario: Active</span>
+                </div>
+            </div>
+
+            <!-- Canvas Workspace -->
+            <div class="relative py-8 min-h-[260px] flex items-center justify-between flex-col md:flex-row gap-6 md:gap-2">
+                
+                <!-- SVG Connecting Curves (with animated dashed stream) -->
+                <svg class="hidden md:block absolute inset-0 w-full h-full pointer-events-none z-0" preserveAspectRatio="none" viewBox="0 0 1000 240">
+                    <defs>
+                        <linearGradient id="flowGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stop-color="#10b981" stop-opacity="0.8" />
+                            <stop offset="50%" stop-color="#3b82f6" stop-opacity="0.8" />
+                            <stop offset="100%" stop-color="#a855f7" stop-opacity="0.8" />
+                        </linearGradient>
+                    </defs>
+                    <!-- Main Path connecting the 5 nodes -->
+                    <path d="M 100 120 C 220 50, 280 190, 325 120 C 370 50, 480 190, 525 120 C 570 50, 680 190, 725 120 C 770 50, 880 190, 900 120" 
+                          fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="4" stroke-linecap="round" />
+                    <path id="svgFlowLine" d="M 100 120 C 220 50, 280 190, 325 120 C 370 50, 480 190, 525 120 C 570 50, 680 190, 725 120 C 770 50, 880 190, 900 120" 
+                          fill="none" stroke="url(#flowGrad)" stroke-width="3" stroke-linecap="round" class="flow-line-active" />
+                </svg>
+
+                <!-- Node 1: Candidate Ingestion -->
+                <div id="simNode1" class="relative z-10 flex flex-col items-center text-center group cursor-pointer transition">
+                    <div class="w-16 h-16 rounded-full bg-zinc-900 border-2 border-zinc-700 flex items-center justify-center text-zinc-100 shadow-xl group-hover:scale-105 group-hover:border-emerald-400 transition node-active-glow">
+                        <i data-lucide="file-text" class="w-7 h-7 text-emerald-400"></i>
+                    </div>
+                    <span class="text-xs font-semibold text-zinc-200 mt-2">Resume Parsing</span>
+                    <span class="text-[10px] font-mono text-zinc-400 bg-zinc-900/90 border border-zinc-800 px-1.5 py-0.2 rounded mt-0.5">30+ Skills DNA</span>
+                </div>
+
+                <!-- Node 2: Portal Scout -->
+                <div id="simNode2" class="relative z-10 flex flex-col items-center text-center group cursor-pointer transition">
+                    <div class="w-16 h-16 rounded-full bg-zinc-900 border-2 border-zinc-700 flex items-center justify-center text-zinc-100 shadow-xl group-hover:scale-105 group-hover:border-blue-400 transition">
+                        <i data-lucide="globe" class="w-7 h-7 text-blue-400"></i>
+                    </div>
+                    <span class="text-xs font-semibold text-zinc-200 mt-2">Portal Scout</span>
+                    <span class="text-[10px] font-mono text-zinc-400 bg-zinc-900/90 border border-zinc-800 px-1.5 py-0.2 rounded mt-0.5">&le; 15-Day Filter</span>
+                </div>
+
+                <!-- Node 3: Memory Vault AI -->
+                <div id="simNode3" class="relative z-10 flex flex-col items-center text-center group cursor-pointer transition">
+                    <div class="w-16 h-16 rounded-full bg-zinc-900 border-2 border-zinc-700 flex items-center justify-center text-zinc-100 shadow-xl group-hover:scale-105 group-hover:border-purple-400 transition">
+                        <i data-lucide="brain" class="w-7 h-7 text-purple-400"></i>
+                    </div>
+                    <span class="text-xs font-semibold text-zinc-200 mt-2">Memory Vault AI</span>
+                    <span class="text-[10px] font-mono text-zinc-400 bg-zinc-900/90 border border-zinc-800 px-1.5 py-0.2 rounded mt-0.5">21 Verified Facts</span>
+                </div>
+
+                <!-- Node 4: Telegram HITL Gate -->
+                <div id="simNode4" class="relative z-10 flex flex-col items-center text-center group cursor-pointer transition">
+                    <div class="w-16 h-16 rounded-full bg-zinc-900 border-2 border-zinc-700 flex items-center justify-center text-zinc-100 shadow-xl group-hover:scale-105 group-hover:border-amber-400 transition">
+                        <i data-lucide="send" class="w-7 h-7 text-amber-400"></i>
+                    </div>
+                    <span class="text-xs font-semibold text-zinc-200 mt-2">Telegram HITL</span>
+                    <span class="text-[10px] font-mono text-zinc-400 bg-zinc-900/90 border border-zinc-800 px-1.5 py-0.2 rounded mt-0.5">&lt; 30s Realtime Gate</span>
+                </div>
+
+                <!-- Node 5: Playwright Apply -->
+                <div id="simNode5" class="relative z-10 flex flex-col items-center text-center group cursor-pointer transition">
+                    <div class="w-16 h-16 rounded-full bg-zinc-900 border-2 border-zinc-700 flex items-center justify-center text-zinc-100 shadow-xl group-hover:scale-105 group-hover:border-emerald-400 transition">
+                        <i data-lucide="shield-check" class="w-7 h-7 text-emerald-400"></i>
+                    </div>
+                    <span class="text-xs font-semibold text-zinc-200 mt-2">Playwright Submit</span>
+                    <span class="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.2 rounded mt-0.5">Screen Proof &check;</span>
+                </div>
+
+            </div>
+
+            <!-- Real-Time Telemetry Toast Bar -->
+            <div id="simLogBox" class="mt-4 p-3 bg-zinc-950 border border-zinc-800 rounded-lg text-xs font-mono text-zinc-400 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span id="simLogText">Pipeline Ready. Click "Run Simulation" to trace live application execution.</span>
+                </div>
+                <span class="text-[10px] text-zinc-600 hidden sm:inline">200 OK &middot; 0 Errors</span>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- MAKE.COM FEATURE 2: WAVY CONNECTED INTEGRATIONS RIBBON (from Video Frame 219 & 292) -->
+    <!-- ========================================================================= -->
+    <section id="integrationsRibbon" class="py-14 px-4 sm:px-6 max-w-7xl mx-auto relative z-10 text-center">
+        <div class="max-w-3xl mx-auto mb-10">
+            <span class="text-[11px] font-mono uppercase tracking-wider text-zinc-400 bg-zinc-900 border border-zinc-800 px-3 py-1 rounded-full font-medium">Native Integrations</span>
+            <h2 class="text-2xl sm:text-3xl font-bold tracking-tight text-white mt-3">Automate Across Every Platform You Care About</h2>
+            <p class="text-xs sm:text-sm text-zinc-400 mt-2">Connects your whole application pipeline with leading job boards, AI models, and communication channels.</p>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <!-- The Wavy Winding Integration Track (Make.com Style) -->
+        <div class="relative py-6 max-w-5xl mx-auto flex flex-wrap items-center justify-center gap-4 sm:gap-6">
             
-            <!-- Step 1 -->
-            <div class="bg-card hairline-border rounded-xl p-5 relative group hover:border-zinc-700 transition">
-                <div class="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-xs font-mono text-zinc-400 font-bold mb-4">
-                    01
+            <!-- Integration Bubble 1: Naukri -->
+            <div class="relative group cursor-pointer animate-float">
+                <div class="w-14 h-14 rounded-2xl bg-zinc-900/90 border border-zinc-700/80 group-hover:border-blue-400 flex items-center justify-center shadow-lg transition transform group-hover:scale-110">
+                    <span class="text-xl font-bold text-blue-400">N</span>
                 </div>
-                <h3 class="text-sm font-semibold text-white">Resume DNA Ingestion</h3>
-                <p class="text-xs text-zinc-400 mt-2 leading-relaxed">
-                    Parses DOCX/PDF, vectorizes 30+ core technical proficiencies, work history, and clusters target role titles.
-                </p>
-                <div class="mt-4 pt-3 hairline-t text-[11px] font-mono text-zinc-500">
-                    Input: Document &rarr; Output: Profile DNA
+                <div class="absolute -bottom-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition duration-200 pointer-events-none whitespace-nowrap bg-zinc-900 border border-zinc-700 text-white text-[10px] px-2 py-0.5 rounded shadow-lg z-20">
+                    Naukri &middot; Active Session &check;
                 </div>
             </div>
 
-            <!-- Step 2 -->
-            <div class="bg-card hairline-border rounded-xl p-5 relative group hover:border-zinc-700 transition">
-                <div class="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-xs font-mono text-zinc-400 font-bold mb-4">
-                    02
+            <!-- Integration Bubble 2: Wellfound -->
+            <div class="relative group cursor-pointer animate-float-delay">
+                <div class="w-14 h-14 rounded-2xl bg-zinc-900/90 border border-zinc-700/80 group-hover:border-red-400 flex items-center justify-center shadow-lg transition transform group-hover:scale-110">
+                    <span class="text-xl font-bold text-red-400">W</span>
                 </div>
-                <h3 class="text-sm font-semibold text-white">High-Signal Scout</h3>
-                <p class="text-xs text-zinc-400 mt-2 leading-relaxed">
-                    Scrapes live openings on Naukri and Wellfound. Strictly discards stale postings older than 15 days.
-                </p>
-                <div class="mt-4 pt-3 hairline-t text-[11px] font-mono text-zinc-500">
-                    Filter: &le; 15 Days (Newest First)
+                <div class="absolute -bottom-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition duration-200 pointer-events-none whitespace-nowrap bg-zinc-900 border border-zinc-700 text-white text-[10px] px-2 py-0.5 rounded shadow-lg z-20">
+                    Wellfound Startups &middot; Connected &check;
                 </div>
             </div>
 
-            <!-- Step 3 -->
-            <div class="bg-card hairline-border rounded-xl p-5 relative group hover:border-zinc-700 transition">
-                <div class="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-xs font-mono text-emerald-400 font-bold mb-4">
-                    03
+            <!-- Integration Bubble 3: Y Combinator -->
+            <div class="relative group cursor-pointer animate-float">
+                <div class="w-14 h-14 rounded-2xl bg-zinc-900/90 border border-zinc-700/80 group-hover:border-amber-400 flex items-center justify-center shadow-lg transition transform group-hover:scale-110">
+                    <span class="text-xl font-bold text-amber-500">Y</span>
                 </div>
-                <h3 class="text-sm font-semibold text-white">Memory Vault & HITL</h3>
-                <p class="text-xs text-zinc-400 mt-2 leading-relaxed">
-                    Recruiter questions match against 21 verified answers. Any unknown question alerts your Telegram for a 1-tap permanent answer.
-                </p>
-                <div class="mt-4 pt-3 hairline-t text-[11px] font-mono text-emerald-400">
-                    Human-in-the-loop: Zero Hallucination
+                <div class="absolute -bottom-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition duration-200 pointer-events-none whitespace-nowrap bg-zinc-900 border border-zinc-700 text-white text-[10px] px-2 py-0.5 rounded shadow-lg z-20">
+                    Y Combinator &middot; Work at a Startup
                 </div>
             </div>
 
-            <!-- Step 4 -->
-            <div class="bg-card hairline-border rounded-xl p-5 relative group hover:border-zinc-700 transition">
-                <div class="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-xs font-mono text-zinc-400 font-bold mb-4">
-                    04
+            <!-- Integration Bubble 4: Telegram -->
+            <div class="relative group cursor-pointer animate-float-delay">
+                <div class="w-14 h-14 rounded-2xl bg-zinc-900/90 border border-zinc-700/80 group-hover:border-sky-400 flex items-center justify-center shadow-lg transition transform group-hover:scale-110">
+                    <i data-lucide="send" class="w-6 h-6 text-sky-400"></i>
                 </div>
-                <h3 class="text-sm font-semibold text-white">Playwright Submission</h3>
-                <p class="text-xs text-zinc-400 mt-2 leading-relaxed">
-                    Headless Chromium fills application fields, handles dynamic modals, submits the application, and captures a screenshot proof.
-                </p>
-                <div class="mt-4 pt-3 hairline-t text-[11px] font-mono text-zinc-500">
-                    Proof: Timestamped Screen Capture
+                <div class="absolute -bottom-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition duration-200 pointer-events-none whitespace-nowrap bg-zinc-900 border border-zinc-700 text-white text-[10px] px-2 py-0.5 rounded shadow-lg z-20">
+                    Telegram Bot &middot; 24/7 HITL Gateway
                 </div>
             </div>
 
+            <!-- Integration Bubble 5: Playwright -->
+            <div class="relative group cursor-pointer animate-float">
+                <div class="w-14 h-14 rounded-2xl bg-zinc-900/90 border border-zinc-700/80 group-hover:border-emerald-400 flex items-center justify-center shadow-lg transition transform group-hover:scale-110">
+                    <i data-lucide="chrome" class="w-6 h-6 text-emerald-400"></i>
+                </div>
+                <div class="absolute -bottom-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition duration-200 pointer-events-none whitespace-nowrap bg-zinc-900 border border-zinc-700 text-white text-[10px] px-2 py-0.5 rounded shadow-lg z-20">
+                    Playwright &middot; Headless Automation
+                </div>
+            </div>
+
+            <!-- Integration Bubble 6: Claude AI -->
+            <div class="relative group cursor-pointer animate-float-delay">
+                <div class="w-14 h-14 rounded-2xl bg-zinc-900/90 border border-zinc-700/80 group-hover:border-amber-300 flex items-center justify-center shadow-lg transition transform group-hover:scale-110">
+                    <i data-lucide="sparkles" class="w-6 h-6 text-amber-300"></i>
+                </div>
+                <div class="absolute -bottom-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition duration-200 pointer-events-none whitespace-nowrap bg-zinc-900 border border-zinc-700 text-white text-[10px] px-2 py-0.5 rounded shadow-lg z-20">
+                    Claude 3.5 &middot; Screening Reasoner
+                </div>
+            </div>
+
+            <!-- Integration Bubble 7: OpenAI -->
+            <div class="relative group cursor-pointer animate-float">
+                <div class="w-14 h-14 rounded-2xl bg-zinc-900/90 border border-zinc-700/80 group-hover:border-purple-400 flex items-center justify-center shadow-lg transition transform group-hover:scale-110">
+                    <i data-lucide="cpu" class="w-6 h-6 text-purple-400"></i>
+                </div>
+                <div class="absolute -bottom-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition duration-200 pointer-events-none whitespace-nowrap bg-zinc-900 border border-zinc-700 text-white text-[10px] px-2 py-0.5 rounded shadow-lg z-20">
+                    OpenAI &middot; Vector Embeddings
+                </div>
+            </div>
+
+            <!-- Integration Bubble 8: LinkedIn -->
+            <div class="relative group cursor-pointer animate-float-delay">
+                <div class="w-14 h-14 rounded-2xl bg-zinc-900/90 border border-zinc-700/80 group-hover:border-blue-500 flex items-center justify-center shadow-lg transition transform group-hover:scale-110">
+                    <span class="text-xl font-bold text-blue-500 font-serif">in</span>
+                </div>
+                <div class="absolute -bottom-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition duration-200 pointer-events-none whitespace-nowrap bg-zinc-900 border border-zinc-700 text-white text-[10px] px-2 py-0.5 rounded shadow-lg z-20">
+                    LinkedIn &middot; Profile Sync
+                </div>
+            </div>
+
+            <!-- Integration Bubble 9: Gmail -->
+            <div class="relative group cursor-pointer animate-float">
+                <div class="w-14 h-14 rounded-2xl bg-zinc-900/90 border border-zinc-700/80 group-hover:border-red-500 flex items-center justify-center shadow-lg transition transform group-hover:scale-110">
+                    <i data-lucide="mail" class="w-6 h-6 text-red-400"></i>
+                </div>
+                <div class="absolute -bottom-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition duration-200 pointer-events-none whitespace-nowrap bg-zinc-900 border border-zinc-700 text-white text-[10px] px-2 py-0.5 rounded shadow-lg z-20">
+                    Gmail &middot; Recruiter Interview Listener
+                </div>
+            </div>
+
+            <!-- Integration Bubble 10: GitHub -->
+            <div class="relative group cursor-pointer animate-float-delay">
+                <div class="w-14 h-14 rounded-2xl bg-zinc-900/90 border border-zinc-700/80 group-hover:border-zinc-300 flex items-center justify-center shadow-lg transition transform group-hover:scale-110">
+                    <i data-lucide="github" class="w-6 h-6 text-zinc-300"></i>
+                </div>
+                <div class="absolute -bottom-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition duration-200 pointer-events-none whitespace-nowrap bg-zinc-900 border border-zinc-700 text-white text-[10px] px-2 py-0.5 rounded shadow-lg z-20">
+                    GitHub &middot; Proof Repository
+                </div>
+            </div>
+
+        </div>
+
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- MAKE.COM FEATURE 3: VIDEO ANIMATION SHOWCASE & ROI (from Video Frame 438) -->
+    <!-- ========================================================================= -->
+    <section class="py-14 px-4 sm:px-6 max-w-7xl mx-auto relative z-10">
+        <div class="bg-gradient-to-b from-card to-obsidian hairline-border rounded-2xl p-6 sm:p-10 shadow-2xl relative overflow-hidden interactive-card">
+            
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+                
+                <!-- Left: Video-Style Product Showcase -->
+                <div class="lg:col-span-7 space-y-4">
+                    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
+                        <i data-lucide="zap" class="w-3.5 h-3.5 fill-emerald-400"></i>
+                        <span>3 Hours Manual Apply &rarr; 45 Seconds Autonomous</span>
+                    </div>
+
+                    <h2 class="text-2xl sm:text-4xl font-bold tracking-tight text-white leading-tight">
+                        Builder &middot; Build, test, debug and run in one visual environment.
+                    </h2>
+
+                    <p class="text-sm text-zinc-400 leading-relaxed">
+                        Job portal questionnaires, chatbot screenings, and custom cover letters that used to consume hours every day are completely delegated to your browser agent with full human-in-the-loop oversight.
+                    </p>
+
+                    <!-- Interactive Execution Video Preview Box -->
+                    <div class="relative bg-zinc-950 border border-zinc-800 rounded-xl p-4 shadow-inner overflow-hidden">
+                        <div class="flex items-center justify-between text-xs border-b border-zinc-800 pb-2 mb-3">
+                            <span class="font-mono text-zinc-400 flex items-center gap-1.5">
+                                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                                Playwright Headless Runner &middot; Wellfound Apply
+                            </span>
+                            <span class="font-mono text-[11px] text-zinc-500">1440x900 &middot; 60fps</span>
+                        </div>
+                        <div class="space-y-2 font-mono text-[11px] text-zinc-300">
+                            <div class="flex items-center gap-2">
+                                <span class="text-emerald-400">&check;</span>
+                                <span>Navigated to job listing: <span class="text-zinc-400">https://wellfound.com/jobs/data-analyst</span></span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-emerald-400">&check;</span>
+                                <span>Verified posting date: <span class="text-zinc-100 font-semibold">1d ago (&le; 15 days verified)</span></span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-emerald-400">&check;</span>
+                                <span>Memory Vault answered: <span class="text-zinc-400">"Notice Period" &rarr; "15 Days or less"</span></span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-emerald-400">&check;</span>
+                                <span>Submitted pitch and captured visual proof screenshot</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: ROI Metrics Column -->
+                <div class="lg:col-span-5 space-y-4">
+                    <div class="p-5 bg-surface/80 rounded-xl hairline-border">
+                        <span class="text-[11px] font-mono uppercase tracking-wider text-zinc-500 block">Candidate Time Saved</span>
+                        <div class="text-3xl font-extrabold text-white mt-1">140+ Hours</div>
+                        <p class="text-xs text-zinc-400 mt-1">Per month of tedious manual form-filling reclaimed.</p>
+                    </div>
+
+                    <div class="p-5 bg-surface/80 rounded-xl hairline-border">
+                        <span class="text-[11px] font-mono uppercase tracking-wider text-zinc-500 block">Recruiter Agency Cost</span>
+                        <div class="text-3xl font-extrabold text-emerald-400 mt-1">$0 / Free</div>
+                        <p class="text-xs text-zinc-400 mt-1">100% self-hosted on your machine. Your keys, your data.</p>
+                    </div>
+
+                    <div class="p-5 bg-surface/80 rounded-xl hairline-border">
+                        <span class="text-[11px] font-mono uppercase tracking-wider text-zinc-500 block">Screening Accuracy</span>
+                        <div class="text-3xl font-extrabold text-white mt-1">100% Verified</div>
+                        <p class="text-xs text-zinc-400 mt-1">Zero AI hallucinated credentials with Telegram HITL backup.</p>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- TRUST STRIP (from Video Frame 146)                                        -->
+    <!-- ========================================================================= -->
+    <section class="py-10 px-4 sm:px-6 max-w-7xl mx-auto relative z-10 text-center hairline-t">
+        <p class="text-xs font-mono uppercase tracking-widest text-zinc-500 mb-6">Engineered for candidates targeting top engineering teams</p>
+        <div class="flex flex-wrap items-center justify-center gap-8 sm:gap-12 text-zinc-500 font-semibold text-sm opacity-60">
+            <span>Y COMBINATOR</span>
+            <span>GOOGLE</span>
+            <span>MICROSOFT</span>
+            <span>META</span>
+            <span>VERCEL</span>
+            <span>STRIPE</span>
+            <span>AMAZON</span>
         </div>
     </section>
 
@@ -357,7 +632,7 @@
         <!-- Top Metrics KPI Grid -->
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
             
-            <div class="bg-card hairline-border rounded-xl p-4 flex flex-col justify-between">
+            <div class="bg-card hairline-border rounded-xl p-4 flex flex-col justify-between interactive-card">
                 <span class="text-xs font-medium text-zinc-400 flex items-center justify-between">
                     <span>Parsed Candidate</span>
                     <i data-lucide="user-check" class="w-4 h-4 text-zinc-500"></i>
@@ -366,7 +641,7 @@
                 <span class="text-[11px] text-zinc-500 mt-0.5">Resume DNA extracted</span>
             </div>
 
-            <div class="bg-card hairline-border rounded-xl p-4 flex flex-col justify-between">
+            <div class="bg-card hairline-border rounded-xl p-4 flex flex-col justify-between interactive-card">
                 <span class="text-xs font-medium text-zinc-400 flex items-center justify-between">
                     <span>Active Openings</span>
                     <i data-lucide="briefcase" class="w-4 h-4 text-zinc-500"></i>
@@ -375,7 +650,7 @@
                 <span class="text-[11px] text-zinc-500 mt-0.5">&le; 15 days freshness</span>
             </div>
 
-            <div class="bg-card hairline-border rounded-xl p-4 flex flex-col justify-between">
+            <div class="bg-card hairline-border rounded-xl p-4 flex flex-col justify-between interactive-card">
                 <span class="text-xs font-medium text-zinc-400 flex items-center justify-between">
                     <span>Submissions</span>
                     <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400"></i>
@@ -384,7 +659,7 @@
                 <span class="text-[11px] text-zinc-500 mt-0.5">Verified with proof</span>
             </div>
 
-            <div class="bg-card hairline-border rounded-xl p-4 flex flex-col justify-between">
+            <div class="bg-card hairline-border rounded-xl p-4 flex flex-col justify-between interactive-card">
                 <span class="text-xs font-medium text-zinc-400 flex items-center justify-between">
                     <span>Questions Learned</span>
                     <i data-lucide="help-circle" class="w-4 h-4 text-zinc-500"></i>
@@ -402,7 +677,7 @@
             <div class="lg:col-span-4 space-y-4">
                 
                 <!-- Resume Upload Panel -->
-                <div class="bg-card hairline-border rounded-xl p-4 space-y-3">
+                <div class="bg-card hairline-border rounded-xl p-4 space-y-3 interactive-card">
                     <div class="flex items-center justify-between">
                         <span class="text-xs font-semibold text-zinc-200 flex items-center gap-2">
                             <i data-lucide="file-text" class="w-3.5 h-3.5 text-zinc-400"></i>
@@ -438,7 +713,7 @@
                 </div>
 
                 <!-- Parsed Candidate DNA Card -->
-                <div id="profileCard" class="hidden bg-card hairline-border rounded-xl p-4 space-y-4">
+                <div id="profileCard" class="hidden bg-card hairline-border rounded-xl p-4 space-y-4 interactive-card">
                     <div>
                         <span class="text-xs font-semibold text-zinc-200">Candidate Information</span>
                         <div id="profileSummary" class="text-xs text-zinc-400 space-y-1 mt-2"></div>
@@ -463,7 +738,7 @@
             <div class="lg:col-span-8 space-y-4">
                 
                 <!-- Main Workspace Card -->
-                <div class="bg-card hairline-border rounded-xl p-5 shadow-sm space-y-4">
+                <div class="bg-card hairline-border rounded-xl p-5 shadow-sm space-y-4 interactive-card">
                     
                     <!-- Segmented Controls: Platform Switcher -->
                     <div class="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 pb-3">
@@ -566,6 +841,34 @@
         </div>
 
     </section>
+
+    <!-- ========================================================================= -->
+    <!-- FOOTER (from Make.com Video Frame 511)                                    -->
+    <!-- ========================================================================= -->
+    <footer class="py-12 px-4 sm:px-6 max-w-7xl mx-auto relative z-10 hairline-t text-xs text-zinc-500 space-y-6">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-2">
+                <div class="w-6 h-6 rounded bg-zinc-900 border border-zinc-800 flex items-center justify-center font-bold text-xs text-white">
+                    <i data-lucide="zap" class="w-3.5 h-3.5 text-emerald-400"></i>
+                </div>
+                <span class="font-bold text-zinc-300">AutoApply</span>
+                <span class="text-zinc-600">&middot;</span>
+                <span>Autonomous Job Application Orchestrator</span>
+            </div>
+            <div class="flex items-center gap-4">
+                <a href="#hero" class="hover:text-zinc-300 transition">Back to Top</a>
+                <a href="#console" class="hover:text-zinc-300 transition">Console</a>
+                <a href="https://github.com/Sachin-dev001/ai-job-agent" target="_blank" class="hover:text-zinc-300 transition">GitHub</a>
+            </div>
+        </div>
+        <div class="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-zinc-900 text-[11px] text-zinc-600">
+            <span>&copy; 2026 AutoApply AI Engine. All rights reserved. Open-source local execution.</span>
+            <div class="flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                <span class="text-zinc-400 font-mono">Headless Automation Engine: Standby</span>
+            </div>
+        </div>
+    </footer>
 
     <!-- ========================================================================= -->
     <!-- MODALS & DRAWERS                                                          -->
@@ -734,7 +1037,7 @@
     </div>
 
     <!-- Application Controller Script -->
-    <script src="/static/js/app.js?v=11.0"></script>
+    <script src="/static/js/app.js?v=12.0"></script>
     <script>
         lucide.createIcons();
     </script>

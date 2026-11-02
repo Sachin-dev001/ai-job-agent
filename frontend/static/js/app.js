@@ -934,3 +934,66 @@ function initMouseInteractiveAnimations() {
 document.addEventListener("DOMContentLoaded", () => {
     initMouseInteractiveAnimations();
 });
+
+
+// ==========================================
+// Make.com Interactive Scenario Simulation
+// ==========================================
+let isSimulating = false;
+function triggerScenarioSimulation() {
+    if (isSimulating) return;
+    isSimulating = true;
+
+    const scenarioSec = document.getElementById("scenarioSection");
+    if (scenarioSec) {
+        scenarioSec.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+
+    const btnText = document.getElementById("simBtnText");
+    const logText = document.getElementById("simLogText");
+    const nodes = [
+        { id: "simNode1", label: "1/5: Ingestion Complete · Extracted 30+ Skills DNA from Sachin's Resume" },
+        { id: "simNode2", label: "2/5: Portal Scout Finished · Discovered 7 Openings (≤ 15-Day Freshness Filtered)" },
+        { id: "simNode3", label: "3/5: Screening Reasoning · Verified 21 Canonical Facts from Memory Vault" },
+        { id: "simNode4", label: "4/5: Zero-Hallucination Safe · Telegram Real-time HITL Gate Standby" },
+        { id: "simNode5", label: "5/5: Playwright Submit Success · Headless Form Submitted & Screen Proof Captured" }
+    ];
+
+    if (btnText) btnText.textContent = "Simulating...";
+
+    nodes.forEach(n => {
+        const el = document.getElementById(n.id);
+        if (el) {
+            el.classList.remove("node-active-glow", "scale-110");
+        }
+    });
+
+    let currentStep = 0;
+    const interval = setInterval(() => {
+        if (currentStep > 0) {
+            const prevEl = document.getElementById(nodes[currentStep - 1].id);
+            if (prevEl) prevEl.classList.remove("scale-110");
+        }
+
+        if (currentStep < nodes.length) {
+            const step = nodes[currentStep];
+            const el = document.getElementById(step.id);
+            if (el) {
+                el.classList.add("node-active-glow", "scale-110");
+            }
+            if (logText) {
+                logText.innerHTML = `<span class="text-emerald-400 font-bold">●</span> ${step.label}`;
+            }
+            currentStep++;
+        } else {
+            clearInterval(interval);
+            setTimeout(() => {
+                if (logText) {
+                    logText.innerHTML = `<span class="text-emerald-400 font-bold">&check;</span> Simulation Complete &middot; 5/5 Stages Verified with 100% Determinism & Zero Hallucination.`;
+                }
+                if (btnText) btnText.textContent = "Run Simulation";
+                isSimulating = false;
+            }, 1000);
+        }
+    }, 1100);
+}
