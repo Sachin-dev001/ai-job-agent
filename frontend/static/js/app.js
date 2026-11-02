@@ -1034,12 +1034,12 @@ function getAuthToken() {
 }
 
 function initSupabase() {
-    const defaultUrl = "https://your-project.supabase.co";
-    const defaultAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...";
+    const defaultUrl = "https://iyqcrvdmlbtzrehwaxvl.supabase.co";
+    const defaultAnonKey = "sb_publishable_NAnZqKhLVDso23lHeRV_HA_BpJ0fJn9";
     const savedUrl = localStorage.getItem("supabase_url") || defaultUrl;
     const savedKey = localStorage.getItem("supabase_anon_key") || defaultAnonKey;
 
-    if (window.supabase && window.supabase.createClient && savedUrl !== defaultUrl) {
+    if (window.supabase && window.supabase.createClient && savedUrl) {
         try {
             supabaseClient = window.supabase.createClient(savedUrl, savedKey);
             supabaseClient.auth.onAuthStateChange((event, session) => {
