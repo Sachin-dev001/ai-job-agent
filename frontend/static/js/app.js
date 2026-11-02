@@ -222,15 +222,25 @@ async function triggerJobSearch(query) {
     }
 
     const tableBody = document.getElementById("jobsTableBody");
+    const mobileCards = document.getElementById("jobsCardsMobile");
     const searchJobsBtn = document.getElementById("searchJobsBtn");
     
-    tableBody.innerHTML = `
-        <tr>
-            <td colspan="5" class="py-8 text-center text-indigo-400">
+    if (tableBody) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="5" class="py-8 text-center text-indigo-400">
+                    <span class="inline-block animate-spin mr-2">⟳</span> Scouting verified ${platLabel} postings (&le; 15 days, newest first) for "${query}"...
+                </td>
+            </tr>
+        `;
+    }
+    if (mobileCards) {
+        mobileCards.innerHTML = `
+            <div class="p-6 text-center text-indigo-400 bg-zinc-950/40 rounded-xl border border-zinc-800/80 text-xs">
                 <span class="inline-block animate-spin mr-2">⟳</span> Scouting verified ${platLabel} postings (&le; 15 days, newest first) for "${query}"...
-            </td>
-        </tr>
-    `;
+            </div>
+        `;
+    }
     if (searchJobsBtn) searchJobsBtn.disabled = true;
 
     try {
@@ -239,13 +249,22 @@ async function triggerJobSearch(query) {
         renderJobsTable(foundJobs);
         document.getElementById("statFound").textContent = foundJobs.length;
     } catch (e) {
-        tableBody.innerHTML = `
-            <tr>
-                <td colspan="5" class="py-6 text-center text-rose-400 font-medium">
+        if (tableBody) {
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="py-6 text-center text-rose-400 font-medium">
+                        Failed to fetch jobs: ${e.message}
+                    </td>
+                </tr>
+            `;
+        }
+        if (mobileCards) {
+            mobileCards.innerHTML = `
+                <div class="p-6 text-center text-rose-400 bg-zinc-950/40 rounded-xl border border-zinc-800/80 text-xs font-medium">
                     Failed to fetch jobs: ${e.message}
-                </td>
-            </tr>
-        `;
+                </div>
+            `;
+        }
     } finally {
         if (searchJobsBtn) searchJobsBtn.disabled = false;
     }
@@ -253,56 +272,113 @@ async function triggerJobSearch(query) {
 
 function renderJobsTable(jobs) {
     const tableBody = document.getElementById("jobsTableBody");
+    const mobileCards = document.getElementById("jobsCardsMobile");
+
     if (!jobs || jobs.length === 0) {
-        tableBody.innerHTML = `
-            <tr>
-                <td colspan="5" class="py-8 text-center text-slate-500">
-                    No openings found for this role on ${currentSelectedPlatform}. Try switching platforms or roles above.
-                </td>
-            </tr>
-        `;
+        const emptyMsg = `No openings found for this role on ${currentSelectedPlatform}. Try switching platforms or roles above.`;
+        if (tableBody) {
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="py-8 text-center text-slate-500">
+                        ${emptyMsg}
+                    </td>
+                </tr>
+            `;
+        }
+        if (mobileCards) {
+            mobileCards.innerHTML = `
+                <div class="p-6 text-center text-zinc-500 bg-zinc-950/40 rounded-xl border border-zinc-800/80 text-xs">
+                    ${emptyMsg}
+                </div>
+            `;
+        }
         return;
     }
 
-    tableBody.innerHTML = jobs.map((job, idx) => `
-        <tr id="job-row-${idx}" class="hover:bg-zinc-800/40 transition">
-            <td class="py-2.5 px-3.5">
-                <div class="flex items-center gap-2">
-                    <p class="font-semibold text-zinc-100 text-xs">${job.title}</p>
-                    <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-zinc-800 text-zinc-300 border border-zinc-700/60">
-                        ${job.posted_time_ago}
+    // Render Desktop Table Rows
+    if (tableBody) {
+        tableBody.innerHTML = jobs.map((job, idx) => `
+            <tr id="job-row-${idx}" class="hover:bg-zinc-800/40 transition">
+                <td class="py-2.5 px-3.5 cell-wrap max-w-xs">
+                    <div class="flex items-center gap-2">
+                        <p class="font-semibold text-zinc-100 text-xs">${job.title}</p>
+                        <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-zinc-800 text-zinc-300 border border-zinc-700/60">
+                            ${job.posted_time_ago}
+                        </span>
+                    </div>
+                    <p class="text-[11px] text-zinc-400 mt-0.5">${job.company} • <span class="text-zinc-500">${job.location}</span></p>
+                </td>
+                <td class="py-2.5 px-3.5">
+                    <span class="px-2 py-0.5 rounded text-[10px] font-medium ${
+                        job.platform === 'Naukri' 
+                            ? 'bg-zinc-800 text-zinc-300 border border-zinc-700/80' 
+                            : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                    }">
+                        ${job.platform}
                     </span>
+                </td>
+                <td class="py-2.5 px-3.5">
+                    <span class="text-xs font-mono font-medium text-emerald-400">96%</span>
+                </td>
+                <td class="py-2.5 px-3.5" id="status-cell-${idx}">
+                    <span class="inline-flex items-center gap-1.5 text-zinc-400 text-xs font-medium">
+                        <span class="w-1.5 h-1.5 rounded-full bg-zinc-500"></span> Discovered
+                    </span>
+                </td>
+                <td class="py-2.5 px-3.5 text-right space-x-1" id="action-cell-${idx}">
+                    <a href="${job.job_url}" target="_blank" class="text-zinc-400 hover:text-zinc-200 text-xs px-2 py-1 transition mr-0.5">View</a>
+                    <button onclick="directApplyRow(${idx})" class="bg-zinc-100 hover:bg-white text-zinc-900 text-[11px] px-2.5 py-1 rounded-md font-semibold transition shadow-sm">
+                        Auto-Apply
+                    </button>
+                    <button onclick="triggerApply(${idx})" class="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700/60 text-[11px] px-2 py-1 rounded-md font-medium transition">
+                        Pitch
+                    </button>
+                </td>
+            </tr>
+        `).join("");
+    }
+
+    // Render Mobile Cards View
+    if (mobileCards) {
+        mobileCards.innerHTML = jobs.map((job, idx) => `
+            <div id="job-card-${idx}" class="p-3.5 bg-zinc-900/60 hairline-border rounded-xl space-y-2.5 interactive-card">
+                <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0 flex-1">
+                        <h4 class="font-semibold text-zinc-100 text-xs leading-snug break-words">${job.title}</h4>
+                        <p class="text-[11px] text-zinc-400 mt-0.5 truncate">${job.company} &bull; <span class="text-zinc-500">${job.location}</span></p>
+                    </div>
+                    <span class="shrink-0 px-2 py-0.5 rounded text-[10px] font-medium ${
+                        job.platform === 'Naukri' 
+                            ? 'bg-zinc-800 text-zinc-300 border border-zinc-700/80' 
+                            : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                    }">${job.platform}</span>
                 </div>
-                <p class="text-[11px] text-zinc-400 mt-0.5">${job.company} • <span class="text-zinc-500">${job.location}</span></p>
-            </td>
-            <td class="py-2.5 px-3.5">
-                <span class="px-2 py-0.5 rounded text-[10px] font-medium ${
-                    job.platform === 'Naukri' 
-                        ? 'bg-zinc-800 text-zinc-300 border border-zinc-700/80' 
-                        : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                }">
-                    ${job.platform}
-                </span>
-            </td>
-            <td class="py-2.5 px-3.5">
-                <span class="text-xs font-mono font-medium text-emerald-400">96%</span>
-            </td>
-            <td class="py-2.5 px-3.5" id="status-cell-${idx}">
-                <span class="inline-flex items-center gap-1.5 text-zinc-400 text-xs font-medium">
-                    <span class="w-1.5 h-1.5 rounded-full bg-zinc-500"></span> Discovered
-                </span>
-            </td>
-            <td class="py-2.5 px-3.5 text-right space-x-1" id="action-cell-${idx}">
-                <a href="${job.job_url}" target="_blank" class="text-zinc-400 hover:text-zinc-200 text-xs px-2 py-1 transition mr-0.5">View</a>
-                <button onclick="directApplyRow(${idx})" class="bg-zinc-100 hover:bg-white text-zinc-900 text-[11px] px-2.5 py-1 rounded-md font-semibold transition shadow-sm">
-                    Auto-Apply
-                </button>
-                <button onclick="triggerApply(${idx})" class="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700/60 text-[11px] px-2 py-1 rounded-md font-medium transition">
-                    Pitch
-                </button>
-            </td>
-        </tr>
-    `).join("");
+                <div class="flex items-center justify-between text-xs pt-1 border-t border-zinc-800/60">
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] font-mono bg-zinc-800 text-zinc-300 px-1.5 py-0.5 rounded border border-zinc-700/60">${job.posted_time_ago}</span>
+                        <span class="text-[11px] font-mono font-medium text-emerald-400">96% Match</span>
+                    </div>
+                    <div id="status-card-${idx}">
+                        <span class="inline-flex items-center gap-1 text-zinc-400 text-[11px]">
+                            <span class="w-1.5 h-1.5 rounded-full bg-zinc-500"></span> Discovered
+                        </span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 pt-1" id="action-card-${idx}">
+                    <button onclick="directApplyRow(${idx})" class="flex-1 bg-zinc-100 hover:bg-white active:bg-zinc-200 text-zinc-900 text-xs py-2 rounded-lg font-semibold transition shadow-sm flex items-center justify-center gap-1.5">
+                        <i data-lucide="zap" class="w-3.5 h-3.5 text-zinc-900"></i> Auto-Apply
+                    </button>
+                    <button onclick="triggerApply(${idx})" class="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs px-3 py-2 rounded-lg font-medium transition border border-zinc-700/60">
+                        Pitch
+                    </button>
+                    <a href="${job.job_url}" target="_blank" class="bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 text-xs px-2.5 py-2 rounded-lg transition border border-zinc-800 flex items-center justify-center">
+                        <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                    </a>
+                </div>
+            </div>
+        `).join("");
+    }
+    if (window.lucide) lucide.createIcons();
 }
 
 // ==========================================
@@ -313,12 +389,19 @@ async function directApplyRow(idx) {
     if (!job) return;
 
     const actionCell = document.getElementById(`action-cell-${idx}`);
-    const originalContent = actionCell.innerHTML;
+    const actionCard = document.getElementById(`action-card-${idx}`);
+    const statusCell = document.getElementById(`status-cell-${idx}`);
+    const statusCard = document.getElementById(`status-card-${idx}`);
+
+    const originalContent = actionCell ? actionCell.innerHTML : "";
+    const originalCardContent = actionCard ? actionCard.innerHTML : "";
     const isWellfound = job.platform === "Wellfound";
     const endpoint = isWellfound ? "/api/wellfound/apply-single" : "/api/naukri/apply-single";
     const platformLabel = isWellfound ? "Wellfound" : "Naukri";
 
-    actionCell.innerHTML = `<span class="text-xs text-indigo-400 animate-spin mr-1">⟳</span> <span class="text-xs text-indigo-300 font-medium">Applying on ${platformLabel}...</span>`;
+    const loadingHtml = `<span class="text-xs text-indigo-400 animate-spin mr-1">⟳</span> <span class="text-xs text-indigo-300 font-medium">Applying on ${platformLabel}...</span>`;
+    if (actionCell) actionCell.innerHTML = loadingHtml;
+    if (actionCard) actionCard.innerHTML = `<div class="w-full text-center py-2 text-indigo-300 text-xs font-medium"><span class="animate-spin mr-1 inline-block">⟳</span> Applying on ${platformLabel}...</div>`;
 
     try {
         const payload = isWellfound ? {
@@ -336,48 +419,65 @@ async function directApplyRow(idx) {
             body: JSON.stringify(payload)
         });
         const data = await safeParseJson(res);
-        const statusCell = document.getElementById(`status-cell-${idx}`);
         const statApplied = document.getElementById("statApplied");
 
         if (data.status === "applied_successfully") {
-            statusCell.innerHTML = `
+            const appliedStatusHtml = `
                 <span class="inline-flex items-center gap-1.5 text-emerald-400 text-xs font-semibold">
                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Applied ✅
                 </span>
             `;
-            actionCell.innerHTML = `
-                <a href="${data.proof_image || job.job_url}" target="_blank" class="text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg font-bold hover:underline inline-flex items-center gap-1">
+            if (statusCell) statusCell.innerHTML = appliedStatusHtml;
+            if (statusCard) statusCard.innerHTML = appliedStatusHtml;
+
+            const proofBtnHtml = `
+                <a href="${data.proof_image || job.job_url}" target="_blank" class="text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1.5 sm:py-1 rounded-lg font-bold hover:underline inline-flex items-center justify-center gap-1 w-full sm:w-auto">
                     ${data.proof_image ? '📸 Proof' : '🔗 View Job'}
                 </a>
             `;
+            if (actionCell) actionCell.innerHTML = proofBtnHtml;
+            if (actionCard) actionCard.innerHTML = proofBtnHtml;
+
             if (statApplied) statApplied.textContent = parseInt(statApplied.textContent || "0") + 1;
             alert(`🎉 Application 100% submitted and verified on ${platformLabel} for ${job.title}!\n\n${data.message || ''}`);
         } else if (data.status === "already_applied") {
-            statusCell.innerHTML = `
+            const alreadyHtml = `
                 <span class="inline-flex items-center gap-1.5 text-slate-400 text-xs font-semibold">
                     Already Applied
                 </span>
             `;
-            actionCell.innerHTML = `
-                <a href="${data.proof_image || '#'}" target="_blank" class="text-[11px] text-slate-400 bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-lg font-medium hover:underline">
+            if (statusCell) statusCell.innerHTML = alreadyHtml;
+            if (statusCard) statusCard.innerHTML = alreadyHtml;
+
+            const alreadyProofHtml = `
+                <a href="${data.proof_image || '#'}" target="_blank" class="text-[11px] text-slate-400 bg-slate-800 border border-slate-700 px-2.5 py-1.5 sm:py-1 rounded-lg font-medium hover:underline inline-flex items-center justify-center w-full sm:w-auto">
                     📸 Proof
                 </a>
             `;
+            if (actionCell) actionCell.innerHTML = alreadyProofHtml;
+            if (actionCard) actionCard.innerHTML = alreadyProofHtml;
             alert(`ℹ️ You have already applied to ${job.title} on ${platformLabel}.`);
         } else if (data.status === "needs_human_action") {
-            statusCell.innerHTML = `<span class="text-amber-400 text-xs font-medium">⚠️ Review Needed</span>`;
-            actionCell.innerHTML = `
-                <a href="${data.proof_image || '#'}" target="_blank" class="text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg font-medium hover:underline">
+            const reviewHtml = `<span class="text-amber-400 text-xs font-medium">⚠️ Review Needed</span>`;
+            if (statusCell) statusCell.innerHTML = reviewHtml;
+            if (statusCard) statusCard.innerHTML = reviewHtml;
+
+            const reviewBtnHtml = `
+                <a href="${data.proof_image || '#'}" target="_blank" class="text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1.5 sm:py-1 rounded-lg font-medium hover:underline inline-flex items-center justify-center w-full sm:w-auto">
                     ⚠️ Telegram Alert
                 </a>
             `;
+            if (actionCell) actionCell.innerHTML = reviewBtnHtml;
+            if (actionCard) actionCard.innerHTML = reviewBtnHtml;
             alert(`⚠️ Recruiter Question Needed:\n\n${data.message}`);
         } else {
-            actionCell.innerHTML = originalContent;
+            if (actionCell) actionCell.innerHTML = originalContent;
+            if (actionCard) actionCard.innerHTML = originalCardContent;
             openQuickApplyModal(idx, data.message || "Application action needed");
         }
     } catch (e) {
-        actionCell.innerHTML = originalContent;
+        if (actionCell) actionCell.innerHTML = originalContent;
+        if (actionCard) actionCard.innerHTML = originalCardContent;
         openQuickApplyModal(idx, e.message || "Automation error");
     }
 }
@@ -1178,15 +1278,46 @@ function renderAuthNavbar() {
     const emailDisplay = document.getElementById("userEmailDisplay");
     const avatarDisplay = document.getElementById("userAvatar");
 
+    const mobileUserName = document.getElementById("mobileUserName");
+    const mobileUserAvatar = document.getElementById("mobileUserAvatar");
+    const mobileSignInBtn = document.getElementById("mobileSignInBtn");
+    const mobileSignOutBtn = document.getElementById("mobileSignOutBtn");
+
     if (currentAuthUser) {
         if (signInBtn) signInBtn.classList.add("hidden");
         if (userMenu) userMenu.classList.remove("hidden");
         if (nameDisplay) nameDisplay.textContent = currentAuthUser.name;
         if (emailDisplay) emailDisplay.textContent = currentAuthUser.email;
         if (avatarDisplay) avatarDisplay.textContent = (currentAuthUser.name[0] || "U").toUpperCase();
+
+        if (mobileUserName) mobileUserName.textContent = currentAuthUser.name;
+        if (mobileUserAvatar) mobileUserAvatar.textContent = (currentAuthUser.name[0] || "U").toUpperCase();
+        if (mobileSignInBtn) mobileSignInBtn.classList.add("hidden");
+        if (mobileSignOutBtn) mobileSignOutBtn.classList.remove("hidden");
     } else {
         if (signInBtn) signInBtn.classList.remove("hidden");
         if (userMenu) userMenu.classList.add("hidden");
+
+        if (mobileUserName) mobileUserName.textContent = "Guest";
+        if (mobileUserAvatar) mobileUserAvatar.textContent = "G";
+        if (mobileSignInBtn) mobileSignInBtn.classList.remove("hidden");
+        if (mobileSignOutBtn) mobileSignOutBtn.classList.add("hidden");
+    }
+    if (window.lucide) lucide.createIcons();
+}
+
+function toggleMobileNavMenu(forceState) {
+    const menu = document.getElementById("mobileNavMenu");
+    const icon = document.getElementById("mobileMenuIcon");
+    if (!menu) return;
+
+    const shouldOpen = (typeof forceState === "boolean") ? forceState : menu.classList.contains("hidden");
+    if (shouldOpen) {
+        menu.classList.remove("hidden");
+        if (icon) icon.setAttribute("data-lucide", "x");
+    } else {
+        menu.classList.add("hidden");
+        if (icon) icon.setAttribute("data-lucide", "menu");
     }
     if (window.lucide) lucide.createIcons();
 }
