@@ -562,28 +562,64 @@ function renderPendingQuestions(pending) {
 
     container.classList.remove("hidden");
     list.innerHTML = activePending.map(p => `
-        <div class="bg-slate-900/90 border border-amber-500/40 rounded-xl p-3.5 space-y-2">
+        <div class="bg-zinc-950/80 border border-zinc-700/80 hover:border-zinc-600 rounded-xl p-4 space-y-3 transition shadow-sm interactive-card relative overflow-hidden">
             <div class="flex items-center justify-between text-xs">
-                <span class="font-bold text-amber-300">🏢 ${p.company} • <span class="text-slate-300">${p.job_title}</span></span>
-                <span class="text-[10px] text-slate-400">Asked: ${p.asked_at}</span>
+                <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                    <span class="font-semibold text-zinc-100">${p.company}</span>
+                    <span class="text-zinc-500">/</span>
+                    <span class="text-zinc-400">${p.job_title}</span>
+                </div>
+                <span class="text-[10px] font-mono text-zinc-500">Asked: ${p.asked_at}</span>
             </div>
-            <p class="text-xs font-semibold text-white bg-slate-950/60 p-2.5 rounded-lg border border-slate-800">
-                ❓ "${p.question}"
-            </p>
+
+            <div class="p-3 bg-zinc-900/90 border border-zinc-800 rounded-lg">
+                <span class="text-[10px] font-mono uppercase tracking-wider text-amber-400 font-semibold block mb-1">Recruiter Screening Prompt</span>
+                <p class="text-xs font-medium text-zinc-100 leading-relaxed">
+                    "${p.question}"
+                </p>
+            </div>
+
             ${p.options && p.options.length > 0 ? `
-                <div class="text-[11px] text-slate-400 flex flex-wrap gap-1.5 items-center">
-                    <span>Options:</span>
-                    ${p.options.map(o => `<span class="bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-[10px] text-indigo-300">${o}</span>`).join('')}
+                <div class="text-[11px] text-zinc-400 flex flex-wrap gap-1.5 items-center">
+                    <span class="text-zinc-500">Allowed options:</span>
+                    ${p.options.map(o => `<span class="bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded text-[10px] text-zinc-300 font-mono">${o}</span>`).join('')}
                 </div>
             ` : ''}
-            <div class="flex gap-2 pt-1">
-                <input id="pending-ans-${p.id}" type="text" placeholder="Type your answer here..." class="flex-1 px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:border-amber-400 outline-none">
-                <button onclick="submitPendingAnswer('${p.id}')" class="bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold px-3 py-1.5 rounded-lg text-xs transition shadow-sm flex items-center gap-1">
-                    💾 Save & Remember
-                </button>
+
+            <div class="flex flex-col sm:flex-row gap-2 pt-1">
+                <input id="pending-ans-${p.id}" type="text" placeholder="Type verified candidate answer..." class="flex-1 px-3 py-2 bg-zinc-900 border border-zinc-800 focus:border-zinc-600 rounded-lg text-xs text-white placeholder-zinc-500 outline-none font-mono">
+                <div class="flex gap-2">
+                    <button onclick="skipPendingQuestion('${p.id}')" class="px-3.5 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-zinc-200 text-xs font-medium transition flex items-center justify-center gap-1.5">
+                        <i data-lucide="skip-forward" class="w-3.5 h-3.5"></i>
+                        <span>Skip Question</span>
+                    </button>
+                    <button onclick="submitPendingAnswer('${p.id}')" class="px-4 py-2 rounded-lg bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs transition shadow-sm flex items-center justify-center gap-1.5">
+                        <i data-lucide="check" class="w-3.5 h-3.5 text-zinc-950"></i>
+                        <span>Save & Remember</span>
+                    </button>
+                </div>
             </div>
         </div>
     `).join("");
+
+    if (window.lucide) {
+        lucide.createIcons();
+    }
+}
+
+async function skipPendingQuestion(qId) {
+    try {
+        const res = await fetch("/api/memory/skip-pending", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ question_id: qId })
+        });
+        if (!res.ok) throw new Error("Could not skip question");
+        await loadQAMemory();
+    } catch (e) {
+        alert("Error skipping question: " + e.message);
+    }
 }
 
 async function submitPendingAnswer(qId) {
@@ -716,3 +752,185 @@ async function deleteMemory(mId) {
         alert("Error: " + e.message);
     }
 }
+
+
+// ==========================================
+// Mouse-Interactive Animation & Particle Canvas Engine
+// ==========================================
+function initMouseInteractiveAnimations() {
+    // 1. Particle Constellation Canvas with Interactive Mouse Physics
+    const canvas = document.getElementById("interactiveCanvas");
+    if (canvas) {
+        const ctx = canvas.getContext("2d");
+        let width = canvas.width = window.innerWidth;
+        let height = canvas.height = window.innerHeight;
+
+        const particles = [];
+        const particleCount = Math.min(Math.floor((width * height) / 18000), 65);
+        const mouse = { x: -1000, y: -1000, radius: 140, isHovered: false };
+
+        class Particle {
+            constructor() {
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                this.vx = (Math.random() - 0.5) * 0.5;
+                this.vy = (Math.random() - 0.5) * 0.5;
+                this.radius = Math.random() * 1.5 + 0.8;
+                this.baseAlpha = Math.random() * 0.35 + 0.15;
+                this.alpha = this.baseAlpha;
+                this.color = Math.random() > 0.85 ? "rgba(16, 185, 129, " : "rgba(228, 228, 231, ";
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+
+                if (this.x < 0) this.x = width;
+                if (this.x > width) this.x = 0;
+                if (this.y < 0) this.y = height;
+                if (this.y > height) this.y = 0;
+
+                // Mouse interaction: gentle repulsion
+                const dx = mouse.x - this.x;
+                const dy = mouse.y - this.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < mouse.radius && mouse.isHovered) {
+                    const force = (1 - dist / mouse.radius) * 1.4;
+                    const angle = Math.atan2(dy, dx);
+                    this.x -= Math.cos(angle) * force * 1.8;
+                    this.y -= Math.sin(angle) * force * 1.8;
+                    this.alpha = Math.min(this.baseAlpha + 0.35, 0.85);
+                } else {
+                    this.alpha += (this.baseAlpha - this.alpha) * 0.05;
+                }
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color + this.alpha + ")";
+                ctx.fill();
+            }
+        }
+
+        for (let i = 0; i < particleCount; i++) {
+            particles.push(new Particle());
+        }
+
+        window.addEventListener("resize", () => {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        });
+
+        window.addEventListener("mousemove", (e) => {
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+            mouse.isHovered = true;
+        });
+
+        window.addEventListener("mouseout", () => {
+            mouse.isHovered = false;
+            mouse.x = -1000;
+            mouse.y = -1000;
+        });
+
+        function animateParticles() {
+            ctx.clearRect(0, 0, width, height);
+
+            // Draw connecting lines between close particles
+            for (let i = 0; i < particles.length; i++) {
+                particles[i].update();
+                particles[i].draw();
+
+                for (let j = i + 1; j < particles.length; j++) {
+                    const dx = particles[i].x - particles[j].x;
+                    const dy = particles[i].y - particles[j].y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+
+                    if (dist < 115) {
+                        const lineAlpha = (1 - dist / 115) * 0.12;
+                        ctx.beginPath();
+                        ctx.moveTo(particles[i].x, particles[i].y);
+                        ctx.lineTo(particles[j].x, particles[j].y);
+                        ctx.strokeStyle = `rgba(255, 255, 255, ${lineAlpha})`;
+                        ctx.lineWidth = 0.75;
+                        ctx.stroke();
+                    }
+                }
+
+                // Connect particle to mouse cursor if near
+                if (mouse.isHovered) {
+                    const mdx = particles[i].x - mouse.x;
+                    const mdy = particles[i].y - mouse.y;
+                    const mdist = Math.sqrt(mdx * mdx + mdy * mdy);
+                    if (mdist < 130) {
+                        const mLineAlpha = (1 - mdist / 130) * 0.22;
+                        ctx.beginPath();
+                        ctx.moveTo(particles[i].x, particles[i].y);
+                        ctx.lineTo(mouse.x, mouse.y);
+                        ctx.strokeStyle = `rgba(16, 185, 129, ${mLineAlpha})`;
+                        ctx.lineWidth = 1;
+                        ctx.stroke();
+                    }
+                }
+            }
+            requestAnimationFrame(animateParticles);
+        }
+        animateParticles();
+    }
+
+    // 2. Global Mouse Spotlight Follower
+    const spotlight = document.getElementById("mouseSpotlight");
+    if (spotlight) {
+        let targetX = window.innerWidth / 2;
+        let targetY = window.innerHeight / 3;
+        let currentX = targetX;
+        let currentY = targetY;
+
+        window.addEventListener("mousemove", (e) => {
+            targetX = e.clientX;
+            targetY = e.clientY;
+        });
+
+        function updateSpotlight() {
+            currentX += (targetX - currentX) * 0.08;
+            currentY += (targetY - currentY) * 0.08;
+            spotlight.style.background = `radial-gradient(700px circle at ${currentX}px ${currentY}px, rgba(16, 185, 129, 0.04), rgba(59, 130, 246, 0.03) 40%, transparent 80%)`;
+            requestAnimationFrame(updateSpotlight);
+        }
+        updateSpotlight();
+    }
+
+    // 3. Card 3D Perspective Tilt and Dynamic Spotlight Border
+    function bindInteractiveCards() {
+        const cards = document.querySelectorAll(".interactive-card");
+        cards.forEach(card => {
+            if (card.dataset.boundInteractive) return;
+            card.dataset.boundInteractive = "true";
+
+            card.addEventListener("mousemove", (e) => {
+                const rect = card.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                card.style.setProperty("--card-x", `${x}px`);
+                card.style.setProperty("--card-y", `${y}px`);
+
+                // 3D Tilt calculation
+                const centerX = rect.width / 2;
+                const centerY = rect.height / 2;
+                const rotateX = ((y - centerY) / centerY) * -3.2;
+                const rotateY = ((x - centerX) / centerX) * 3.2;
+                card.style.transform = `perspective(800px) rotateX(${rotateX.toFixed(2)}deg) rotateY(${rotateY.toFixed(2)}deg) translateY(-2px)`;
+            });
+
+            card.addEventListener("mouseleave", () => {
+                card.style.transform = "perspective(800px) rotateX(0deg) rotateY(0deg) translateY(0)";
+            });
+        });
+    }
+
+    bindInteractiveCards();
+    setInterval(bindInteractiveCards, 2000);
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    initMouseInteractiveAnimations();
+});

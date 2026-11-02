@@ -362,6 +362,18 @@ class QAMemoryVault:
         if matched_id and matched_id in self._waiting_events:
             self._waiting_events[matched_id].set()
 
+    def skip_pending_question(self, q_id: str) -> bool:
+        """Marks a pending question as skipped/dismissed and resolves any waiting coroutine."""
+        self._load_pending()
+        if q_id in self._pending_questions:
+            self._pending_questions[q_id]["status"] = "skipped"
+            self._save_pending()
+            if q_id in self._waiting_events:
+                self._waiting_events[q_id].set()
+            print(f"[QA Vault] Pending question '{q_id}' skipped by user.")
+            return True
+        return False
+
     async def wait_for_user_answer(self, q_id: str, timeout_seconds: int = 35) -> Optional[str]:
         """
         Waits for the user to answer via Telegram or Web UI.

@@ -203,6 +203,9 @@ class AnswerPendingRequest(BaseModel):
     question_id: str
     answer: str
 
+class SkipPendingRequest(BaseModel):
+    question_id: str
+
 @app.get("/api/memory/qa")
 async def get_qa_memory():
     """Returns all stored candidate memory facts and any pending unanswered recruiter questions."""
@@ -239,6 +242,14 @@ async def answer_pending_question(req: AnswerPendingRequest):
 
     qa_vault.learn(question=matched["question"], answer=req.answer, category="recruiter_qa")
     return {"status": "answered_and_remembered", "question": matched["question"], "answer": req.answer}
+
+@app.post("/api/memory/skip-pending")
+async def skip_pending_question(req: SkipPendingRequest):
+    """Skips or dismisses a pending question so it stops blocking the UI and applicant flow."""
+    success = qa_vault.skip_pending_question(req.question_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Pending question not found")
+    return {"status": "skipped", "id": req.question_id}
 
 if __name__ == "__main__":
     import uvicorn

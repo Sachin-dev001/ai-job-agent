@@ -135,7 +135,18 @@ class TelegramBotListener:
             await self.send_message(msg)
             return
 
-        # Command 4: /learn <Question> = <Answer>
+        # Command 4: /skip
+        if text.lower() == "/skip":
+            pending = [p for p in qa_vault.get_pending_questions() if p.get("status") == "pending"]
+            if pending:
+                latest = pending[-1]
+                qa_vault.skip_pending_question(latest["id"])
+                await self.send_message(f"⏭️ <b>Question Skipped:</b>\n<i>{html.escape(latest['question'])}</i>\n\nThis question will not be saved and won't block your dashboard.")
+            else:
+                await self.send_message("ℹ️ <b>No pending questions to skip.</b>")
+            return
+
+        # Command 5: /learn <Question> = <Answer>
         if text.lower().startswith("/learn "):
             payload = text[7:].strip()
             if "=" in payload:
