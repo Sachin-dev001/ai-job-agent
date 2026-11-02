@@ -421,7 +421,7 @@ class RealNaukriApplyEngine:
             print(f"[Naukri Bot] Questionnaire handler exception: {e}")
             return await self._is_submission_confirmed(page)
 
-    async def apply_single_job(self, job_url: str, job_title: str = "AI Engineer"):
+    async def apply_single_job(self, job_url: str, job_title: str = "AI Engineer", company: str = "Recruiter"):
         """
         Executes end-to-end autonomous application to a single live Naukri job listing.
         Returns verified proof or alerts candidate if manual intervention is required.
@@ -435,105 +435,111 @@ class RealNaukriApplyEngine:
         proof_path = os.path.join(PROOF_DIR, proof_filename)
         user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
-        async with async_playwright() as p:
-            browser = await self._launch_browser(p)
-            context = await browser.new_context(
-                viewport={"width": 1366, "height": 768},
-                user_agent=user_agent
-            )
-            await context.add_cookies(cookies)
-            page = await context.new_page()
-            stealth = Stealth()
-            await stealth.apply_stealth_async(page)
-
-            try:
-                print(f"\n[Naukri Bot] Navigating to: {job_title} -> {job_url}")
-                await page.goto(job_url, wait_until="domcontentloaded", timeout=25000)
-                await page.wait_for_timeout(2500)
-
-                # Check if already applied
-                if await self._is_submission_confirmed(page):
+        try:
+            async with async_playwright() as p:
+                browser = await self._launch_browser(p)
+                context = await browser.new_context(
+                    viewport={"width": 1366, "height": 768},
+                    user_agent=user_agent
+                )
+                await context.add_cookies(cookies)
+                page = await context.new_page()
+                stealth = Stealth()
+                await stealth.apply_stealth_async(page)
+    
+                try:
+                    print(f"\n[Naukri Bot] Navigating to: {job_title} -> {job_url}")
+                    await page.goto(job_url, wait_until="domcontentloaded", timeout=25000)
+                    await page.wait_for_timeout(2500)
+    
+                    # Check if already applied
+                    if await self._is_submission_confirmed(page):
+                        await page.screenshot(path=proof_path)
+                        await browser.close()
+                        return {
+                            "status": "already_applied",
+                            "job_title": job_title,
+                            "job_url": job_url,
+                            "proof_image": f"/proofs/{proof_filename}",
+                            "message": "Already applied to this job."
+                        }
+    
+                    # Check if external company portal
+                    external_btn = page.locator(".company-site-button, button:has-text('Apply on company site')").first
+                    if await external_btn.is_visible():
+                        await page.screenshot(path=proof_path)
+                        await browser.close()
+                        return {
+                            "status": "external_portal",
+                            "job_title": job_title,
+                            "job_url": job_url,
+                            "proof_image": f"/proofs/{proof_filename}",
+                            "message": "Job redirects to an external company ATS portal."
+                        }
+    
+                    # Locate Direct Apply Button
+                    apply_btn = page.locator("#apply-button, button.apply-button, button:has-text('Apply on Naukri'), button:has-text('Apply')").first
+                    if not await apply_btn.is_visible():
+                        await page.screenshot(path=proof_path)
+                        await browser.close()
+                        return {
+                            "status": "external_portal",
+                            "job_title": job_title,
+                            "job_url": job_url,
+                            "proof_image": f"/proofs/{proof_filename}",
+                            "message": "Direct apply button not found (external redirect)."
+                        }
+    
+                    # Physical click on Apply
+                    print(f"[Naukri Bot] Physical click on Apply button for {job_title}...")
+                    await apply_btn.click()
+                    await page.wait_for_timeout(3500)
+    
+                    # Run questionnaire handler if chatbot appears
+                    applied_ok = await self._handle_chatbot_drawer(page, job_title, job_url)
+                    await page.wait_for_timeout(2500)
+    
+                    # Capture definitive proof screenshot
                     await page.screenshot(path=proof_path)
+    
+                    # Final submission confirmation
+                    if applied_ok or await self._is_submission_confirmed(page):
+                        print(f"[Naukri Bot] [SUCCESS] VERIFIED SUCCESS: Application submitted for {job_title}!")
+                        await browser.close()
+                        return {
+                            "status": "applied_successfully",
+                            "job_title": job_title,
+                            "job_url": job_url,
+                            "proof_image": f"/proofs/{proof_filename}",
+                            "applied_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        }
+                    else:
+                        print(f"[Naukri Bot] [NOTICE] Incomplete submission: Questionnaire or external link requires candidate attention.")
+                        # Dispatch Telegram alert so the user is immediately aware
+                        await notifier.send_hitl_alert(
+                            job_title=job_title,
+                            company="Naukri Recruiter",
+                            platform="Naukri",
+                            job_url=job_url,
+                            reason="Recruiter screening questionnaire requires human verification."
+                        )
+                        await browser.close()
+                        return {
+                            "status": "needs_human_action",
+                            "job_title": job_title,
+                            "job_url": job_url,
+                            "proof_image": f"/proofs/{proof_filename}",
+                            "message": "Screening questionnaire requires manual review. Alert sent to your Telegram!"
+                        }
+    
+                except Exception as e:
                     await browser.close()
-                    return {
-                        "status": "already_applied",
-                        "job_title": job_title,
-                        "job_url": job_url,
-                        "proof_image": f"/proofs/{proof_filename}",
-                        "message": "Already applied to this job."
-                    }
-
-                # Check if external company portal
-                external_btn = page.locator(".company-site-button, button:has-text('Apply on company site')").first
-                if await external_btn.is_visible():
-                    await page.screenshot(path=proof_path)
-                    await browser.close()
-                    return {
-                        "status": "external_portal",
-                        "job_title": job_title,
-                        "job_url": job_url,
-                        "proof_image": f"/proofs/{proof_filename}",
-                        "message": "Job redirects to an external company ATS portal."
-                    }
-
-                # Locate Direct Apply Button
-                apply_btn = page.locator("#apply-button, button.apply-button, button:has-text('Apply on Naukri'), button:has-text('Apply')").first
-                if not await apply_btn.is_visible():
-                    await page.screenshot(path=proof_path)
-                    await browser.close()
-                    return {
-                        "status": "external_portal",
-                        "job_title": job_title,
-                        "job_url": job_url,
-                        "proof_image": f"/proofs/{proof_filename}",
-                        "message": "Direct apply button not found (external redirect)."
-                    }
-
-                # Physical click on Apply
-                print(f"[Naukri Bot] Physical click on Apply button for {job_title}...")
-                await apply_btn.click()
-                await page.wait_for_timeout(3500)
-
-                # Run questionnaire handler if chatbot appears
-                applied_ok = await self._handle_chatbot_drawer(page, job_title, job_url)
-                await page.wait_for_timeout(2500)
-
-                # Capture definitive proof screenshot
-                await page.screenshot(path=proof_path)
-
-                # Final submission confirmation
-                if applied_ok or await self._is_submission_confirmed(page):
-                    print(f"[Naukri Bot] [SUCCESS] VERIFIED SUCCESS: Application submitted for {job_title}!")
-                    await browser.close()
-                    return {
-                        "status": "applied_successfully",
-                        "job_title": job_title,
-                        "job_url": job_url,
-                        "proof_image": f"/proofs/{proof_filename}",
-                        "applied_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    }
-                else:
-                    print(f"[Naukri Bot] [NOTICE] Incomplete submission: Questionnaire or external link requires candidate attention.")
-                    # Dispatch Telegram alert so the user is immediately aware
-                    await notifier.send_hitl_alert(
-                        job_title=job_title,
-                        company="Naukri Recruiter",
-                        platform="Naukri",
-                        job_url=job_url,
-                        reason="Recruiter screening questionnaire requires human verification."
-                    )
-                    await browser.close()
-                    return {
-                        "status": "needs_human_action",
-                        "job_title": job_title,
-                        "job_url": job_url,
-                        "proof_image": f"/proofs/{proof_filename}",
-                        "message": "Screening questionnaire requires manual review. Alert sent to your Telegram!"
-                    }
-
-            except Exception as e:
-                await browser.close()
-                return {"status": "error", "message": str(e), "job_title": job_title}
+                    return {"status": "error", "message": str(e), "job_title": job_title}
+    
+        except Exception as browser_err:
+            print(f"[Naukri Bot] Playwright error: {browser_err}. Executing session apply...")
+            from app.agents.naukri_apply_agent import naukri_apply_agent
+            return await naukri_apply_agent.apply_to_job(job_title=job_title, company=company, job_url=job_url)
 
     async def execute_live_apply(self, query: str = "AI Engineer", limit: int = 3):
         """
