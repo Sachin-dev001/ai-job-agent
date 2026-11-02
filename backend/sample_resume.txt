@@ -1,0 +1,18 @@
+John Doe
+Email: john.doe@example.com
+Phone: +1-555-0199
+
+Professional Summary:
+Passionate AI & Software Engineer with expertise in building autonomous agents and machine learning pipelines.
+
+Technical Skills:
+Python, Data Structures and Algorithms (DSA), LangChain, LangGraph, Generative AI, Large Language Models (LLMs), Machine Learning, PyTorch, FastAPI, Docker, SQL
+
+Experience:
+AI Engineer Intern - Innovatech Labs (2025 - Present)
+- Developed multi-agent workflows using LangGraph and LangChain for automated document querying.
+- Implemented machine learning models in Python for predictive data analysis.
+- Designed RESTful APIs using FastAPI.
+
+Education:
+B.Tech in Computer Science and Engineering

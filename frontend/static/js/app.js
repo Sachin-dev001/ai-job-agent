@@ -1,0 +1,718 @@
+let currentAnalysis = null;
+let foundJobs = [];
+let activeApplyingJobIndex = null;
+let currentSelectedRole = "Data Analyst";
+let currentSelectedPlatform = "naukri"; // "naukri" or "wellfound"
+
+document.addEventListener("DOMContentLoaded", () => {
+    const dropzone = document.getElementById("dropzone");
+    const resumeFileInput = document.getElementById("resumeFileInput");
+    const fileStatus = document.getElementById("fileStatus");
+    const fileName = document.getElementById("fileName");
+    const analyzeBtn = document.getElementById("analyzeBtn");
+    const searchJobsBtn = document.getElementById("searchJobsBtn");
+
+    dropzone.addEventListener("click", () => resumeFileInput.click());
+
+    resumeFileInput.addEventListener("change", (e) => {
+        if (e.target.files.length > 0) {
+            const file = e.target.files[0];
+            fileName.textContent = file.name;
+            fileStatus.classList.remove("hidden");
+        }
+    });
+
+    analyzeBtn.addEventListener("click", async () => {
+        const file = resumeFileInput.files[0];
+        if (!file) return;
+
+        analyzeBtn.disabled = true;
+        analyzeBtn.textContent = "Analyzing...";
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        try {
+            const res = await fetch("/api/resume/analyze", {
+                method: "POST",
+                body: formData
+            });
+
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.detail || "Analysis failed");
+            }
+
+            const data = await res.json();
+            currentAnalysis = data;
+            renderProfile(data);
+
+            if (data.recommended_job_titles && data.recommended_job_titles.length > 0) {
+                const topRole = data.recommended_job_titles[0].title;
+                currentSelectedRole = topRole;
+                openPlatformSelector(topRole);
+            }
+        } catch (error) {
+            alert("Error: " + error.message);
+        } finally {
+            analyzeBtn.disabled = false;
+            analyzeBtn.textContent = "Analyze Resume with LLM";
+        }
+    });
+
+    if (searchJobsBtn) {
+        searchJobsBtn.addEventListener("click", () => {
+            triggerJobSearch(currentSelectedRole);
+        });
+    }
+
+    // Initialize Memory Vault
+    loadQAMemory();
+    setInterval(loadQAMemory, 8000);
+});
+
+// ==========================================
+// Platform Switching & Modal Logic
+// ==========================================
+function switchPlatform(platformName) {
+    currentSelectedPlatform = platformName;
+    const tabNaukri = document.getElementById("tabNaukri");
+    const tabWellfound = document.getElementById("tabWellfound");
+    const runBtnText = document.getElementById("runPlatformBtnText");
+
+    if (platformName === "naukri") {
+        if (tabNaukri) {
+            tabNaukri.className = "platform-tab px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-indigo-600 text-white shadow-lg shadow-indigo-600/30";
+        }
+        if (tabWellfound) {
+            tabWellfound.className = "platform-tab px-3.5 py-1.5 rounded-xl text-xs font-medium transition flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300";
+        }
+        if (runBtnText) {
+            runBtnText.textContent = "⚡ Run Autonomous Naukri Apply";
+        }
+    } else if (platformName === "wellfound") {
+        if (tabWellfound) {
+            tabWellfound.className = "platform-tab px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-emerald-600 text-white shadow-lg shadow-emerald-600/30";
+        }
+        if (tabNaukri) {
+            tabNaukri.className = "platform-tab px-3.5 py-1.5 rounded-xl text-xs font-medium transition flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300";
+        }
+        if (runBtnText) {
+            runBtnText.textContent = "⚡ Run Autonomous Wellfound Apply";
+        }
+    }
+
+    triggerJobSearch(currentSelectedRole);
+}
+
+function openPlatformSelector(roleTitle) {
+    currentSelectedRole = roleTitle;
+    const titleEl = document.getElementById("modalSelectedRoleTitle");
+    if (titleEl) titleEl.textContent = roleTitle;
+
+    const modal = document.getElementById("platformSelectorModal");
+    if (modal) modal.classList.remove("hidden");
+}
+
+function closePlatformModal() {
+    const modal = document.getElementById("platformSelectorModal");
+    if (modal) modal.classList.add("hidden");
+}
+
+function selectPlatformAndScout(platformName) {
+    closePlatformModal();
+    switchPlatform(platformName);
+}
+
+function showYCNotice() {
+    alert("⚡ Y Combinator (Work at a Startup) integration will be enabled in the next update, right after Wellfound and Naukri verification!");
+}
+
+// ==========================================
+// Job Scouting & Dynamic Search
+// ==========================================
+async function triggerJobSearch(query) {
+    if (!query) query = currentSelectedRole || "Data Analyst";
+    currentSelectedRole = query;
+
+    const platLabel = currentSelectedPlatform === "wellfound" ? "Wellfound Startups" : "Naukri";
+    const openingsHeading = document.getElementById("openingsHeading");
+    if (openingsHeading) {
+        openingsHeading.innerHTML = `
+            <i data-lucide="briefcase" class="w-5 h-5 text-indigo-400"></i>
+            Live <span class="text-indigo-400 font-bold ml-1">${platLabel}</span> Openings: 
+            <span class="text-white font-bold ml-1">"${query}"</span>
+        `;
+        if (window.lucide) lucide.createIcons();
+    }
+
+    const tableBody = document.getElementById("jobsTableBody");
+    const searchJobsBtn = document.getElementById("searchJobsBtn");
+    
+    tableBody.innerHTML = `
+        <tr>
+            <td colspan="5" class="py-8 text-center text-indigo-400">
+                <span class="inline-block animate-spin mr-2">⟳</span> Scouting verified ${platLabel} postings (&le; 15 days, newest first) for "${query}"...
+            </td>
+        </tr>
+    `;
+    if (searchJobsBtn) searchJobsBtn.disabled = true;
+
+    try {
+        const res = await fetch(`/api/jobs/search?query=${encodeURIComponent(query)}&platform=${currentSelectedPlatform}&limit=25`);
+        if (!res.ok) throw new Error("Failed to fetch jobs");
+        
+        foundJobs = await res.json();
+        renderJobsTable(foundJobs);
+        document.getElementById("statFound").textContent = foundJobs.length;
+    } catch (e) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="5" class="py-6 text-center text-rose-400 font-medium">
+                    Failed to fetch jobs: ${e.message}
+                </td>
+            </tr>
+        `;
+    } finally {
+        if (searchJobsBtn) searchJobsBtn.disabled = false;
+    }
+}
+
+function renderJobsTable(jobs) {
+    const tableBody = document.getElementById("jobsTableBody");
+    if (!jobs || jobs.length === 0) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="5" class="py-8 text-center text-slate-500">
+                    No openings found for this role on ${currentSelectedPlatform}. Try switching platforms or roles above.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tableBody.innerHTML = jobs.map((job, idx) => `
+        <tr id="job-row-${idx}" class="hover:bg-slate-800/40 transition">
+            <td class="py-3 px-4">
+                <div class="flex items-center gap-2">
+                    <p class="font-semibold text-slate-100">${job.title}</p>
+                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        ⏱️ ${job.posted_time_ago}
+                    </span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-0.5">${job.company} • <span class="text-slate-500">${job.location}</span></p>
+            </td>
+            <td class="py-3 px-4">
+                <span class="px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                    job.platform === 'Naukri' 
+                        ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' 
+                        : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                }">
+                    ${job.platform}
+                </span>
+            </td>
+            <td class="py-3 px-4">
+                <span class="text-xs font-semibold text-emerald-400">96%</span>
+            </td>
+            <td class="py-3 px-4" id="status-cell-${idx}">
+                <span class="inline-flex items-center gap-1.5 text-indigo-400 text-xs">
+                    <span class="w-1.5 h-1.5 rounded-full bg-indigo-400"></span> Discovered
+                </span>
+            </td>
+            <td class="py-3 px-4 text-right space-x-1.5" id="action-cell-${idx}">
+                <a href="${job.job_url}" target="_blank" class="text-slate-400 hover:text-white text-xs underline mr-1">View</a>
+                <button onclick="directApplyRow(${idx})" class="bg-gradient-to-r from-indigo-600 to-emerald-600 hover:from-indigo-500 hover:to-emerald-500 text-white text-[11px] px-2.5 py-1 rounded-lg font-bold transition shadow-sm">
+                    ⚡ Auto-Apply
+                </button>
+                <button onclick="triggerApply(${idx})" class="bg-slate-700 hover:bg-slate-600 text-slate-300 text-[11px] px-2 py-1 rounded-lg font-medium transition">
+                    📝 Pitch
+                </button>
+            </td>
+        </tr>
+    `).join("");
+}
+
+// ==========================================
+// 1-Click Autonomous Apply (Naukri & Wellfound)
+// ==========================================
+async function directApplyRow(idx) {
+    const job = foundJobs[idx];
+    if (!job) return;
+
+    const actionCell = document.getElementById(`action-cell-${idx}`);
+    const originalContent = actionCell.innerHTML;
+    const isWellfound = job.platform === "Wellfound";
+    const endpoint = isWellfound ? "/api/wellfound/apply-single" : "/api/naukri/apply-single";
+    const platformLabel = isWellfound ? "Wellfound" : "Naukri";
+
+    actionCell.innerHTML = `<span class="text-xs text-indigo-400 animate-spin mr-1">⟳</span> <span class="text-xs text-indigo-300 font-medium">Applying on ${platformLabel}...</span>`;
+
+    try {
+        const payload = isWellfound ? {
+            job_url: job.job_url,
+            job_title: job.title,
+            company: job.company
+        } : {
+            job_url: job.job_url,
+            job_title: job.title
+        };
+
+        const res = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        const statusCell = document.getElementById(`status-cell-${idx}`);
+        const statApplied = document.getElementById("statApplied");
+
+        if (data.status === "applied_successfully") {
+            statusCell.innerHTML = `
+                <span class="inline-flex items-center gap-1.5 text-emerald-400 text-xs font-semibold">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Applied ✅
+                </span>
+            `;
+            actionCell.innerHTML = `
+                <a href="${data.proof_image}" target="_blank" class="text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg font-bold hover:underline inline-flex items-center gap-1">
+                    📸 Proof
+                </a>
+            `;
+            if (statApplied) statApplied.textContent = parseInt(statApplied.textContent || "0") + 1;
+            alert(`🎉 Application 100% submitted and verified on ${platformLabel} for ${job.title}!\n\nClick '📸 Proof' to view the screenshot confirmation.`);
+        } else if (data.status === "already_applied") {
+            statusCell.innerHTML = `
+                <span class="inline-flex items-center gap-1.5 text-slate-400 text-xs font-semibold">
+                    Already Applied
+                </span>
+            `;
+            actionCell.innerHTML = `
+                <a href="${data.proof_image || '#'}" target="_blank" class="text-[11px] text-slate-400 bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-lg font-medium hover:underline">
+                    📸 Proof
+                </a>
+            `;
+            alert(`ℹ️ You have already applied to ${job.title} on ${platformLabel}.`);
+        } else if (data.status === "needs_human_action") {
+            statusCell.innerHTML = `<span class="text-amber-400 text-xs font-medium">⚠️ Review Needed</span>`;
+            actionCell.innerHTML = `
+                <a href="${data.proof_image || '#'}" target="_blank" class="text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg font-medium hover:underline">
+                    ⚠️ Telegram Alert
+                </a>
+            `;
+            alert(`⚠️ Recruiter Question Needed:\n\n${data.message}`);
+        } else {
+            actionCell.innerHTML = originalContent;
+            alert(`Result: ${data.message || data.status}`);
+        }
+    } catch (e) {
+        actionCell.innerHTML = originalContent;
+        alert("Automation Error: " + e.message);
+    }
+}
+
+// ==========================================
+// Batch Autonomous Apply on Active Platform
+// ==========================================
+async function executeCurrentPlatformLiveBot() {
+    const runBtn = document.getElementById("runPlatformLiveBtn");
+    const botStatus = document.getElementById("botLiveStatus");
+    const query = currentSelectedRole || "Data Analyst";
+    const isWellfound = currentSelectedPlatform === "wellfound";
+    const endpoint = isWellfound ? "/api/wellfound/auto-apply-live" : "/api/naukri/auto-apply-live";
+    const platformLabel = isWellfound ? "Wellfound" : "Naukri";
+
+    runBtn.disabled = true;
+    runBtn.innerHTML = `<span class="inline-block animate-spin mr-1.5">⟳</span> Running Autonomous Apply...`;
+    botStatus.classList.remove("hidden");
+    botStatus.innerHTML = `
+        <div class="flex items-center gap-2 text-indigo-400">
+            <span class="inline-block animate-spin">⟳</span>
+            <strong>Playwright Live Runner Active:</strong> Launching automated Chrome session, loading authenticated ${platformLabel} session, selecting matching "${query}" jobs, and executing physical click submissions...
+        </div>
+    `;
+
+    try {
+        const res = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ query: query, limit: 3 })
+        });
+
+        const data = await res.json();
+        const apps = data.applications || [];
+
+        let successCount = 0;
+        let htmlLog = `<div class="mt-3 space-y-2 border-t border-slate-800 pt-2">`;
+
+        apps.forEach((app, idx) => {
+            if (app.status === "applied_successfully") {
+                successCount++;
+                htmlLog += `
+                    <div class="flex items-center justify-between bg-slate-900/80 p-2.5 rounded-lg border border-emerald-500/30">
+                        <span class="text-emerald-400 font-medium">✅ Applied: <strong>${app.job_title}</strong></span>
+                        <a href="${app.proof_image}" target="_blank" class="text-xs text-emerald-300 bg-emerald-500/20 px-2.5 py-1 rounded font-bold hover:underline">
+                            📸 View Submission Proof
+                        </a>
+                    </div>
+                `;
+            } else if (app.status === "already_applied") {
+                htmlLog += `
+                    <div class="flex items-center justify-between bg-slate-900/80 p-2.5 rounded-lg border border-slate-700/50">
+                        <span class="text-slate-400">ℹ️ ${app.job_title} (Already applied earlier)</span>
+                        ${app.proof_image ? `<a href="${app.proof_image}" target="_blank" class="text-xs text-slate-400 underline">Proof</a>` : ''}
+                    </div>
+                `;
+            } else {
+                htmlLog += `
+                    <div class="bg-slate-900/80 p-2.5 rounded-lg border border-amber-500/30 text-amber-300">
+                        ⚠️ <strong>${app.job_title}:</strong> External portal / screening question sent to your Telegram bot.
+                    </div>
+                `;
+            }
+        });
+        htmlLog += `</div>`;
+
+        botStatus.innerHTML = `
+            <div class="text-slate-200">
+                <span class="text-emerald-400 font-bold">🎉 Autonomous Execution Complete!</span> Processed ${apps.length} live jobs on ${platformLabel}.
+                ${htmlLog}
+            </div>
+        `;
+        const statApplied = document.getElementById("statApplied");
+        if (statApplied) statApplied.textContent = parseInt(statApplied.textContent || "0") + successCount;
+    } catch (e) {
+        botStatus.innerHTML = `<span class="text-rose-400">❌ Error running live bot: ${e.message}</span>`;
+    } finally {
+        runBtn.disabled = false;
+        runBtn.innerHTML = `
+            <i data-lucide="zap" class="w-3.5 h-3.5 text-amber-300"></i>
+            <span id="runPlatformBtnText">⚡ Run Autonomous ${platformLabel} Apply</span>
+        `;
+        if (window.lucide) lucide.createIcons();
+    }
+}
+
+// ==========================================
+// Candidate Profile & Role Cards
+// ==========================================
+function renderProfile(data) {
+    const profileCard = document.getElementById("profileCard");
+    const profileSummary = document.getElementById("profileSummary");
+    const skillsContainer = document.getElementById("skillsContainer");
+    const jobTitlesContainer = document.getElementById("jobTitlesContainer");
+
+    profileCard.classList.remove("hidden");
+
+    profileSummary.innerHTML = `
+        <p><strong class="text-slate-300">Candidate:</strong> ${data.candidate_name || "Applicant"}</p>
+        <p><strong class="text-slate-300">Email:</strong> ${data.email || "N/A"}</p>
+        <p><strong class="text-slate-300">Experience:</strong> ~${data.experience_years || 0} years</p>
+    `;
+
+    skillsContainer.innerHTML = (data.skills || []).map(skill => `
+        <span class="px-2.5 py-1 bg-slate-900 border border-slate-700 text-indigo-300 rounded-lg text-xs font-medium">
+            ${skill}
+        </span>
+    `).join("");
+
+    jobTitlesContainer.innerHTML = (data.recommended_job_titles || []).map((item, idx) => `
+        <div id="role-card-${idx}" class="p-3 bg-slate-900 border ${idx === 0 ? 'border-indigo-500 ring-2 ring-indigo-500/40 bg-indigo-950/30' : 'border-slate-700/80'} rounded-xl flex items-center justify-between cursor-pointer hover:border-indigo-500 transition role-card" onclick="selectRoleAndOpenModal('${item.title}', ${idx})">
+            <div>
+                <p class="font-medium text-slate-200 text-xs">${item.title}</p>
+                <p class="text-[10px] text-slate-500">${item.reasoning}</p>
+            </div>
+            <span class="text-xs font-semibold px-2 py-0.5 rounded-full ${
+                item.confidence_score >= 0.8 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'
+            }">
+                ${Math.round(item.confidence_score * 100)}%
+            </span>
+        </div>
+    `).join("");
+}
+
+function selectRoleAndOpenModal(roleTitle, idx) {
+    currentSelectedRole = roleTitle;
+    document.querySelectorAll(".role-card").forEach(el => {
+        el.classList.remove("border-indigo-500", "ring-2", "ring-indigo-500/40", "bg-indigo-950/30");
+        el.classList.add("border-slate-700/80");
+    });
+    const active = document.getElementById(`role-card-${idx}`);
+    if (active) {
+        active.classList.add("border-indigo-500", "ring-2", "ring-indigo-500/40", "bg-indigo-950/30");
+        active.classList.remove("border-slate-700/80");
+    }
+    openPlatformSelector(roleTitle);
+}
+
+// ==========================================
+// Pitch Modal & Submissions
+// ==========================================
+async function triggerApply(jobIndex) {
+    const job = foundJobs[jobIndex];
+    if (!job) return;
+
+    activeApplyingJobIndex = jobIndex;
+    const actionCell = document.getElementById(`action-cell-${jobIndex}`);
+    const originalBtn = actionCell.innerHTML;
+    actionCell.innerHTML = `<span class="text-xs text-indigo-400 animate-pulse">Drafting pitch...</span>`;
+
+    try {
+        const res = await fetch("/api/jobs/prepare-application", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                job_title: job.title,
+                company: job.company,
+                platform: job.platform,
+                job_url: job.job_url,
+                description: job.description_snippet || ""
+            })
+        });
+
+        if (!res.ok) throw new Error("Could not prepare application");
+        const data = await res.json();
+
+        document.getElementById("modalRole").textContent = `${job.title} at ${job.company}`;
+        document.getElementById("modalCoverLetter").value = data.cover_letter;
+        document.getElementById("modalSubmitLink").href = data.job_url;
+        document.getElementById("applyModal").classList.remove("hidden");
+
+        const statNeedsHuman = document.getElementById("statNeedsHuman");
+        if (statNeedsHuman) statNeedsHuman.textContent = parseInt(statNeedsHuman.textContent || "0") + 1;
+
+        actionCell.innerHTML = originalBtn;
+    } catch (e) {
+        actionCell.innerHTML = originalBtn;
+        alert("Failed: " + e.message);
+    }
+}
+
+function closeModal() {
+    document.getElementById("applyModal").classList.add("hidden");
+}
+
+function copyCoverLetter() {
+    const textarea = document.getElementById("modalCoverLetter");
+    textarea.select();
+    navigator.clipboard.writeText(textarea.value);
+    alert("Copied customized cover letter pitch to clipboard!");
+}
+
+function markSubmitted() {
+    if (activeApplyingJobIndex !== null) {
+        const statusCell = document.getElementById(`status-cell-${activeApplyingJobIndex}`);
+        const actionCell = document.getElementById(`action-cell-${activeApplyingJobIndex}`);
+        const statApplied = document.getElementById("statApplied");
+
+        if (statusCell) {
+            statusCell.innerHTML = `
+                <span class="inline-flex items-center gap-1.5 text-emerald-400 text-xs font-semibold">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Applied ✅
+                </span>
+            `;
+        }
+        if (actionCell) {
+            actionCell.innerHTML = `
+                <span class="text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-lg font-medium">
+                    Submitted ✅
+                </span>
+            `;
+        }
+        if (statApplied) statApplied.textContent = parseInt(statApplied.textContent || "0") + 1;
+    }
+    closeModal();
+}
+
+async function runSingleJobLiveSubmit() {
+    if (activeApplyingJobIndex === null) return;
+    const job = foundJobs[activeApplyingJobIndex];
+    if (!job) return;
+
+    closeModal();
+    directApplyRow(activeApplyingJobIndex);
+}
+
+// ==========================================
+// Candidate Q&A Memory Vault Logic
+// ==========================================
+let allMemories = [];
+
+async function loadQAMemory() {
+    try {
+        const res = await fetch("/api/memory/qa");
+        if (!res.ok) return;
+        const data = await res.json();
+        allMemories = data.memories || [];
+        renderPendingQuestions(data.pending || []);
+        renderMemoryVault(allMemories);
+    } catch (e) {
+        console.error("Error loading QA Memory:", e);
+    }
+}
+
+function renderPendingQuestions(pending) {
+    const container = document.getElementById("pendingQuestionsContainer");
+    const list = document.getElementById("pendingQuestionsList");
+    if (!container || !list) return;
+
+    const activePending = pending.filter(p => p.status === "pending");
+    if (activePending.length === 0) {
+        container.classList.add("hidden");
+        return;
+    }
+
+    container.classList.remove("hidden");
+    list.innerHTML = activePending.map(p => `
+        <div class="bg-slate-900/90 border border-amber-500/40 rounded-xl p-3.5 space-y-2">
+            <div class="flex items-center justify-between text-xs">
+                <span class="font-bold text-amber-300">🏢 ${p.company} • <span class="text-slate-300">${p.job_title}</span></span>
+                <span class="text-[10px] text-slate-400">Asked: ${p.asked_at}</span>
+            </div>
+            <p class="text-xs font-semibold text-white bg-slate-950/60 p-2.5 rounded-lg border border-slate-800">
+                ❓ "${p.question}"
+            </p>
+            ${p.options && p.options.length > 0 ? `
+                <div class="text-[11px] text-slate-400 flex flex-wrap gap-1.5 items-center">
+                    <span>Options:</span>
+                    ${p.options.map(o => `<span class="bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-[10px] text-indigo-300">${o}</span>`).join('')}
+                </div>
+            ` : ''}
+            <div class="flex gap-2 pt-1">
+                <input id="pending-ans-${p.id}" type="text" placeholder="Type your answer here..." class="flex-1 px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:border-amber-400 outline-none">
+                <button onclick="submitPendingAnswer('${p.id}')" class="bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold px-3 py-1.5 rounded-lg text-xs transition shadow-sm flex items-center gap-1">
+                    💾 Save & Remember
+                </button>
+            </div>
+        </div>
+    `).join("");
+}
+
+async function submitPendingAnswer(qId) {
+    const input = document.getElementById(`pending-ans-${qId}`);
+    if (!input || !input.value.trim()) {
+        alert("Please enter an answer.");
+        return;
+    }
+
+    const answer = input.value.trim();
+    try {
+        const res = await fetch("/api/memory/answer-pending", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ question_id: qId, answer: answer })
+        });
+        if (!res.ok) throw new Error("Could not save answer");
+        alert("✅ Answer saved to Memory Vault! The agent will use this for future applications.");
+        loadQAMemory();
+    } catch (e) {
+        alert("Error: " + e.message);
+    }
+}
+
+function toggleVaultModal(show) {
+    const modal = document.getElementById("memoryVaultModal");
+    if (!modal) return;
+    if (show) {
+        modal.classList.remove("hidden");
+    } else {
+        modal.classList.add("hidden");
+    }
+}
+
+function renderMemoryVault(memories) {
+    const list = document.getElementById("memoryVaultList");
+    const countText = document.getElementById("memoryCountText");
+    const vaultBadge = document.getElementById("vaultCountBadge");
+    if (!list) return;
+
+    if (vaultBadge) {
+        vaultBadge.textContent = memories.length;
+    }
+
+    if (countText) {
+        countText.textContent = `${memories.length} Remembered Answers in Vault`;
+    }
+
+    if (memories.length === 0) {
+        list.innerHTML = `<p class="text-xs text-slate-500 text-center py-4">No remembered questions yet.</p>`;
+        return;
+    }
+
+    // Clean padding and rounded cards with no text clipping
+    list.innerHTML = memories.slice().reverse().map(m => `
+        <div class="bg-slate-950 border border-slate-800/90 hover:border-slate-700 p-3.5 rounded-xl flex items-start justify-between gap-3 transition shadow-sm">
+            <div class="space-y-1.5 text-xs flex-1">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="font-semibold text-indigo-300">❓ ${m.question}</span>
+                    <span class="text-[10px] text-slate-500 bg-slate-900 border border-slate-800 px-1.5 py-0.5 rounded capitalize">${m.category || "custom"}</span>
+                </div>
+                <div class="text-emerald-400 font-mono text-[11px] bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg block">
+                    <span class="text-emerald-500 font-bold mr-1">↳</span>${m.answer}
+                </div>
+            </div>
+            <button onclick="deleteMemory('${m.id}')" title="Delete from memory" class="text-slate-500 hover:text-rose-400 p-1 rounded transition text-xs shrink-0">
+                ✕
+            </button>
+        </div>
+    `).join("");
+}
+
+function filterMemories() {
+    const query = (document.getElementById("memorySearchInput")?.value || "").toLowerCase();
+    if (!query) {
+        renderMemoryVault(allMemories);
+        return;
+    }
+    const filtered = allMemories.filter(m => 
+        (m.question || "").toLowerCase().includes(query) || 
+        (m.answer || "").toLowerCase().includes(query) ||
+        (m.category || "").toLowerCase().includes(query)
+    );
+    renderMemoryVault(filtered);
+}
+
+function toggleAddMemoryForm() {
+    const form = document.getElementById("addMemoryForm");
+    if (form) {
+        form.classList.toggle("hidden");
+    }
+}
+
+async function saveNewMemory() {
+    const qInput = document.getElementById("newQuestionInput");
+    const aInput = document.getElementById("newAnswerInput");
+    if (!qInput || !aInput) return;
+
+    const question = qInput.value.trim();
+    const answer = aInput.value.trim();
+    if (!question || !answer) {
+        alert("Please enter both the question and the canonical answer.");
+        return;
+    }
+
+    try {
+        const res = await fetch("/api/memory/qa", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ question: question, answer: answer, category: "custom" })
+        });
+        if (!res.ok) throw new Error("Could not save to memory");
+        qInput.value = "";
+        aInput.value = "";
+        toggleAddMemoryForm();
+        alert("✅ Successfully added to Memory Vault!");
+        loadQAMemory();
+    } catch (e) {
+        alert("Error: " + e.message);
+    }
+}
+
+async function deleteMemory(mId) {
+    if (!confirm("Remove this question from the agent's memory?")) return;
+    try {
+        const res = await fetch(`/api/memory/qa/${mId}`, { method: "DELETE" });
+        if (!res.ok) throw new Error("Could not delete");
+        loadQAMemory();
+    } catch (e) {
+        alert("Error: " + e.message);
+    }
+}

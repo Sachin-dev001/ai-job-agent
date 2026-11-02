@@ -1,0 +1,46 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environments & Virtual Environments
+.env
+*.env
+!.env.example
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Authentication & Session Cookies (NEVER commit credentials)
+**/cookies/*.json
+backend/cookies/
+backend/browser_profile/
+*.session
+
+# Playwright & Runtime Artifacts
+backend/proofs/*.png
+backend/*.png
+*.log
+
+# Uploaded Files & Resumes (User data)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Database & SQLite
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE / Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS Generated Files
+.DS_Store
+Thumbs.db
