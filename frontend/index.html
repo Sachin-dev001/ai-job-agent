@@ -1,224 +1,323 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Autonomous AI Job Application Agent</title>
-    <!-- Tailwind CSS (CDN) -->
+    <title>Pipeline | Autonomous Job Application Orchestrator</title>
+    
+    <!-- Modern Sans-serif Font: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+                    },
+                    colors: {
+                        zinc: {
+                            850: '#1e1e23',
+                            900: '#141417',
+                            925: '#0f0f12',
+                            950: '#09090b',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; }
+        body {
+            font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+            background-color: #09090b;
+            color: #f4f4f5;
+        }
+        /* Custom subtle scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #09090b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #27272a;
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3f3f46;
+        }
     </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-indigo-500 selection:text-white">
+<body class="min-h-screen bg-zinc-950 text-zinc-100 font-sans antialiased selection:bg-zinc-800 selection:text-white">
 
-    <!-- Top Navigation Header -->
-    <header class="border-b border-slate-800 bg-slate-900/60 backdrop-blur-md sticky top-0 z-40">
-        <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+    <!-- Top Navigation Bar -->
+    <header class="sticky top-0 z-40 bg-zinc-950/80 backdrop-blur-md border-b border-zinc-800/80">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+            
+            <!-- Brand & Breadcrumbs -->
             <div class="flex items-center gap-3">
-                <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-500 to-emerald-400 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                    <i data-lucide="bot" class="w-5 h-5 text-white"></i>
+                <div class="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-700/60 flex items-center justify-center font-bold text-sm tracking-tight text-white shadow-sm">
+                    P
                 </div>
-                <div>
-                    <h1 class="text-sm font-bold text-white tracking-wide flex items-center gap-2">
-                        Autonomous Job Application Agent
-                        <span class="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-medium">v1.0 Pro</span>
-                    </h1>
-                    <p class="text-xs text-slate-400">LLM-Powered Resume Analysis, Platform Scrapers & Automated Submissions</p>
-                </div>
-            </div>
-            <div class="flex items-center gap-4">
-                <div class="flex items-center gap-2 text-xs text-slate-400 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700/60">
-                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                    <span>Brain: Groq Qwen 27B / Gemini</span>
+                <div class="flex items-center gap-2">
+                    <span class="font-semibold text-sm tracking-tight text-zinc-100">Pipeline</span>
+                    <span class="text-zinc-600 text-xs">/</span>
+                    <span class="text-xs text-zinc-400 font-medium">Application Orchestrator</span>
+                    <span class="text-[10px] font-mono bg-zinc-900 border border-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded">v1.2</span>
                 </div>
             </div>
+
+            <!-- Connected Session Badges & Memory Vault Action -->
+            <div class="flex items-center gap-2.5">
+                
+                <!-- Platform Status Pills -->
+                <div class="hidden md:flex items-center gap-2 text-xs">
+                    <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-900/90 border border-zinc-800 text-zinc-300">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                        <span class="font-medium text-[11px]">Naukri</span>
+                    </div>
+                    <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-900/90 border border-zinc-800 text-zinc-300">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                        <span class="font-medium text-[11px]">Wellfound</span>
+                        <span class="text-[10px] text-zinc-500 font-mono truncate max-w-[130px]">sachin.sharma</span>
+                    </div>
+                </div>
+
+                <!-- Memory Vault Trigger -->
+                <button onclick="toggleVaultModal(true)" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 hover:border-zinc-700 text-xs font-medium text-zinc-200 transition shadow-sm">
+                    <i data-lucide="brain" class="w-3.5 h-3.5 text-zinc-400"></i>
+                    <span>Memory Vault</span>
+                    <span id="vaultCountBadge" class="text-[10px] font-mono px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-300 border border-zinc-700/60">21</span>
+                </button>
+
+                <!-- User Profile -->
+                <div class="flex items-center gap-2 pl-2 border-l border-zinc-800">
+                    <div class="w-7 h-7 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-xs font-semibold text-zinc-200">
+                        S
+                    </div>
+                    <span class="text-xs font-medium text-zinc-300 hidden sm:inline">Sachin S.</span>
+                </div>
+
+            </div>
+
         </div>
     </header>
 
-    <!-- Main Workspace Container -->
-    <main class="max-w-7xl mx-auto px-4 py-8 flex-1 w-full space-y-8">
+    <!-- Main Content Container -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
 
-        <!-- Metrics Overview Dashboard -->
-        <section class="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div class="bg-slate-900/50 border border-slate-800 p-4 rounded-xl shadow-sm">
-                <div class="flex items-center justify-between text-slate-400 mb-2">
-                    <span class="text-xs font-medium uppercase tracking-wider">Candidate Profile</span>
-                    <i data-lucide="user-check" class="w-4 h-4 text-indigo-400"></i>
-                </div>
-                <div class="text-2xl font-bold text-white" id="statParsed">Ready</div>
-                <p class="text-[11px] text-slate-500 mt-1">Multi-modal docx/pdf parser</p>
+        <!-- Top Metrics KPI Grid -->
+        <section class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            
+            <div class="bg-zinc-900/70 border border-zinc-800/80 rounded-xl p-4 flex flex-col justify-between">
+                <span class="text-xs font-medium text-zinc-400 flex items-center justify-between">
+                    <span>Parsed Candidate</span>
+                    <i data-lucide="user-check" class="w-4 h-4 text-zinc-500"></i>
+                </span>
+                <div class="mt-2 text-xl font-bold tracking-tight text-zinc-100" id="statParsed">Ready</div>
+                <span class="text-[11px] text-zinc-500 mt-0.5">Resume DNA extracted</span>
             </div>
 
-            <div class="bg-slate-900/50 border border-slate-800 p-4 rounded-xl shadow-sm">
-                <div class="flex items-center justify-between text-slate-400 mb-2">
-                    <span class="text-xs font-medium uppercase tracking-wider">Discovered Jobs</span>
-                    <i data-lucide="compass" class="w-4 h-4 text-emerald-400"></i>
-                </div>
-                <div class="text-2xl font-bold text-white" id="statFound">0</div>
-                <p class="text-[11px] text-slate-500 mt-1">Naukri, RemoteOK, WWR, YC</p>
+            <div class="bg-zinc-900/70 border border-zinc-800/80 rounded-xl p-4 flex flex-col justify-between">
+                <span class="text-xs font-medium text-zinc-400 flex items-center justify-between">
+                    <span>Active Openings</span>
+                    <i data-lucide="briefcase" class="w-4 h-4 text-zinc-500"></i>
+                </span>
+                <div class="mt-2 text-xl font-bold tracking-tight text-zinc-100" id="statFound">0</div>
+                <span class="text-[11px] text-zinc-500 mt-0.5">&le; 15 days freshness</span>
             </div>
 
-            <div class="bg-slate-900/50 border border-slate-800 p-4 rounded-xl shadow-sm">
-                <div class="flex items-center justify-between text-slate-400 mb-2">
-                    <span class="text-xs font-medium uppercase tracking-wider">Auto-Applications</span>
-                    <i data-lucide="send" class="w-4 h-4 text-sky-400"></i>
-                </div>
-                <div class="text-2xl font-bold text-white" id="statApplied">0</div>
-                <p class="text-[11px] text-slate-500 mt-1">Autonomous submissions</p>
+            <div class="bg-zinc-900/70 border border-zinc-800/80 rounded-xl p-4 flex flex-col justify-between">
+                <span class="text-xs font-medium text-zinc-400 flex items-center justify-between">
+                    <span>Submissions</span>
+                    <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400"></i>
+                </span>
+                <div class="mt-2 text-xl font-bold tracking-tight text-emerald-400" id="statApplied">0</div>
+                <span class="text-[11px] text-zinc-500 mt-0.5">Verified with proof</span>
             </div>
 
-            <div class="bg-slate-900/50 border border-slate-800 p-4 rounded-xl shadow-sm">
-                <div class="flex items-center justify-between text-slate-400 mb-2">
-                    <span class="text-xs font-medium uppercase tracking-wider">HITL Questions</span>
-                    <i data-lucide="help-circle" class="w-4 h-4 text-amber-400"></i>
-                </div>
-                <div class="text-2xl font-bold text-white" id="statNeedsHuman">0</div>
-                <p class="text-[11px] text-slate-500 mt-1">Alerted via Telegram & Email</p>
+            <div class="bg-zinc-900/70 border border-zinc-800/80 rounded-xl p-4 flex flex-col justify-between">
+                <span class="text-xs font-medium text-zinc-400 flex items-center justify-between">
+                    <span>Questions Learned</span>
+                    <i data-lucide="help-circle" class="w-4 h-4 text-zinc-500"></i>
+                </span>
+                <div class="mt-2 text-xl font-bold tracking-tight text-zinc-100" id="statNeedsHuman">21</div>
+                <span class="text-[11px] text-zinc-500 mt-0.5">Zero hallucinations</span>
             </div>
+
         </section>
 
-        <!-- Core Operational Grid -->
-        <section class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Two-Column Workspace Layout -->
+        <section class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
-            <!-- Left Panel: Resume Upload & Analysis -->
-            <div class="space-y-6">
-                <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 shadow-sm">
-                    <h2 class="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-                        <i data-lucide="file-text" class="w-4 h-4 text-indigo-400"></i>
-                        Candidate Resume Ingestion
-                    </h2>
-                    
-                    <div id="dropzone" class="border-2 border-dashed border-slate-700 hover:border-indigo-500/80 transition rounded-xl p-6 text-center cursor-pointer bg-slate-950/40">
+            <!-- Left Column: Resume & Candidate DNA (4 cols) -->
+            <div class="lg:col-span-4 space-y-4">
+                
+                <!-- Resume Upload Panel -->
+                <div class="bg-zinc-900/70 border border-zinc-800/80 rounded-xl p-4 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-semibold text-zinc-200 flex items-center gap-2">
+                            <i data-lucide="file-text" class="w-3.5 h-3.5 text-zinc-400"></i>
+                            Candidate Resume
+                        </span>
+                        <span class="text-[11px] text-zinc-500">DOCX, PDF, TXT</span>
+                    </div>
+
+                    <!-- Dropzone -->
+                    <div id="dropzone" class="border border-dashed border-zinc-700/80 hover:border-zinc-500 rounded-lg p-5 text-center cursor-pointer bg-zinc-950/40 transition">
                         <input type="file" id="resumeFileInput" class="hidden" accept=".pdf,.docx,.txt" />
-                        <div class="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mx-auto mb-3 text-slate-300">
-                            <i data-lucide="upload-cloud" class="w-6 h-6 text-indigo-400"></i>
+                        <div class="flex flex-col items-center justify-center space-y-1.5">
+                            <i data-lucide="upload-cloud" class="w-6 h-6 text-zinc-400"></i>
+                            <p class="text-xs font-medium text-zinc-300">Click or drop resume file</p>
+                            <p class="text-[11px] text-zinc-500">Max size 5MB</p>
                         </div>
-                        <p class="text-xs font-medium text-slate-200">Click to upload or drag & drop</p>
-                        <p class="text-[10px] text-slate-500 mt-1">PDF, DOCX, or TXT (Max 5MB)</p>
                     </div>
 
-                    <div id="fileStatus" class="hidden mt-3 p-3 bg-slate-800/60 rounded-xl text-xs flex items-center justify-between border border-slate-700/50">
+                    <!-- File selected status -->
+                    <div id="fileStatus" class="hidden p-2.5 bg-zinc-950/80 rounded-lg text-xs flex items-center justify-between border border-zinc-800">
                         <div class="flex items-center gap-2 truncate">
-                            <i data-lucide="file" class="w-4 h-4 text-indigo-400 shrink-0"></i>
-                            <span id="fileName" class="text-slate-300 truncate">resume.pdf</span>
+                            <i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i>
+                            <span id="fileName" class="text-zinc-200 font-medium truncate">resume.pdf</span>
                         </div>
-                        <span class="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded font-medium border border-emerald-500/20 shrink-0">Selected</span>
+                        <span class="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded font-mono">Ready</span>
                     </div>
 
-                    <button id="analyzeBtn" class="w-full mt-4 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white text-xs font-semibold py-2.5 rounded-xl transition shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2">
-                        <i data-lucide="sparkles" class="w-4 h-4"></i>
-                        Analyze Resume with LLM
+                    <!-- Analyze Action -->
+                    <button id="analyzeBtn" class="w-full bg-zinc-100 hover:bg-white active:bg-zinc-200 text-zinc-900 text-xs font-semibold py-2 rounded-lg transition shadow-sm flex items-center justify-center gap-1.5">
+                        <i data-lucide="sparkles" class="w-3.5 h-3.5 text-zinc-800"></i>
+                        <span>Analyze & Extract Profile</span>
                     </button>
                 </div>
 
-                <!-- Parsed Candidate Profile Card -->
-                <div id="profileCard" class="hidden bg-slate-900/60 border border-slate-800 rounded-2xl p-6 shadow-sm space-y-4">
-                    <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Candidate DNA Extracted</h3>
-                    <div id="profileSummary" class="text-xs text-slate-300 space-y-1"></div>
+                <!-- Parsed Candidate DNA Card -->
+                <div id="profileCard" class="hidden bg-zinc-900/70 border border-zinc-800/80 rounded-xl p-4 space-y-4">
                     <div>
-                        <span class="text-[10px] text-slate-400 uppercase font-semibold">Technical Skills Vault:</span>
-                        <div id="skillsContainer" class="flex flex-wrap gap-1.5 mt-2"></div>
+                        <span class="text-xs font-semibold text-zinc-200">Candidate Information</span>
+                        <div id="profileSummary" class="text-xs text-zinc-400 space-y-1 mt-2"></div>
                     </div>
-                    <div>
-                        <span class="text-[10px] text-slate-400 uppercase font-semibold">Recommended Roles:</span>
-                        <div id="jobTitlesContainer" class="space-y-1.5 mt-2"></div>
+
+                    <!-- Core Skills Pills -->
+                    <div class="border-t border-zinc-800 pt-3">
+                        <span class="text-[11px] uppercase tracking-wider font-semibold text-zinc-500 block mb-2">Technical Skills</span>
+                        <div id="skillsContainer" class="flex flex-wrap gap-1.5"></div>
+                    </div>
+
+                    <!-- Recommended Roles -->
+                    <div class="border-t border-zinc-800 pt-3">
+                        <span class="text-[11px] uppercase tracking-wider font-semibold text-zinc-500 block mb-2">Recommended Roles (Click to Scout)</span>
+                        <div id="jobTitlesContainer" class="space-y-1.5"></div>
                     </div>
                 </div>
+
             </div>
 
-            <!-- Right Panel: Live Job Matches & Submissions -->
-            <div class="lg:col-span-2 space-y-6">
-                <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 shadow-sm">
-                    <!-- Platform Selector Workspace Tabs -->
-                    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3 mb-4">
-                        <div class="flex flex-wrap items-center gap-2">
-                            <button id="tabNaukri" onclick="switchPlatform('naukri')" class="platform-tab px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-indigo-600 text-white shadow-lg shadow-indigo-600/30">
-                                <span>🏢 Naukri.com Workspace</span>
-                                <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded font-mono border border-emerald-500/30">Active ✅</span>
+            <!-- Right Column: Job Openings & Auto-Apply Table (8 cols) -->
+            <div class="lg:col-span-8 space-y-4">
+                
+                <!-- Main Workspace Card -->
+                <div class="bg-zinc-900/70 border border-zinc-800/80 rounded-xl p-5 shadow-sm space-y-4">
+                    
+                    <!-- Segmented Controls: Platform Switcher -->
+                    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 pb-3">
+                        
+                        <!-- Tabs -->
+                        <div class="inline-flex p-1 rounded-lg bg-zinc-950 border border-zinc-800 gap-1">
+                            <button id="tabNaukri" onclick="switchPlatform('naukri')" class="platform-tab px-3 py-1.5 rounded-md text-xs font-medium transition flex items-center gap-1.5 bg-zinc-800 text-white shadow-sm">
+                                <span>Naukri.com</span>
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
                             </button>
-                            <button id="tabWellfound" onclick="switchPlatform('wellfound')" class="platform-tab px-3.5 py-1.5 rounded-xl text-xs font-medium transition flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300">
-                                <span>🚀 Wellfound Startups</span>
-                                <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded font-mono border border-emerald-500/30">Active ✅</span>
+                            <button id="tabWellfound" onclick="switchPlatform('wellfound')" class="platform-tab px-3 py-1.5 rounded-md text-xs font-medium transition flex items-center gap-1.5 text-zinc-400 hover:text-zinc-200">
+                                <span>Wellfound Startups</span>
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
                             </button>
-                            <button onclick="showYCNotice()" class="px-3 py-1.5 rounded-xl text-xs text-slate-500 bg-slate-900/60 border border-slate-800 cursor-not-allowed flex items-center gap-1.5">
-                                <span>⚡ Y Combinator</span>
-                                <span class="text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded">Coming Next</span>
+                            <button onclick="showYCNotice()" class="px-3 py-1.5 rounded-md text-xs font-medium text-zinc-600 hover:text-zinc-500 transition flex items-center gap-1">
+                                <span>Y Combinator</span>
+                                <span class="text-[9px] bg-zinc-900 border border-zinc-800 text-zinc-500 px-1 py-0.2 rounded">Next</span>
                             </button>
                         </div>
-                        <div class="flex items-center gap-2">
-                            <button onclick="toggleVaultModal(true)" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center gap-1.5 shadow-sm">
-                                <i data-lucide="brain-circuit" class="w-3.5 h-3.5 text-indigo-400"></i>
-                                <span>Memory Vault</span>
-                                <span id="vaultCountBadge" class="bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded text-[10px] font-mono">22</span>
-                            </button>
-                            <span class="px-2.5 py-1 bg-slate-950 rounded-lg border border-slate-800 flex items-center gap-1.5 text-[11px] text-slate-300">
+
+                        <!-- Freshness metadata badge -->
+                        <div class="flex items-center gap-2 text-xs text-zinc-400">
+                            <span class="px-2.5 py-1 bg-zinc-950 rounded-md border border-zinc-800/90 flex items-center gap-1.5 text-[11px] text-zinc-300">
                                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                                Freshness: <strong class="text-indigo-400">&le; 15 Days</strong> (Newest First)
+                                Freshness: <strong class="text-zinc-200 font-medium">&le; 15 Days</strong> (Newest First)
                             </span>
                         </div>
+
                     </div>
 
-                    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
-                        <h3 id="openingsHeading" class="text-base font-semibold flex items-center gap-2">
-                            <i data-lucide="briefcase" class="w-5 h-5 text-indigo-400"></i>
-                            Live Startup & IT Job Openings
+                    <!-- Controls & Actions Bar -->
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <h3 id="openingsHeading" class="text-sm font-semibold text-zinc-200 flex items-center gap-2">
+                            <i data-lucide="briefcase" class="w-4 h-4 text-zinc-400"></i>
+                            Live Startup & IT Openings
                         </h3>
+
                         <div class="flex items-center gap-2">
-                            <button id="searchJobsBtn" class="bg-slate-700 hover:bg-slate-600 text-white text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition">
-                                <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
-                                Refresh Scouts
+                            <button id="searchJobsBtn" class="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs px-3 py-1.5 rounded-md flex items-center gap-1.5 transition font-medium border border-zinc-700/60">
+                                <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+                                Refresh
                             </button>
-                            <button id="runPlatformLiveBtn" onclick="executeCurrentPlatformLiveBot()" class="bg-gradient-to-r from-amber-600 to-indigo-600 hover:from-amber-500 hover:to-indigo-500 text-white text-xs px-4 py-1.5 rounded-lg flex items-center gap-1.5 font-bold shadow-lg shadow-indigo-600/30 transition">
-                                <i data-lucide="zap" class="w-3.5 h-3.5 text-amber-300"></i>
-                                <span id="runPlatformBtnText">⚡ Run Autonomous Naukri Apply</span>
+                            <button id="runPlatformLiveBtn" onclick="executeCurrentPlatformLiveBot()" class="bg-zinc-100 hover:bg-white text-zinc-900 text-xs px-3.5 py-1.5 rounded-md flex items-center gap-1.5 font-semibold transition shadow-sm">
+                                <i data-lucide="zap" class="w-3.5 h-3.5 text-zinc-900"></i>
+                                <span id="runPlatformBtnText">Run Autonomous Apply</span>
                             </button>
                         </div>
                     </div>
 
                     <!-- Live Playwright Status Log Container -->
-                    <div id="botLiveStatus" class="hidden mb-4 p-4 bg-slate-950/80 border border-indigo-500/40 rounded-xl text-xs space-y-2"></div>
+                    <div id="botLiveStatus" class="hidden p-3 bg-zinc-950 border border-zinc-800 rounded-lg text-xs space-y-1.5"></div>
 
-                    <!-- Pending Recruiter Questions Needing User Input -->
-                    <div id="pendingQuestionsContainer" class="hidden mb-6 p-5 bg-amber-950/40 border border-amber-500/50 rounded-2xl shadow-lg space-y-3">
+                    <!-- Pending Recruiter Questions Alert -->
+                    <div id="pendingQuestionsContainer" class="hidden p-4 bg-amber-950/20 border border-amber-500/30 rounded-lg space-y-2">
                         <div class="flex items-center justify-between">
-                            <h4 class="text-sm font-bold text-amber-300 flex items-center gap-2">
-                                <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-400"></i>
-                                Recruiter Screening Questions Needing Your Answer
+                            <h4 class="text-xs font-semibold text-amber-300 flex items-center gap-1.5">
+                                <i data-lucide="alert-circle" class="w-3.5 h-3.5 text-amber-400"></i>
+                                Screening Question Needing Answer
                             </h4>
-                            <span class="text-[11px] text-amber-400/80 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full">
-                                Sent to your Telegram
+                            <span class="text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded font-medium">
+                                Telegram HITL Active
                             </span>
                         </div>
-                        <p class="text-xs text-slate-300">
-                            The recruiter asked a question that was not found in your resume. Answer it below or reply to your Telegram bot. The agent will save it permanently in your memory vault and never ask again!
+                        <p class="text-xs text-zinc-300">
+                            The recruiter asked a question not found in your resume. Answer below or reply directly to your Telegram bot. It will be permanently remembered!
                         </p>
-                        <div id="pendingQuestionsList" class="space-y-3 pt-1"></div>
+                        <div id="pendingQuestionsList" class="space-y-2 pt-1"></div>
                     </div>
 
-                    <div class="overflow-x-auto">
+                    <!-- High-Density Pipeline Table -->
+                    <div class="overflow-x-auto border border-zinc-800/80 rounded-lg">
                         <table class="w-full text-left border-collapse text-xs">
                             <thead>
-                                <tr class="border-b border-slate-700 text-slate-400 uppercase text-[10px] tracking-wider">
-                                    <th class="py-3 px-4">Role & Company</th>
-                                    <th class="py-3 px-4">Platform</th>
-                                    <th class="py-3 px-4">Match %</th>
-                                    <th class="py-3 px-4">Status</th>
-                                    <th class="py-3 px-4 text-right">Auto-Apply Action</th>
+                                <tr class="border-b border-zinc-800 bg-zinc-950/60 text-zinc-400 uppercase text-[10px] font-semibold tracking-wider">
+                                    <th class="py-2.5 px-3.5">Role & Company</th>
+                                    <th class="py-2.5 px-3.5">Platform</th>
+                                    <th class="py-2.5 px-3.5">Match</th>
+                                    <th class="py-2.5 px-3.5">Status</th>
+                                    <th class="py-2.5 px-3.5 text-right">Action</th>
                                 </tr>
                             </thead>
-                            <tbody id="jobsTableBody" class="divide-y divide-slate-800 text-slate-300">
+                            <tbody id="jobsTableBody" class="divide-y divide-zinc-800/60 text-zinc-300 bg-zinc-900/30">
                                 <tr>
-                                    <td colspan="5" class="py-8 text-center text-slate-500">
+                                    <td colspan="5" class="py-10 text-center text-zinc-500">
                                         Upload your resume or trigger job scouts to discover and auto-apply to relevant positions.
                                     </td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
+
                 </div>
 
             </div>
@@ -227,41 +326,41 @@
 
     </main>
 
-    <!-- Modal for Tailored Application Pitch & Review -->
-    <div id="applyModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4">
-            <div class="flex items-center justify-between border-b border-slate-700 pb-3">
-                <h3 class="text-base font-bold text-white flex items-center gap-2">
-                    <i data-lucide="file-check" class="w-5 h-5 text-emerald-400"></i>
-                    AI Tailored Application Package
+    <!-- Modal: Application Pitch Review -->
+    <div id="applyModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl max-w-xl w-full p-5 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-zinc-800 pb-3">
+                <h3 class="text-sm font-semibold text-zinc-100 flex items-center gap-2">
+                    <i data-lucide="file-text" class="w-4 h-4 text-emerald-400"></i>
+                    Tailored Application Pitch
                 </h3>
-                <button onclick="closeModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">✕</button>
+                <button onclick="closeModal()" class="text-zinc-500 hover:text-zinc-300 p-1 rounded-md text-xs">✕</button>
             </div>
 
             <div class="space-y-3 text-xs">
                 <div>
-                    <span class="text-slate-400">Target Role:</span>
-                    <p id="modalRole" class="font-bold text-slate-100 text-sm mt-0.5"></p>
+                    <span class="text-zinc-400">Target Role:</span>
+                    <p id="modalRole" class="font-semibold text-zinc-200 text-sm mt-0.5"></p>
                 </div>
-                
                 <div>
-                    <span class="text-slate-400">Generated Tailored Cover Letter / Pitch:</span>
-                    <textarea id="modalCoverLetter" rows="8" class="w-full mt-1.5 p-3 bg-slate-900 border border-slate-700 rounded-xl text-slate-200 text-xs font-mono focus:border-indigo-500 outline-none leading-relaxed"></textarea>
+                    <span class="text-zinc-400">Tailored Note / Pitch:</span>
+                    <textarea id="modalCoverLetter" rows="7" class="w-full mt-1.5 p-3 bg-zinc-950 border border-zinc-800 rounded-lg text-zinc-200 text-xs font-mono focus:border-zinc-600 outline-none leading-relaxed"></textarea>
                 </div>
             </div>
 
             <div class="flex items-center justify-between pt-2">
-                <button onclick="copyCoverLetter()" class="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1.5 font-medium">
+                <button onclick="copyCoverLetter()" class="text-xs text-zinc-400 hover:text-zinc-200 flex items-center gap-1 font-medium">
                     <i data-lucide="copy" class="w-3.5 h-3.5"></i> Copy Pitch
                 </button>
                 <div class="flex gap-2">
-                    <button onclick="closeModal()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-xl text-xs font-medium transition">
+                    <button onclick="closeModal()" class="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-md text-xs font-medium transition">
                         Cancel
                     </button>
-                    <button id="modalLiveSubmitBtn" onclick="runSingleJobLiveSubmit()" class="px-4 py-2 bg-gradient-to-r from-indigo-600 to-emerald-600 hover:from-indigo-500 hover:to-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-lg shadow-emerald-600/30">
-                        <i data-lucide="zap" class="w-3.5 h-3.5"></i> ⚡ Autonomous Playwright Submit
+                    <button id="modalLiveSubmitBtn" onclick="runSingleJobLiveSubmit()" class="px-3.5 py-1.5 bg-zinc-100 hover:bg-white text-zinc-900 rounded-md text-xs font-semibold transition flex items-center gap-1 shadow-sm">
+                        <i data-lucide="zap" class="w-3.5 h-3.5 text-zinc-900"></i>
+                        <span>Submit Live Application</span>
                     </button>
-                    <a id="modalSubmitLink" href="#" target="_blank" onclick="markSubmitted()" class="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-xl text-xs font-medium transition flex items-center gap-1">
+                    <a id="modalSubmitLink" href="#" target="_blank" onclick="markSubmitted()" class="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-md text-xs font-medium transition flex items-center gap-1">
                         <i data-lucide="external-link" class="w-3 h-3"></i> Manual Link
                     </a>
                 </div>
@@ -270,132 +369,127 @@
     </div>
 
     <!-- Modal: Choose Scouting & Application Platform -->
-    <div id="platformSelectorModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-5">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+    <div id="platformSelectorModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-lg w-full p-5 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-zinc-800 pb-3">
                 <div>
-                    <h3 class="text-base font-bold text-white flex items-center gap-2">
-                        <i data-lucide="layers" class="w-5 h-5 text-indigo-400"></i>
-                        Select Scouting & Apply Portal
-                    </h3>
-                    <p class="text-xs text-slate-400 mt-0.5">
-                        Selected Role: <span id="modalSelectedRoleTitle" class="text-indigo-400 font-bold">Data Analyst</span>
+                    <h3 class="text-sm font-semibold text-zinc-100">Select Portal</h3>
+                    <p class="text-xs text-zinc-400 mt-0.5">
+                        Selected Role: <span id="modalSelectedRoleTitle" class="text-zinc-200 font-semibold">Data Analyst</span>
                     </p>
                 </div>
-                <button onclick="closePlatformModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">✕</button>
+                <button onclick="closePlatformModal()" class="text-zinc-500 hover:text-zinc-300 p-1 rounded-md text-xs">✕</button>
             </div>
 
-            <p class="text-xs text-slate-300">
-                Where would you like the autonomous agent to scout openings posted within the last 15 days (newest first) and execute auto-applications?
+            <p class="text-xs text-zinc-400">
+                Where would you like the agent to scout fresh openings (&le; 15 days, newest first) and auto-apply?
             </p>
 
-            <div class="space-y-3">
-                <!-- Option 1: Naukri.com -->
-                <div onclick="selectPlatformAndScout('naukri')" class="p-4 bg-slate-950 border border-slate-800 hover:border-indigo-500 rounded-2xl cursor-pointer transition flex items-center justify-between group">
-                    <div class="flex items-center gap-3.5">
-                        <div class="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 font-bold text-lg group-hover:scale-105 transition">
+            <div class="space-y-2.5">
+                <!-- Option 1: Naukri -->
+                <div onclick="selectPlatformAndScout('naukri')" class="p-3.5 bg-zinc-950 border border-zinc-800 hover:border-zinc-600 rounded-xl cursor-pointer transition flex items-center justify-between group">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-sm font-bold text-zinc-300">
                             🏢
                         </div>
                         <div>
                             <div class="flex items-center gap-2">
-                                <h4 class="text-sm font-bold text-white group-hover:text-indigo-300 transition">Naukri.com Workspace</h4>
-                                <span class="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-medium">Session Active ✅</span>
+                                <h4 class="text-xs font-semibold text-zinc-200 group-hover:text-white transition">Naukri.com Workspace</h4>
+                                <span class="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.2 rounded font-medium">Session Active ✓</span>
                             </div>
-                            <p class="text-xs text-slate-400 mt-0.5">Scouts top corporate & IT positions in India. Autonomously handles chatbot questionnaires.</p>
+                            <p class="text-[11px] text-zinc-400 mt-0.5">Top corporate & IT openings in India. Handles chatbot questionnaires.</p>
                         </div>
                     </div>
-                    <i data-lucide="chevron-right" class="w-5 h-5 text-slate-500 group-hover:text-indigo-400 group-hover:translate-x-1 transition"></i>
+                    <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-500 group-hover:text-zinc-300 transition"></i>
                 </div>
 
-                <!-- Option 2: Wellfound (AngelList) -->
-                <div onclick="selectPlatformAndScout('wellfound')" class="p-4 bg-slate-950 border border-slate-800 hover:border-emerald-500 rounded-2xl cursor-pointer transition flex items-center justify-between group">
-                    <div class="flex items-center gap-3.5">
-                        <div class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 font-bold text-lg group-hover:scale-105 transition">
+                <!-- Option 2: Wellfound -->
+                <div onclick="selectPlatformAndScout('wellfound')" class="p-3.5 bg-zinc-950 border border-zinc-800 hover:border-zinc-600 rounded-xl cursor-pointer transition flex items-center justify-between group">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-sm font-bold text-zinc-300">
                             🚀
                         </div>
                         <div>
                             <div class="flex items-center gap-2">
-                                <h4 class="text-sm font-bold text-white group-hover:text-emerald-300 transition">Wellfound (AngelList) Startups</h4>
-                                <span class="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-medium">sachin.sharma.coder@gmail.com ✅</span>
+                                <h4 class="text-xs font-semibold text-zinc-200 group-hover:text-white transition">Wellfound Startups</h4>
+                                <span class="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.2 rounded font-medium">Connected ✓</span>
                             </div>
-                            <p class="text-xs text-slate-400 mt-0.5">High-growth startups & remote ventures. Automated 1-click pitches & direct founder applications.</p>
+                            <p class="text-[11px] text-zinc-400 mt-0.5">High-growth startups & remote ventures. Automated 1-click pitches.</p>
                         </div>
                     </div>
-                    <i data-lucide="chevron-right" class="w-5 h-5 text-slate-500 group-hover:text-emerald-400 group-hover:translate-x-1 transition"></i>
+                    <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-500 group-hover:text-zinc-300 transition"></i>
                 </div>
 
-                <!-- Option 3: Y Combinator -->
-                <div onclick="showYCNotice()" class="p-4 bg-slate-950/50 border border-slate-800/80 rounded-2xl cursor-not-allowed flex items-center justify-between opacity-60">
-                    <div class="flex items-center gap-3.5">
-                        <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 font-bold text-lg">
+                <!-- Option 3: YC -->
+                <div onclick="showYCNotice()" class="p-3.5 bg-zinc-950/40 border border-zinc-800/60 rounded-xl cursor-not-allowed flex items-center justify-between opacity-50">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-sm font-bold text-zinc-500">
                             ⚡
                         </div>
                         <div>
                             <div class="flex items-center gap-2">
-                                <h4 class="text-sm font-bold text-slate-300">Y Combinator (Work at a Startup)</h4>
-                                <span class="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full font-medium">Coming Next</span>
+                                <h4 class="text-xs font-semibold text-zinc-400">Y Combinator (Work at a Startup)</h4>
+                                <span class="text-[10px] bg-zinc-900 text-zinc-500 border border-zinc-800 px-1.5 py-0.2 rounded font-medium">Coming Soon</span>
                             </div>
-                            <p class="text-xs text-slate-500 mt-0.5">Early-stage YC-backed founders. Next platform update as requested.</p>
+                            <p class="text-[11px] text-zinc-500 mt-0.5">Early-stage YC founders. Next platform update.</p>
                         </div>
                     </div>
-                    <i data-lucide="lock" class="w-4 h-4 text-slate-600"></i>
+                    <i data-lucide="lock" class="w-3.5 h-3.5 text-zinc-600"></i>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Modal: Recruiter Q&A Memory Vault -->
-    <div id="memoryVaultModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+    <div id="memoryVaultModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-2xl w-full p-5 shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
+            <div class="flex items-center justify-between border-b border-zinc-800 pb-3">
                 <div class="flex items-center gap-2.5">
-                    <div class="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
-                        <i data-lucide="brain-circuit" class="w-4 h-4"></i>
+                    <div class="w-7 h-7 rounded-md bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-300">
+                        <i data-lucide="brain" class="w-3.5 h-3.5"></i>
                     </div>
                     <div>
-                        <h3 class="text-base font-bold text-white flex items-center gap-2">
-                            Recruiter Q&A Memory Vault
-                        </h3>
-                        <p class="text-xs text-slate-400">Learned recruiter answers. Zero hallucinations.</p>
+                        <h3 class="text-sm font-semibold text-zinc-100">Recruiter Q&A Memory Vault</h3>
+                        <p class="text-xs text-zinc-400">Remembered candidate answers. Zero hallucinations.</p>
                     </div>
                 </div>
                 <div class="flex items-center gap-2">
-                    <button onclick="toggleAddMemoryForm()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 font-medium transition shadow-sm">
-                        <i data-lucide="plus" class="w-3.5 h-3.5"></i> Teach New
+                    <button onclick="toggleAddMemoryForm()" class="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs px-2.5 py-1 rounded-md flex items-center gap-1 font-medium transition border border-zinc-700/60">
+                        <i data-lucide="plus" class="w-3 h-3"></i> Teach New
                     </button>
-                    <button onclick="toggleVaultModal(false)" class="text-slate-400 hover:text-white p-1 rounded-lg text-sm font-bold">✕</button>
+                    <button onclick="toggleVaultModal(false)" class="text-zinc-500 hover:text-zinc-300 p-1 rounded-md text-xs font-bold">✕</button>
                 </div>
             </div>
 
             <!-- Add New Memory Form -->
-            <div id="addMemoryForm" class="hidden bg-slate-950/70 border border-indigo-500/30 p-4 rounded-xl space-y-3 shrink-0">
+            <div id="addMemoryForm" class="hidden bg-zinc-950 p-3.5 rounded-lg border border-zinc-800 space-y-2.5 shrink-0">
                 <div class="flex items-center justify-between">
-                    <span class="text-xs font-bold text-indigo-300">Teach Agent a New Q&A Pair</span>
-                    <button onclick="toggleAddMemoryForm()" class="text-slate-400 hover:text-white text-xs">✕ Close</button>
+                    <span class="text-xs font-semibold text-zinc-300">Teach Agent a New Q&A Pair</span>
+                    <button onclick="toggleAddMemoryForm()" class="text-zinc-500 hover:text-zinc-300 text-xs">✕ Close</button>
                 </div>
                 <div class="space-y-2 text-xs">
-                    <input id="newQuestionInput" type="text" placeholder="Recruiter Question (e.g. Do you have experience with Kubernetes?)" class="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 focus:border-indigo-500 outline-none">
-                    <textarea id="newAnswerInput" rows="2" placeholder="Your Answer (e.g. Yes, 2 years deploying Docker containers and Helm charts)" class="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 focus:border-indigo-500 outline-none"></textarea>
+                    <input id="newQuestionInput" type="text" placeholder="Recruiter Question (e.g. Do you have experience with Docker?)" class="w-full p-2 bg-zinc-900 border border-zinc-800 rounded-md text-zinc-200 focus:border-zinc-600 outline-none">
+                    <textarea id="newAnswerInput" rows="2" placeholder="Your Answer (e.g. Yes, 2 years deploying Docker microservices)" class="w-full p-2 bg-zinc-900 border border-zinc-800 rounded-md text-zinc-200 focus:border-zinc-600 outline-none"></textarea>
                 </div>
-                <div class="flex justify-end gap-2 pt-1">
-                    <button onclick="saveNewMemory()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-4 py-1.5 rounded-lg font-bold transition shadow-sm">
-                        💾 Save & Remember Forever
+                <div class="flex justify-end pt-1">
+                    <button onclick="saveNewMemory()" class="bg-zinc-100 hover:bg-white text-zinc-900 text-xs px-3 py-1.5 rounded-md font-semibold transition">
+                        Save to Memory
                     </button>
                 </div>
             </div>
 
             <!-- Memory List Search & Container -->
-            <div class="flex items-center justify-between text-xs text-slate-400 shrink-0">
+            <div class="flex items-center justify-between text-xs text-zinc-400 shrink-0">
                 <span id="memoryCountText">Loading remembered answers...</span>
-                <input id="memorySearchInput" oninput="filterMemories()" type="text" placeholder="Search saved answers..." class="px-2.5 py-1 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-300 focus:border-indigo-500 outline-none w-52">
+                <input id="memorySearchInput" oninput="filterMemories()" type="text" placeholder="Search saved answers..." class="px-2.5 py-1 bg-zinc-950 border border-zinc-800 rounded-md text-xs text-zinc-300 focus:border-zinc-600 outline-none w-52">
             </div>
 
-            <div id="memoryVaultList" class="space-y-3 overflow-y-auto p-1.5 pr-2 grow"></div>
+            <div id="memoryVaultList" class="space-y-2.5 overflow-y-auto p-1 pr-1.5 grow"></div>
         </div>
     </div>
 
-    <!-- Cache-busting script tag so browser never caches old code -->
-    <script src="/static/js/app.js?v=9.0"></script>
+    <!-- Application Controller Script -->
+    <script src="/static/js/app.js?v=10.0"></script>
     <script>
         lucide.createIcons();
     </script>

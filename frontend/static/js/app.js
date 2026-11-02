@@ -82,23 +82,23 @@ function switchPlatform(platformName) {
 
     if (platformName === "naukri") {
         if (tabNaukri) {
-            tabNaukri.className = "platform-tab px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-indigo-600 text-white shadow-lg shadow-indigo-600/30";
+            tabNaukri.className = "platform-tab px-3 py-1.5 rounded-md text-xs font-medium transition flex items-center gap-1.5 bg-zinc-800 text-white shadow-sm";
         }
         if (tabWellfound) {
-            tabWellfound.className = "platform-tab px-3.5 py-1.5 rounded-xl text-xs font-medium transition flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300";
+            tabWellfound.className = "platform-tab px-3 py-1.5 rounded-md text-xs font-medium transition flex items-center gap-1.5 text-zinc-400 hover:text-zinc-200";
         }
         if (runBtnText) {
-            runBtnText.textContent = "⚡ Run Autonomous Naukri Apply";
+            runBtnText.textContent = "Run Autonomous Naukri Apply";
         }
     } else if (platformName === "wellfound") {
         if (tabWellfound) {
-            tabWellfound.className = "platform-tab px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-emerald-600 text-white shadow-lg shadow-emerald-600/30";
+            tabWellfound.className = "platform-tab px-3 py-1.5 rounded-md text-xs font-medium transition flex items-center gap-1.5 bg-zinc-800 text-white shadow-sm";
         }
         if (tabNaukri) {
-            tabNaukri.className = "platform-tab px-3.5 py-1.5 rounded-xl text-xs font-medium transition flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300";
+            tabNaukri.className = "platform-tab px-3 py-1.5 rounded-md text-xs font-medium transition flex items-center gap-1.5 text-zinc-400 hover:text-zinc-200";
         }
         if (runBtnText) {
-            runBtnText.textContent = "⚡ Run Autonomous Wellfound Apply";
+            runBtnText.textContent = "Run Autonomous Wellfound Apply";
         }
     }
 
@@ -192,40 +192,40 @@ function renderJobsTable(jobs) {
     }
 
     tableBody.innerHTML = jobs.map((job, idx) => `
-        <tr id="job-row-${idx}" class="hover:bg-slate-800/40 transition">
-            <td class="py-3 px-4">
+        <tr id="job-row-${idx}" class="hover:bg-zinc-800/40 transition">
+            <td class="py-2.5 px-3.5">
                 <div class="flex items-center gap-2">
-                    <p class="font-semibold text-slate-100">${job.title}</p>
-                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                        ⏱️ ${job.posted_time_ago}
+                    <p class="font-semibold text-zinc-100 text-xs">${job.title}</p>
+                    <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-zinc-800 text-zinc-300 border border-zinc-700/60">
+                        ${job.posted_time_ago}
                     </span>
                 </div>
-                <p class="text-[11px] text-slate-400 mt-0.5">${job.company} • <span class="text-slate-500">${job.location}</span></p>
+                <p class="text-[11px] text-zinc-400 mt-0.5">${job.company} • <span class="text-zinc-500">${job.location}</span></p>
             </td>
-            <td class="py-3 px-4">
-                <span class="px-2.5 py-1 rounded-full text-[10px] font-bold ${
+            <td class="py-2.5 px-3.5">
+                <span class="px-2 py-0.5 rounded text-[10px] font-medium ${
                     job.platform === 'Naukri' 
-                        ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' 
-                        : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                        ? 'bg-zinc-800 text-zinc-300 border border-zinc-700/80' 
+                        : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                 }">
                     ${job.platform}
                 </span>
             </td>
-            <td class="py-3 px-4">
-                <span class="text-xs font-semibold text-emerald-400">96%</span>
+            <td class="py-2.5 px-3.5">
+                <span class="text-xs font-mono font-medium text-emerald-400">96%</span>
             </td>
-            <td class="py-3 px-4" id="status-cell-${idx}">
-                <span class="inline-flex items-center gap-1.5 text-indigo-400 text-xs">
-                    <span class="w-1.5 h-1.5 rounded-full bg-indigo-400"></span> Discovered
+            <td class="py-2.5 px-3.5" id="status-cell-${idx}">
+                <span class="inline-flex items-center gap-1.5 text-zinc-400 text-xs font-medium">
+                    <span class="w-1.5 h-1.5 rounded-full bg-zinc-500"></span> Discovered
                 </span>
             </td>
-            <td class="py-3 px-4 text-right space-x-1.5" id="action-cell-${idx}">
-                <a href="${job.job_url}" target="_blank" class="text-slate-400 hover:text-white text-xs underline mr-1">View</a>
-                <button onclick="directApplyRow(${idx})" class="bg-gradient-to-r from-indigo-600 to-emerald-600 hover:from-indigo-500 hover:to-emerald-500 text-white text-[11px] px-2.5 py-1 rounded-lg font-bold transition shadow-sm">
-                    ⚡ Auto-Apply
+            <td class="py-2.5 px-3.5 text-right space-x-1" id="action-cell-${idx}">
+                <a href="${job.job_url}" target="_blank" class="text-zinc-400 hover:text-zinc-200 text-xs px-2 py-1 transition mr-0.5">View</a>
+                <button onclick="directApplyRow(${idx})" class="bg-zinc-100 hover:bg-white text-zinc-900 text-[11px] px-2.5 py-1 rounded-md font-semibold transition shadow-sm">
+                    Auto-Apply
                 </button>
-                <button onclick="triggerApply(${idx})" class="bg-slate-700 hover:bg-slate-600 text-slate-300 text-[11px] px-2 py-1 rounded-lg font-medium transition">
-                    📝 Pitch
+                <button onclick="triggerApply(${idx})" class="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700/60 text-[11px] px-2 py-1 rounded-md font-medium transition">
+                    Pitch
                 </button>
             </td>
         </tr>
@@ -639,17 +639,17 @@ function renderMemoryVault(memories) {
 
     // Clean padding and rounded cards with no text clipping
     list.innerHTML = memories.slice().reverse().map(m => `
-        <div class="bg-slate-950 border border-slate-800/90 hover:border-slate-700 p-3.5 rounded-xl flex items-start justify-between gap-3 transition shadow-sm">
+        <div class="bg-zinc-950 border border-zinc-800 hover:border-zinc-700 p-3 rounded-lg flex items-start justify-between gap-3 transition">
             <div class="space-y-1.5 text-xs flex-1">
                 <div class="flex items-center gap-2 flex-wrap">
-                    <span class="font-semibold text-indigo-300">❓ ${m.question}</span>
-                    <span class="text-[10px] text-slate-500 bg-slate-900 border border-slate-800 px-1.5 py-0.5 rounded capitalize">${m.category || "custom"}</span>
+                    <span class="font-medium text-zinc-200">${m.question}</span>
+                    <span class="text-[10px] text-zinc-500 bg-zinc-900 border border-zinc-800 px-1.5 py-0.2 rounded capitalize">${m.category || "custom"}</span>
                 </div>
-                <div class="text-emerald-400 font-mono text-[11px] bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg block">
-                    <span class="text-emerald-500 font-bold mr-1">↳</span>${m.answer}
+                <div class="text-zinc-300 font-mono text-[11px] bg-zinc-900 border border-zinc-800 px-2.5 py-1 rounded-md block">
+                    <span class="text-emerald-400 font-bold mr-1.5">↳</span>${m.answer}
                 </div>
             </div>
-            <button onclick="deleteMemory('${m.id}')" title="Delete from memory" class="text-slate-500 hover:text-rose-400 p-1 rounded transition text-xs shrink-0">
+            <button onclick="deleteMemory('${m.id}')" title="Delete from memory" class="text-zinc-500 hover:text-zinc-300 p-1 rounded transition text-xs shrink-0">
                 ✕
             </button>
         </div>
