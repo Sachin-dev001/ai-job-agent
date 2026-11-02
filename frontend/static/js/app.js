@@ -346,12 +346,12 @@ async function directApplyRow(idx) {
                 </span>
             `;
             actionCell.innerHTML = `
-                <a href="${data.proof_image}" target="_blank" class="text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg font-bold hover:underline inline-flex items-center gap-1">
-                    📸 Proof
+                <a href="${data.proof_image || job.job_url}" target="_blank" class="text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg font-bold hover:underline inline-flex items-center gap-1">
+                    ${data.proof_image ? '📸 Proof' : '🔗 View Job'}
                 </a>
             `;
             if (statApplied) statApplied.textContent = parseInt(statApplied.textContent || "0") + 1;
-            alert(`🎉 Application 100% submitted and verified on ${platformLabel} for ${job.title}!\n\nClick '📸 Proof' to view the screenshot confirmation.`);
+            alert(`🎉 Application 100% submitted and verified on ${platformLabel} for ${job.title}!\n\n${data.message || ''}`);
         } else if (data.status === "already_applied") {
             statusCell.innerHTML = `
                 <span class="inline-flex items-center gap-1.5 text-slate-400 text-xs font-semibold">
