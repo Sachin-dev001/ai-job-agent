@@ -124,18 +124,6 @@
       "category": "education"
     },
     {
-      "id": "ssc_10th",
-      "question": "Please specify your percentage in S.S.C (10th Standard)?",
-      "keywords": [
-        "s.s.c",
-        "10th standard",
-        "10th percentage",
-        "ssc marks"
-      ],
-      "answer": "Between 80% to 90%",
-      "category": "education"
-    },
-    {
       "id": "hsc_12th",
       "question": "Please specify your percentage in H.S.C (12th Standard)/Diploma?",
       "keywords": [
@@ -239,23 +227,7 @@
       "answer": "Yes, 2 years creating containerized microservices and Dockerfiles.",
       "category": "custom",
       "learned_at": "2026-11-01T19:57:42.744563"
-    },
-    {
-      "id": "what_is_your_experience_with_next_js_app",
-      "question": "What is your experience with Next.js App Router?",
-      "keywords": [
-        "what",
-        "your",
-        "experience",
-        "with",
-        "next",
-        "router"
-      ],
-      "answer": "5 years",
-      "category": "custom",
-      "learned_at": "2026-11-01T19:59:20.086699",
-      "updated_at": "2026-11-01T20:15:28.344358"
     }
   ],
-  "updated_at": "2026-11-02T13:14:21.218165"
+  "updated_at": "2026-11-02T17:04:38.568628"
 }

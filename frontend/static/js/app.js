@@ -29,6 +29,54 @@ window.fetch = async function(url, options = {}) {
     return originalFetch(url, options);
 };
 
+// =============================================================================
+// SAFE JSON PARSER: Catches HTML 404/500s from Vercel & proxies gracefully
+// =============================================================================
+async function safeParseJson(res) {
+    let text = "";
+    try {
+        text = await res.text();
+    } catch (readErr) {
+        throw new Error("Unable to read network response: " + readErr.message);
+    }
+
+    let data;
+    try {
+        data = JSON.parse(text);
+    } catch (parseErr) {
+        const isVercel = window.location.hostname.includes("vercel.app");
+        const status = res.status;
+        
+        if (status === 404 || text.includes("The page could not be found") || text.includes("DEPLOYMENT_NOT_FOUND")) {
+            if (isVercel) {
+                throw new Error(
+                    "Backend Server Not Connected (HTTP 404)\n\n" +
+                    "Your frontend is running on Vercel, but the Python backend is not connected yet.\n\n" +
+                    "QUICK FIX (20 seconds):\n" +
+                    "1. Click 'Backend Disconnected' or 'Cloud Config Keys' at the top right.\n" +
+                    "2. Enter your live backend URL (e.g. from Render.com or Railway).\n" +
+                    "3. Or run the local backend server at http://localhost:8000."
+                );
+            }
+            throw new Error("Endpoint not found (404). Please ensure the backend server is running.");
+        }
+        
+        if (status >= 500) {
+            throw new Error(`Backend server error (${status}): ${text.substring(0, 160)}`);
+        }
+        
+        throw new Error(`Unexpected server response (${status}): ${text.substring(0, 120)}`);
+    }
+
+    if (!res.ok) {
+        const errorMsg = data.detail || data.message || data.error || `Request failed with status ${res.status}`;
+        throw new Error(errorMsg);
+    }
+
+    return data;
+}
+
+
 let currentAnalysis = null;
 let foundJobs = [];
 let activeApplyingJobIndex = null;
@@ -70,12 +118,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 body: formData
             });
 
-            if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.detail || "Analysis failed");
-            }
-
-            const data = await res.json();
+            const data = await safeParseJson(res);
             currentAnalysis = data;
             renderProfile(data);
 
@@ -85,7 +128,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 openPlatformSelector(topRole);
             }
         } catch (error) {
-            alert("Error: " + error.message);
+            alert("Resume Analysis Notice:\n\n" + error.message);
         } finally {
             analyzeBtn.disabled = false;
             analyzeBtn.textContent = "Analyze Resume with LLM";
@@ -192,9 +235,7 @@ async function triggerJobSearch(query) {
 
     try {
         const res = await fetch(`/api/jobs/search?query=${encodeURIComponent(query)}&platform=${currentSelectedPlatform}&limit=25`);
-        if (!res.ok) throw new Error("Failed to fetch jobs");
-        
-        foundJobs = await res.json();
+        foundJobs = await safeParseJson(res);
         renderJobsTable(foundJobs);
         document.getElementById("statFound").textContent = foundJobs.length;
     } catch (e) {
@@ -294,7 +335,7 @@ async function directApplyRow(idx) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
         });
-        const data = await res.json();
+        const data = await safeParseJson(res);
         const statusCell = document.getElementById(`status-cell-${idx}`);
         const statApplied = document.getElementById("statApplied");
 
@@ -647,7 +688,7 @@ async function skipPendingQuestion(qId) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ question_id: qId })
         });
-        if (!res.ok) throw new Error("Could not skip question");
+        await safeParseJson(res);
         await loadQAMemory();
     } catch (e) {
         alert("Error skipping question: " + e.message);
@@ -1078,6 +1119,22 @@ function initSupabase() {
     } else {
         loginAsDemoUser();
     }
+
+    // Check for redirect OAuth errors in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const authErrorDesc = urlParams.get('error_description') || hashParams.get('error_description');
+    const authErrorCode = urlParams.get('error') || hashParams.get('error');
+    if (authErrorDesc || authErrorCode) {
+        setTimeout(() => {
+            showAuthError("OAuth Notice: " + (decodeURIComponent(authErrorDesc || authErrorCode)) + ". Try Instant Demo Guest mode above or Email sign-in.");
+            toggleAuthModal(true);
+        }, 500);
+    }
+
+    // Monitor backend connectivity
+    checkBackendHealth();
+    setInterval(checkBackendHealth, 15000);
 }
 
 function setLoggedInUser(user, token) {
@@ -1169,7 +1226,7 @@ function switchAuthTab(tab) {
 
 async function signInWithOAuth(provider) {
     if (!supabaseClient) {
-        showAuthError("Please connect your Supabase Project keys first, or use Local Guest mode.");
+        showAuthError("Please connect your Supabase Project keys first, or use Instant Demo Guest mode.");
         return;
     }
     try {
@@ -1177,9 +1234,15 @@ async function signInWithOAuth(provider) {
             provider: provider,
             options: { redirectTo: window.location.origin }
         });
-        if (error) throw error;
+        if (error) {
+            if (error.message && (error.message.includes("not enabled") || error.message.includes("validation_failed") || error.message.includes("Unsupported provider"))) {
+                showAuthError(`The '${provider}' provider is not enabled in your Supabase project (Authentication -> Providers -> ${provider.charAt(0).toUpperCase() + provider.slice(1)}). Use Email or Instant Demo Guest mode.`);
+                return;
+            }
+            throw error;
+        }
     } catch (err) {
-        showAuthError(err.message || "OAuth sign-in failed");
+        showAuthError(err.message || "OAuth sign-in failed. Please use Email or Demo mode.");
     }
 }
 
@@ -1209,12 +1272,17 @@ async function handleEmailAuth(event) {
             if (data.session) {
                 setLoggedInUser(data.user, data.session.access_token);
             } else {
-                alert("Account created! Please check your email to confirm registration.");
-                toggleAuthModal(false);
+                showAuthError("Account created! Supabase has 'Confirm email' turned ON by default. To bypass email verification: In Supabase Dashboard (Auth -> Providers -> Email), turn OFF 'Confirm email'. Or click 'Continue as Demo Guest' above.");
             }
         } else {
             const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-            if (error) throw error;
+            if (error) {
+                if (error.message && error.message.toLowerCase().includes("email not confirmed")) {
+                    showAuthError("Email not confirmed yet! Quick Tip: In Supabase Dashboard (Auth -> Providers -> Email), turn OFF 'Confirm email'. Or click 'Continue as Demo Guest' above.");
+                    return;
+                }
+                throw error;
+            }
             if (data.session) {
                 setLoggedInUser(data.user, data.session.access_token);
             }
@@ -1304,4 +1372,80 @@ function resetCloudConfig() {
     alert("Reset to default local storage mode.");
     toggleCloudConfigModal(false);
     initSupabase();
+}
+
+
+// =============================================================================
+// BACKEND CONNECTIVITY MONITOR & URL TESTER
+// =============================================================================
+async function checkBackendHealth() {
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const remoteBackend = localStorage.getItem('backend_api_url') || '';
+    const statusDot = document.getElementById("backendStatusDot");
+    const statusText = document.getElementById("backendStatusText");
+    const statusPill = document.getElementById("backendStatusPill");
+    const banner = document.getElementById("cloudBackendBanner");
+
+    const targetUrl = (!isLocal && remoteBackend) 
+        ? `${remoteBackend.replace(/\/$/, '')}/api/health` 
+        : `/api/health`;
+
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3500);
+        const res = await originalFetch(targetUrl, { signal: controller.signal });
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+            if (statusDot) statusDot.className = "w-1.5 h-1.5 rounded-full bg-emerald-400";
+            if (statusText) statusText.textContent = "Backend: Connected";
+            if (statusPill) {
+                statusPill.className = "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border transition cursor-pointer bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:border-emerald-500/50";
+                statusPill.title = `Connected to ${targetUrl}`;
+            }
+            if (banner) banner.classList.add("hidden");
+            return true;
+        }
+    } catch (e) {
+        // unreachable
+    }
+
+    if (statusDot) statusDot.className = "w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse";
+    if (statusText) statusText.textContent = isLocal ? "Backend: Offline" : "Backend: Disconnected";
+    if (statusPill) {
+        statusPill.className = "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border transition cursor-pointer bg-amber-500/10 border-amber-500/30 text-amber-300 hover:border-amber-500/50";
+        statusPill.title = "Click to configure backend URL in Cloud Config";
+    }
+    if (!isLocal && banner) {
+        banner.classList.remove("hidden");
+    }
+    return false;
+}
+
+async function testBackendUrl() {
+    const input = document.getElementById("cfgBackendUrl");
+    const statusEl = document.getElementById("cfgBackendPingStatus");
+    if (!input || !statusEl) return;
+
+    let url = input.value.trim();
+    if (!url) {
+        statusEl.innerHTML = `<span class="text-amber-400">⚠️ Please enter a URL first.</span>`;
+        return;
+    }
+    url = url.replace(/\/$/, "");
+    statusEl.innerHTML = `<span class="text-indigo-400 animate-pulse">⟳ Pinging ${url}/api/health...</span>`;
+
+    try {
+        const start = Date.now();
+        const res = await originalFetch(`${url}/api/health`);
+        const duration = Date.now() - start;
+        if (res.ok) {
+            const data = await res.json();
+            statusEl.innerHTML = `<span class="text-emerald-400 font-medium">✓ Online (${duration}ms): Database = ${data.cloud_database || 'ok'}</span>`;
+        } else {
+            statusEl.innerHTML = `<span class="text-rose-400">✗ Responded with status ${res.status}. Verify endpoint.</span>`;
+        }
+    } catch (e) {
+        statusEl.innerHTML = `<span class="text-rose-400">✗ Connection failed: ${e.message}</span>`;
+    }
 }

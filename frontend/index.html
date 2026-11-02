@@ -150,6 +150,24 @@
     <!-- ========================================================================= -->
     <!-- STICKY NAVIGATION BAR (Linear & Make.com Inspired)                        -->
     <!-- ========================================================================= -->
+        <!-- ========================================================================= -->
+    <!-- VERCEL / REMOTE BACKEND NOTICE BANNER                                     -->
+    <!-- ========================================================================= -->
+    <div id="cloudBackendBanner" class="hidden relative z-50 bg-gradient-to-r from-amber-500/15 via-amber-600/10 to-transparent border-b border-amber-500/30 px-4 py-2 text-xs text-amber-200">
+        <div class="max-w-7xl mx-auto flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0"></span>
+                <span><strong>Running on Vercel:</strong> Connect your free Render.com backend URL to enable live AI resume parsing & auto-apply.</span>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+                <button onclick="openCloudConfigModal()" class="px-2.5 py-0.5 rounded bg-amber-400/20 hover:bg-amber-400/30 text-amber-200 font-medium text-[11px] border border-amber-400/40 transition">
+                    Connect Backend
+                </button>
+                <button onclick="document.getElementById('cloudBackendBanner').classList.add('hidden')" class="text-amber-400 hover:text-white p-0.5 text-xs">✕</button>
+            </div>
+        </div>
+    </div>
+
     <header class="sticky top-0 z-50 bg-obsidian/85 backdrop-blur-md hairline-b">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
             
@@ -185,6 +203,12 @@
             <!-- Connected Session Badges & Primary Actions -->
             <div class="flex items-center gap-3">
                 
+                                <!-- Cloud Backend Status Pill -->
+                <button id="backendStatusPill" onclick="openCloudConfigModal()" title="Backend Status: Click to configure" class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border transition cursor-pointer bg-zinc-900 border-zinc-800 text-zinc-300 hover:border-zinc-700">
+                    <span id="backendStatusDot" class="w-1.5 h-1.5 rounded-full bg-zinc-500"></span>
+                    <span id="backendStatusText" class="text-[11px]">Backend</span>
+                </button>
+
                 <!-- Platform Status Pills (Desktop) -->
                 <div class="hidden lg:flex items-center gap-2 text-xs">
                     <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-900/90 border border-zinc-800 text-zinc-300">
@@ -1055,6 +1079,19 @@
                 <button onclick="toggleAuthModal(false)" class="text-zinc-500 hover:text-zinc-300 p-1 rounded-md text-xs font-bold transition">✕</button>
             </div>
 
+                        <!-- Prominent Instant Demo / Guest Mode -->
+            <div class="p-3.5 rounded-xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-indigo-500/10 border border-emerald-500/30 text-center space-y-1.5">
+                <div class="flex items-center justify-center gap-1.5 text-emerald-400 font-semibold text-xs">
+                    <i data-lucide="zap" class="w-4 h-4 text-emerald-400"></i>
+                    <span>Instant Demo / Guest Access</span>
+                </div>
+                <p class="text-[11px] text-zinc-400">Jump straight into the live dashboard without requiring Google OAuth or email confirmation.</p>
+                <button type="button" onclick="loginAsDemoUser()" class="w-full py-2 px-4 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-xs transition shadow-md flex items-center justify-center gap-1.5">
+                    <i data-lucide="play" class="w-3.5 h-3.5 fill-zinc-950"></i>
+                    <span>Continue as Demo Guest (Instant Access)</span>
+                </button>
+            </div>
+
             <!-- Tabs: Sign In / Create Account -->
             <div class="flex rounded-lg bg-zinc-950 p-1 border border-zinc-800 text-xs font-medium">
                 <button id="tabSignInBtn" onclick="switchAuthTab('signin')" class="flex-1 py-1.5 rounded-md bg-zinc-800 text-zinc-100 transition shadow-sm">Sign In</button>
@@ -1078,6 +1115,9 @@
                     </svg>
                     <span>Continue with GitHub</span>
                 </button>
+                <p class="text-[10px] text-zinc-500 text-center leading-tight pt-1">
+                    Note: Requires provider toggled ON in Supabase Dashboard (Auth &rarr; Providers)
+                </p>
             </div>
 
             <!-- Divider -->
@@ -1115,6 +1155,10 @@
                     <span id="authSubmitBtnText">Sign In to Dashboard</span>
                 </button>
             </form>
+
+                            <p class="text-[10px] text-zinc-500 text-center mt-2 leading-relaxed">
+                    💡 <strong>Instant Email Tip:</strong> In Supabase Dashboard &rarr; Auth &rarr; Providers &rarr; Email, uncheck <em>'Confirm email'</em> to log in immediately without waiting for an email link.
+                </p>
 
             <!-- Offline / Demo Fallback Option -->
             <div class="pt-2 border-t border-zinc-800/80 text-center">
@@ -1158,8 +1202,14 @@
                 </div>
                 <div>
                     <label class="block text-zinc-300 font-medium mb-1">Backend API URL (Render / Cloud Server)</label>
-                    <input id="cfgBackendUrl" type="url" placeholder="https://autoapply-backend.onrender.com" class="w-full p-2.5 bg-zinc-950 border border-zinc-800 rounded-lg text-zinc-200 focus:border-zinc-600 outline-none text-xs">
-                    <p class="text-[10px] text-zinc-500 mt-1">Leave empty when running locally or using the same domain.</p>
+                    <div class="flex gap-2">
+                        <input id="cfgBackendUrl" type="url" placeholder="https://autoapply-backend.onrender.com" class="flex-1 p-2.5 bg-zinc-950 border border-zinc-800 rounded-lg text-zinc-200 focus:border-zinc-600 outline-none text-xs">
+                        <button type="button" onclick="testBackendUrl()" class="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-xs text-zinc-200 font-medium transition shrink-0">
+                            Test Ping
+                        </button>
+                    </div>
+                    <p id="cfgBackendPingStatus" class="text-[11px] mt-1 text-zinc-400"></p>
+                    <p class="text-[10px] text-zinc-500 mt-1">Deploy 100% free on Render.com using the included render.yaml file.</p>
                 </div>
             </div>
 
