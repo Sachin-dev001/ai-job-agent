@@ -14,22 +14,30 @@ async def test_new_ui():
         await page.goto("http://localhost:8000", wait_until="domcontentloaded")
         await page.wait_for_timeout(2000)
 
-        # Trigger resume analysis
+        # 1. Screenshot Cover Page / Hero
+        await page.screenshot(path=os.path.join(PROOF_DIR, "cover_page_hero.png"))
+        print("Captured cover_page_hero.png")
+
+        # 2. Trigger resume analysis
         analyze_btn = page.locator("#analyzeBtn")
         if await analyze_btn.is_visible():
             await analyze_btn.click()
             await page.wait_for_timeout(3000)
 
-        # Switch to Wellfound
+        # 3. Switch to Wellfound
         await page.click("#tabWellfound")
         await page.wait_for_timeout(1500)
 
-        # Screenshot Wellfound view
-        await page.screenshot(path=os.path.join(PROOF_DIR, "new_ui_wellfound_view.png"))
-        print("Captured new_ui_wellfound_view.png")
+        # 4. Scroll to console and screenshot
+        console_el = page.locator("#console")
+        if await console_el.is_visible():
+            await console_el.scroll_into_view_if_needed()
+            await page.wait_for_timeout(1000)
+            await page.screenshot(path=os.path.join(PROOF_DIR, "console_workspace.png"))
+            print("Captured console_workspace.png")
 
-        # Open Memory Vault modal
-        vault_btn = page.locator("button:has-text('Memory Vault')").first
+        # 5. Open Memory Vault modal
+        vault_btn = page.locator("#openVaultBtn")
         if await vault_btn.is_visible():
             await vault_btn.click()
             await page.wait_for_timeout(1000)
