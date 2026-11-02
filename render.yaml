@@ -9,7 +9,7 @@ services:
     healthCheckPath: /api/health
     envVars:
       - key: PYTHONPATH
-        value: backend
+        value: ".:backend"
       - key: PYTHON_VERSION
         value: 3.11.0
       - key: SUPABASE_URL

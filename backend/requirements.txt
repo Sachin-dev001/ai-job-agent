@@ -1,17 +1,21 @@
 # Core Agent & LLM Frameworks
 langchain>=0.3.0
 langgraph>=0.2.0
+langchain-core
 langchain-google-genai
 langchain-groq
 langchain-cohere
 langchain-mistralai
 openai
+google-genai
+groq
 
 # Web Framework & API
 fastapi>=0.110.0
 uvicorn[standard]>=0.28.0
 python-multipart>=0.0.9
 pydantic>=2.6.0
+pydantic-settings>=2.0.0
 python-dotenv>=1.0.1
 pyjwt[crypto]>=2.8.0
 
@@ -26,9 +30,11 @@ aiosqlite>=0.20.0
 
 # Browser Automation & Scraping
 playwright>=1.42.0
+playwright-stealth>=1.0.0
 beautifulsoup4>=4.12.0
 httpx>=0.27.0
 
 # Notifications & Communication
 twilio>=9.0.0
 aiosmtplib>=3.0.0
+python-telegram-bot>=20.0
