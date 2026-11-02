@@ -16,6 +16,8 @@ BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
 COOKIES_DIR = BACKEND_DIR / "cookies"
 COOKIES_DIR.mkdir(parents=True, exist_ok=True)
 COOKIE_PATH = str(COOKIES_DIR / "wellfound_cookies.json")
+if "PLAYWRIGHT_BROWSERS_PATH" not in os.environ:
+    os.environ["PLAYWRIGHT_BROWSERS_PATH"] = "0"
 PROOF_DIR = str(BACKEND_DIR / "proofs")
 os.makedirs(PROOF_DIR, exist_ok=True)
 
@@ -32,6 +34,28 @@ class WellfoundLiveApplyEngine:
     """
     def __init__(self):
         self.cookie_path = COOKIE_PATH
+
+    async def _launch_browser(self, p):
+        args = [
+            "--disable-blink-features=AutomationControlled",
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-gpu",
+            "--single-process",
+            "--no-zygote"
+        ]
+        try:
+            return await p.chromium.launch(headless=True, args=args)
+        except Exception as e:
+            print(f"[Wellfound Bot] Browser launch notice: {e}. Attempting auto-install...")
+            import subprocess, sys
+            try:
+                subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], timeout=90)
+                return await p.chromium.launch(headless=True, args=args)
+            except Exception as e2:
+                print(f"[Wellfound Bot] Auto-install failed: {e2}")
+                raise e2
 
     def _load_cookies(self):
         # 1. Check environment variable first (e.g. WELLFOUND_COOKIES on Render)
@@ -84,15 +108,7 @@ class WellfoundLiveApplyEngine:
         user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
         async with async_playwright() as p:
-            browser = await p.chromium.launch(
-                headless=True,
-                args=[
-                    "--disable-blink-features=AutomationControlled",
-                    "--no-sandbox",
-                    "--disable-setuid-sandbox",
-                    "--disable-dev-shm-usage"
-                ]
-            )
+            browser = await self._launch_browser(p)
             context = await browser.new_context(
                 viewport={"width": 1920, "height": 1080},
                 user_agent=user_agent

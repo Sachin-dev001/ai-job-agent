@@ -1216,24 +1216,39 @@
                             <span>Job Portal Sessions</span>
                             <button type="button" onclick="checkPortalSessionStatus()" class="text-[11px] text-indigo-400 hover:underline">Check Status</button>
                         </label>
-                        <div class="grid grid-cols-2 gap-2 text-[11px]">
-                            <div id="sessionBadgeNaukri" class="p-2 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-between">
-                                <span class="text-zinc-400">Naukri:</span>
-                                <span id="badgeNaukriStatus" class="text-amber-400 font-semibold">Not Synced</span>
+                        <div class="space-y-2 text-[11px]">
+                            <!-- Naukri Session Row -->
+                            <div class="p-2.5 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-between gap-2">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-zinc-300 font-medium">Naukri:</span>
+                                    <span id="badgeNaukriStatus" class="text-amber-400 font-semibold">Not Synced</span>
+                                </div>
+                                <div class="flex items-center gap-1.5">
+                                    <label class="cursor-pointer px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[10px] font-medium border border-zinc-700 transition">
+                                        <span>Upload naukri_cookies.json</span>
+                                        <input type="file" accept=".json" class="hidden" onchange="handleCookieFileUpload(event, 'naukri')">
+                                    </label>
+                                    <button type="button" onclick="promptPasteCookies('naukri')" class="px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[10px] font-medium border border-zinc-700 transition">
+                                        Paste
+                                    </button>
+                                </div>
                             </div>
-                            <div id="sessionBadgeWellfound" class="p-2 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-between">
-                                <span class="text-zinc-400">Wellfound:</span>
-                                <span id="badgeWellfoundStatus" class="text-amber-400 font-semibold">Not Synced</span>
+                            <!-- Wellfound Session Row -->
+                            <div class="p-2.5 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-between gap-2">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-zinc-300 font-medium">Wellfound:</span>
+                                    <span id="badgeWellfoundStatus" class="text-amber-400 font-semibold">Not Synced</span>
+                                </div>
+                                <div class="flex items-center gap-1.5">
+                                    <label class="cursor-pointer px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[10px] font-medium border border-zinc-700 transition">
+                                        <span>Upload wellfound_cookies.json</span>
+                                        <input type="file" accept=".json" class="hidden" onchange="handleCookieFileUpload(event, 'wellfound')">
+                                    </label>
+                                    <button type="button" onclick="promptPasteCookies('wellfound')" class="px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[10px] font-medium border border-zinc-700 transition">
+                                        Paste
+                                    </button>
+                                </div>
                             </div>
-                        </div>
-                        <div class="mt-2 flex gap-2">
-                            <label class="flex-1 cursor-pointer py-1.5 px-2.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-center text-xs transition border border-zinc-700">
-                                <span>Upload naukri_cookies.json</span>
-                                <input type="file" accept=".json" class="hidden" onchange="handleCookieFileUpload(event, 'naukri')">
-                            </label>
-                            <button type="button" onclick="promptPasteCookies('naukri')" class="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs transition border border-zinc-700">
-                                Paste JSON
-                            </button>
                         </div>
                     </div>
 
@@ -1293,14 +1308,14 @@
 
                 <!-- Option 2: Connect Cloud Session -->
                 <div class="p-3.5 rounded-xl bg-zinc-900 border border-zinc-800">
-                    <h4 class="text-xs font-bold text-zinc-200">Connect Portal Session for Background Auto-Apply</h4>
-                    <p class="text-[11px] text-zinc-400 mt-0.5">Upload your session cookies once to let Playwright submit applications in the background automatically.</p>
+                    <h4 class="text-xs font-bold text-zinc-200" id="assistantSessionTitle">Connect Portal Session for Background Auto-Apply</h4>
+                    <p class="text-[11px] text-zinc-400 mt-0.5" id="assistantSessionDesc">Upload your session cookies once to let Playwright submit applications in the background automatically.</p>
                     <div class="mt-2 flex gap-2">
                         <label class="flex-1 cursor-pointer py-1.5 px-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-center text-xs transition border border-zinc-700">
-                            <span>Upload naukri_cookies.json</span>
-                            <input type="file" accept=".json" class="hidden" onchange="handleCookieFileUpload(event, 'naukri', true)">
+                            <span id="assistantUploadLabel">Upload naukri_cookies.json</span>
+                            <input id="assistantFileInput" type="file" accept=".json" class="hidden" onchange="handleAssistantFileSelect(event)">
                         </label>
-                        <button type="button" onclick="promptPasteCookies('naukri', true)" class="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs transition border border-zinc-700">
+                        <button type="button" onclick="handleAssistantPasteClick()" class="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs transition border border-zinc-700">
                             Paste JSON
                         </button>
                     </div>

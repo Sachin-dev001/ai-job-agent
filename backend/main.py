@@ -1,5 +1,7 @@
 import os
 import sys
+if "PLAYWRIGHT_BROWSERS_PATH" not in os.environ:
+    os.environ["PLAYWRIGHT_BROWSERS_PATH"] = "0"
 from pathlib import Path
 
 # Ensure backend directory is in sys.path for robust imports across all hosting platforms
@@ -231,7 +233,12 @@ async def apply_single_job(req: SingleJobApplyRequest, user: CurrentUser = Depen
         result = await naukri_live_runner.apply_single_job(job_url=req.job_url, job_title=req.job_title)
         return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return {
+            "status": "browser_error",
+            "message": f"Cloud browser automation notice: {str(e)[:100]}. Please use 1-Click AI Tailored Pitch to submit directly!",
+            "job_url": req.job_url,
+            "job_title": req.job_title
+        }
 
 class WellfoundSingleApplyRequest(BaseModel):
     job_url: str
@@ -252,7 +259,12 @@ async def apply_single_wellfound_job(req: WellfoundSingleApplyRequest, user: Cur
         )
         return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return {
+            "status": "browser_error",
+            "message": f"Cloud browser automation notice: {str(e)[:100]}. Please use 1-Click AI Tailored Pitch to submit directly!",
+            "job_url": req.job_url,
+            "job_title": req.job_title
+        }
 
 @app.post("/api/wellfound/auto-apply-live")
 async def execute_live_wellfound_apply(req: LiveApplyRequest, user: CurrentUser = Depends(get_current_user)):

@@ -374,16 +374,11 @@ async function directApplyRow(idx) {
             alert(`⚠️ Recruiter Question Needed:\n\n${data.message}`);
         } else {
             actionCell.innerHTML = originalContent;
-            const msg = (data.message || data.status || "").toLowerCase();
-            if (msg.includes("cookies missing") || msg.includes("session cookies")) {
-                openQuickApplyModal(idx, data.message);
-            } else {
-                alert(`Result: ${data.message || data.status}`);
-            }
+            openQuickApplyModal(idx, data.message || "Application action needed");
         }
     } catch (e) {
         actionCell.innerHTML = originalContent;
-        alert("Automation Error: " + e.message);
+        openQuickApplyModal(idx, e.message || "Automation error");
     }
 }
 
@@ -1534,11 +1529,16 @@ function promptPasteCookies(platform, fromAssistant = false) {
 }
 
 let activeAssistantJobIdx = null;
+let currentAssistantPlatform = "naukri";
 
 function openQuickApplyModal(idx, reason) {
     const job = foundJobs[idx];
     if (!job) return;
     activeAssistantJobIdx = idx;
+
+    const rawPlatform = (job.platform || "Naukri").toLowerCase();
+    currentAssistantPlatform = rawPlatform.includes("wellfound") ? "wellfound" : "naukri";
+    const platformDisplay = currentAssistantPlatform === "wellfound" ? "Wellfound" : "Naukri";
 
     const modal = document.getElementById("quickApplyAssistantModal");
     const titleEl = document.getElementById("assistantJobTitle");
@@ -1546,17 +1546,33 @@ function openQuickApplyModal(idx, reason) {
     const alertEl = document.getElementById("assistantReasonAlert");
     const pitchBox = document.getElementById("assistantPitchPreviewBox");
     const btnText = document.getElementById("btnAssistantGenerateText");
+    const uploadLabel = document.getElementById("assistantUploadLabel");
+    const sessionTitle = document.getElementById("assistantSessionTitle");
 
     if (titleEl) titleEl.textContent = job.title;
-    if (companyEl) companyEl.textContent = `${job.company} • ${job.platform || 'Job Listing'}`;
+    if (companyEl) companyEl.textContent = `${job.company} • ${platformDisplay}`;
     if (alertEl) {
-        alertEl.innerHTML = `<span class="font-semibold">${job.platform || 'Naukri'} session cookies not synced to cloud yet.</span> Choose an option below to apply right now:`;
+        alertEl.innerHTML = `<span class="font-semibold">${platformDisplay} session not synced or cloud browser unavailable.</span> Choose an option below to apply right now:`;
+    }
+    if (sessionTitle) {
+        sessionTitle.textContent = `Connect ${platformDisplay} Session for Background Auto-Apply`;
+    }
+    if (uploadLabel) {
+        uploadLabel.textContent = `Upload ${currentAssistantPlatform}_cookies.json`;
     }
     if (pitchBox) pitchBox.classList.add("hidden");
     if (btnText) btnText.textContent = "Copy Tailored Pitch & Open Job";
 
     if (modal) modal.classList.remove("hidden");
     if (typeof lucide !== "undefined") lucide.createIcons();
+}
+
+function handleAssistantFileSelect(event) {
+    handleCookieFileUpload(event, currentAssistantPlatform, true);
+}
+
+function handleAssistantPasteClick() {
+    promptPasteCookies(currentAssistantPlatform, true);
 }
 
 function closeQuickApplyModal() {
