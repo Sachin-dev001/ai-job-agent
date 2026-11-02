@@ -6,14 +6,18 @@ from datetime import datetime
 from typing import Optional, List, Dict, Tuple
 from playwright.async_api import async_playwright
 from playwright_stealth import Stealth
+from pathlib import Path
 from app.config import settings
 from app.notifications.notifier import notifier
 
 from app.memory.qa_vault import qa_vault
 from app.notifications.telegram_listener import telegram_listener
 
-COOKIE_PATH = r"D:\ai-job-agent\backend\cookies\naukri_cookies.json"
-PROOF_DIR = r"D:\ai-job-agent\backend\proofs"
+BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
+COOKIES_DIR = BACKEND_DIR / "cookies"
+COOKIES_DIR.mkdir(parents=True, exist_ok=True)
+COOKIE_PATH = str(COOKIES_DIR / "naukri_cookies.json")
+PROOF_DIR = str(BACKEND_DIR / "proofs")
 os.makedirs(PROOF_DIR, exist_ok=True)
 
 # Complete candidate knowledge vault for Sachin Sharma
@@ -68,22 +72,38 @@ class RealNaukriApplyEngine:
                 print(f"[Naukri Bot] Groq client init notice: {e}")
 
     def _load_cookies(self):
-        if not os.path.exists(COOKIE_PATH):
+        # 1. Check environment variable first (e.g. NAUKRI_COOKIES on Render)
+        env_cookies = os.getenv("NAUKRI_COOKIES")
+        raw = None
+        if env_cookies:
+            try:
+                raw = json.loads(env_cookies)
+            except Exception as e:
+                print(f"[Naukri Bot] Failed to parse NAUKRI_COOKIES env var: {e}")
+
+        # 2. Check disk file
+        if not raw and os.path.exists(COOKIE_PATH):
+            try:
+                with open(COOKIE_PATH, "r", encoding="utf-8") as f:
+                    raw = json.load(f)
+            except Exception as e:
+                print(f"[Naukri Bot] Error loading cookies file: {e}")
+
+        if not raw:
             return []
+
         try:
-            with open(COOKIE_PATH, "r", encoding="utf-8") as f:
-                raw = json.load(f)
             return [
                 {
                     "name": c["name"],
                     "value": c["value"],
-                    "domain": c["domain"],
+                    "domain": c.get("domain", ".naukri.com"),
                     "path": c.get("path", "/")
                 }
                 for c in raw
             ]
         except Exception as e:
-            print(f"[Naukri Bot] Error loading cookies: {e}")
+            print(f"[Naukri Bot] Error normalizing cookies: {e}")
             return []
 
     async def _get_smart_answer(self, question: str, job_title: str = "", company: str = "", job_url: str = "") -> Optional[str]:
@@ -393,9 +413,13 @@ class RealNaukriApplyEngine:
 
         async with async_playwright() as p:
             browser = await p.chromium.launch(
-                channel="chrome",
                 headless=True,
-                args=["--disable-blink-features=AutomationControlled"]
+                args=[
+                    "--disable-blink-features=AutomationControlled",
+                    "--no-sandbox",
+                    "--disable-setuid-sandbox",
+                    "--disable-dev-shm-usage"
+                ]
             )
             context = await browser.new_context(
                 viewport={"width": 1366, "height": 768},
@@ -508,9 +532,13 @@ class RealNaukriApplyEngine:
 
         async with async_playwright() as p:
             browser = await p.chromium.launch(
-                channel="chrome",
                 headless=True,
-                args=["--disable-blink-features=AutomationControlled"]
+                args=[
+                    "--disable-blink-features=AutomationControlled",
+                    "--no-sandbox",
+                    "--disable-setuid-sandbox",
+                    "--disable-dev-shm-usage"
+                ]
             )
             context = await browser.new_context(
                 viewport={"width": 1366, "height": 768},

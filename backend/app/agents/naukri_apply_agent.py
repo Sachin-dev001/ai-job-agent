@@ -1,11 +1,14 @@
 import os
 import json
 import httpx
+from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any
 from app.notifications.notifier import notifier
 
-COOKIE_PATH = r"D:\ai-job-agent\backend\cookies\naukri_cookies.json"
+BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
+COOKIES_DIR = BACKEND_DIR / "cookies"
+COOKIE_PATH = str(COOKIES_DIR / "naukri_cookies.json")
 
 class NaukriApplyAgent:
     """
@@ -18,12 +21,23 @@ class NaukriApplyAgent:
         pass
 
     def _load_cookies(self) -> Dict[str, str]:
-        if not os.path.exists(COOKIE_PATH):
+        env_cookies = os.getenv("NAUKRI_COOKIES")
+        raw = None
+        if env_cookies:
+            try:
+                raw = json.loads(env_cookies)
+            except Exception:
+                pass
+        if not raw and os.path.exists(COOKIE_PATH):
+            try:
+                with open(COOKIE_PATH, "r") as f:
+                    raw = json.load(f)
+            except Exception:
+                pass
+        if not raw:
             return {}
         try:
-            with open(COOKIE_PATH, "r") as f:
-                data = json.load(f)
-            return {c["name"]: c["value"] for c in data}
+            return {c["name"]: c["value"] for c in raw}
         except Exception:
             return {}
 

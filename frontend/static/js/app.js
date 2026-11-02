@@ -374,7 +374,12 @@ async function directApplyRow(idx) {
             alert(`⚠️ Recruiter Question Needed:\n\n${data.message}`);
         } else {
             actionCell.innerHTML = originalContent;
-            alert(`Result: ${data.message || data.status}`);
+            const msg = (data.message || data.status || "").toLowerCase();
+            if (msg.includes("cookies missing") || msg.includes("session cookies")) {
+                openQuickApplyModal(idx, data.message);
+            } else {
+                alert(`Result: ${data.message || data.status}`);
+            }
         }
     } catch (e) {
         actionCell.innerHTML = originalContent;
@@ -1334,6 +1339,7 @@ function toggleCloudConfigModal(show) {
             document.getElementById("cfgBackendUrl").value = localStorage.getItem("backend_api_url") || "";
         }
         m.classList.remove("hidden");
+        checkPortalSessionStatus();
     } else {
         m.classList.add("hidden");
     }
@@ -1447,5 +1453,169 @@ async function testBackendUrl() {
         }
     } catch (e) {
         statusEl.innerHTML = `<span class="text-rose-400">✗ Connection failed: ${e.message}</span>`;
+    }
+}
+
+
+// =============================================================================
+// PORTAL SESSION COOKIES & QUICK APPLY ASSISTANT
+// =============================================================================
+async function checkPortalSessionStatus() {
+    const badgeN = document.getElementById("badgeNaukriStatus");
+    const badgeW = document.getElementById("badgeWellfoundStatus");
+    try {
+        const res = await fetch("/api/session/status");
+        if (res.ok) {
+            const data = await res.json();
+            if (badgeN) {
+                badgeN.textContent = data.naukri_connected ? `Connected (${data.naukri_cookies_count})` : "Not Synced";
+                badgeN.className = data.naukri_connected ? "text-emerald-400 font-semibold" : "text-amber-400 font-semibold";
+            }
+            if (badgeW) {
+                badgeW.textContent = data.wellfound_connected ? `Connected (${data.wellfound_cookies_count})` : "Not Synced";
+                badgeW.className = data.wellfound_connected ? "text-emerald-400 font-semibold" : "text-amber-400 font-semibold";
+            }
+            return data;
+        }
+    } catch (e) {
+        console.warn("Could not check session status:", e);
+    }
+}
+
+async function saveConnectedCookies(platform, cookieData, fromAssistant = false) {
+    try {
+        const res = await fetch("/api/session/connect-cookies", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                platform: platform,
+                cookies: cookieData
+            })
+        });
+        const data = await res.json();
+        if (res.ok && data.status === "success") {
+            alert(`🎉 ${data.message}`);
+            checkPortalSessionStatus();
+            if (fromAssistant) {
+                closeQuickApplyModal();
+            }
+        } else {
+            alert(`⚠️ Error saving session: ${data.detail || data.message || 'Unknown error'}`);
+        }
+    } catch (e) {
+        alert("Network error saving session: " + e.message);
+    }
+}
+
+function handleCookieFileUpload(event, platform, fromAssistant = false) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const json = JSON.parse(e.target.result);
+            await saveConnectedCookies(platform, json, fromAssistant);
+        } catch (err) {
+            alert("Invalid JSON file: " + err.message);
+        }
+    };
+    reader.readAsText(file);
+}
+
+function promptPasteCookies(platform, fromAssistant = false) {
+    const raw = prompt(`Paste your ${platform} cookies JSON here:`);
+    if (!raw) return;
+    try {
+        const json = JSON.parse(raw);
+        saveConnectedCookies(platform, json, fromAssistant);
+    } catch (err) {
+        alert("Invalid JSON format. Please paste valid JSON: " + err.message);
+    }
+}
+
+let activeAssistantJobIdx = null;
+
+function openQuickApplyModal(idx, reason) {
+    const job = foundJobs[idx];
+    if (!job) return;
+    activeAssistantJobIdx = idx;
+
+    const modal = document.getElementById("quickApplyAssistantModal");
+    const titleEl = document.getElementById("assistantJobTitle");
+    const companyEl = document.getElementById("assistantCompany");
+    const alertEl = document.getElementById("assistantReasonAlert");
+    const pitchBox = document.getElementById("assistantPitchPreviewBox");
+    const btnText = document.getElementById("btnAssistantGenerateText");
+
+    if (titleEl) titleEl.textContent = job.title;
+    if (companyEl) companyEl.textContent = `${job.company} • ${job.platform || 'Job Listing'}`;
+    if (alertEl) {
+        alertEl.innerHTML = `<span class="font-semibold">${job.platform || 'Naukri'} session cookies not synced to cloud yet.</span> Choose an option below to apply right now:`;
+    }
+    if (pitchBox) pitchBox.classList.add("hidden");
+    if (btnText) btnText.textContent = "Copy Tailored Pitch & Open Job";
+
+    if (modal) modal.classList.remove("hidden");
+    if (typeof lucide !== "undefined") lucide.createIcons();
+}
+
+function closeQuickApplyModal() {
+    const modal = document.getElementById("quickApplyAssistantModal");
+    if (modal) modal.classList.add("hidden");
+    activeAssistantJobIdx = null;
+}
+
+async function assistantGeneratePitchAndOpen() {
+    if (activeAssistantJobIdx === null || !foundJobs[activeAssistantJobIdx]) return;
+    const job = foundJobs[activeAssistantJobIdx];
+    const btn = document.getElementById("btnAssistantGeneratePitch");
+    const btnText = document.getElementById("btnAssistantGenerateText");
+    const pitchBox = document.getElementById("assistantPitchPreviewBox");
+    const pitchText = document.getElementById("assistantPitchText");
+
+    if (btn) btn.disabled = true;
+    if (btnText) btnText.innerHTML = "Generating AI Pitch with Gemini/Groq...";
+
+    try {
+        const res = await fetch("/api/jobs/prepare-application", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                job_title: job.title,
+                company: job.company,
+                platform: job.platform || 'Naukri',
+                job_url: job.job_url
+            })
+        });
+        const data = await res.json();
+        const pitch = data.cover_letter || `Dear Hiring Team at ${job.company},\n\nI am writing to express my strong interest in the ${job.title} position...`;
+
+        // Copy to clipboard
+        await navigator.clipboard.writeText(pitch);
+
+        if (pitchText) pitchText.value = pitch;
+        if (pitchBox) pitchBox.classList.remove("hidden");
+        if (btnText) btnText.innerHTML = "✅ Pitch Copied! Opening Job...";
+
+        // Open job URL in new tab
+        setTimeout(() => {
+            window.open(job.job_url, "_blank");
+        }, 600);
+
+        // Update status in table
+        const statusCell = document.getElementById(`status-cell-${activeAssistantJobIdx}`);
+        if (statusCell) {
+            statusCell.innerHTML = `
+                <span class="inline-flex items-center gap-1.5 text-indigo-400 text-xs font-semibold">
+                    <span class="w-1.5 h-1.5 rounded-full bg-indigo-400"></span> Pitched ⚡
+                </span>
+            `;
+        }
+
+    } catch (e) {
+        window.open(job.job_url, "_blank");
+        if (btnText) btnText.innerHTML = "Opening Job...";
+    } finally {
+        if (btn) btn.disabled = false;
     }
 }

@@ -3,6 +3,7 @@ import json
 import asyncio
 from datetime import datetime
 from typing import Optional, List, Dict
+from pathlib import Path
 from playwright.async_api import async_playwright
 from playwright_stealth import Stealth
 
@@ -11,8 +12,11 @@ from app.memory.qa_vault import qa_vault
 from app.notifications.telegram_listener import telegram_listener
 from app.notifications.notifier import notifier
 
-COOKIE_PATH = r"D:\ai-job-agent\backend\cookies\wellfound_cookies.json"
-PROOF_DIR = r"D:\ai-job-agent\backend\proofs"
+BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
+COOKIES_DIR = BACKEND_DIR / "cookies"
+COOKIES_DIR.mkdir(parents=True, exist_ok=True)
+COOKIE_PATH = str(COOKIES_DIR / "wellfound_cookies.json")
+PROOF_DIR = str(BACKEND_DIR / "proofs")
 os.makedirs(PROOF_DIR, exist_ok=True)
 
 class WellfoundLiveApplyEngine:
@@ -30,11 +34,27 @@ class WellfoundLiveApplyEngine:
         self.cookie_path = COOKIE_PATH
 
     def _load_cookies(self):
-        if not os.path.exists(self.cookie_path):
+        # 1. Check environment variable first (e.g. WELLFOUND_COOKIES on Render)
+        env_cookies = os.getenv("WELLFOUND_COOKIES")
+        raw = None
+        if env_cookies:
+            try:
+                raw = json.loads(env_cookies)
+            except Exception as e:
+                print(f"[Wellfound Bot] Failed to parse WELLFOUND_COOKIES env var: {e}")
+
+        # 2. Check disk file
+        if not raw and os.path.exists(self.cookie_path):
+            try:
+                with open(self.cookie_path, "r", encoding="utf-8") as f:
+                    raw = json.load(f)
+            except Exception as e:
+                print(f"[Wellfound Bot] Error loading cookies: {e}")
+
+        if not raw:
             return []
+
         try:
-            with open(self.cookie_path, "r", encoding="utf-8") as f:
-                raw = json.load(f)
             return [
                 {
                     "name": c["name"],
@@ -45,7 +65,7 @@ class WellfoundLiveApplyEngine:
                 for c in raw
             ]
         except Exception as e:
-            print(f"[Wellfound Bot] Error loading cookies: {e}")
+            print(f"[Wellfound Bot] Error normalizing cookies: {e}")
             return []
 
     async def apply_single_job(self, job_url: str, job_title: str = "Startup Role", company: str = "Tech Startup") -> Dict:
@@ -65,9 +85,13 @@ class WellfoundLiveApplyEngine:
 
         async with async_playwright() as p:
             browser = await p.chromium.launch(
-                channel="chrome",
                 headless=True,
-                args=["--disable-blink-features=AutomationControlled"]
+                args=[
+                    "--disable-blink-features=AutomationControlled",
+                    "--no-sandbox",
+                    "--disable-setuid-sandbox",
+                    "--disable-dev-shm-usage"
+                ]
             )
             context = await browser.new_context(
                 viewport={"width": 1920, "height": 1080},

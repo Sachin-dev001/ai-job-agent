@@ -9,7 +9,8 @@ if str(BACKEND_DIR) not in sys.path:
 
 import shutil
 import asyncio
-from typing import List, Optional
+from typing import List, Optional, Any
+import json
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -45,6 +46,8 @@ FRONTEND_DIR = os.path.join(PROJECT_ROOT, "frontend")
 STATIC_DIR = os.path.join(FRONTEND_DIR, "static")
 PROOF_DIR = os.path.join(PROJECT_ROOT, "backend", "proofs")
 UPLOAD_DIR = os.path.join(PROJECT_ROOT, "backend", "uploads")
+COOKIES_DIR = os.path.join(PROJECT_ROOT, "backend", "cookies")
+os.makedirs(COOKIES_DIR, exist_ok=True)
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(PROOF_DIR, exist_ok=True)
 
@@ -154,7 +157,7 @@ async def search_jobs(
 class ApplicationPrepRequest(BaseModel):
     job_title: str
     company: str
-    platform: str
+    platform: Optional[str] = "Naukri"
     job_url: str
     description: Optional[str] = ""
 
@@ -261,6 +264,49 @@ async def execute_live_wellfound_apply(req: LiveApplyRequest, user: CurrentUser 
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class ConnectCookiesRequest(BaseModel):
+    platform: Optional[str] = "Naukri"
+    cookies: Any
+
+@app.get("/api/session/status")
+async def get_session_status():
+    naukri_cookies = naukri_live_runner._load_cookies()
+    wellfound_cookies = wellfound_live_runner._load_cookies()
+    return {
+        "naukri_connected": len(naukri_cookies) > 0,
+        "naukri_cookies_count": len(naukri_cookies),
+        "wellfound_connected": len(wellfound_cookies) > 0,
+        "wellfound_cookies_count": len(wellfound_cookies)
+    }
+
+@app.post("/api/session/connect-cookies")
+async def connect_portal_cookies(req: ConnectCookiesRequest):
+    platform = req.platform.lower().strip()
+    if platform not in ["naukri", "wellfound"]:
+        raise HTTPException(status_code=400, detail="Platform must be 'naukri' or 'wellfound'")
+
+    raw = req.cookies
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid JSON: {e}")
+
+    if not isinstance(raw, list):
+        raise HTTPException(status_code=400, detail="Cookies must be a list of cookie objects")
+
+    cookie_file = os.path.join(COOKIES_DIR, f"{platform}_cookies.json")
+    with open(cookie_file, "w", encoding="utf-8") as f:
+        json.dump(raw, f, indent=2)
+
+    return {
+        "status": "success",
+        "platform": platform,
+        "cookies_count": len(raw),
+        "message": f"Successfully connected {platform.capitalize()} session with {len(raw)} cookies!"
+    }
 
 @app.on_event("startup")
 async def startup_event():
