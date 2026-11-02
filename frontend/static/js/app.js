@@ -10,7 +10,7 @@ window.fetch = async function(url, options = {}) {
     if (typeof url === 'string' && url.startsWith('/api/')) {
         const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
         if (!isLocal) {
-            const remoteBackend = localStorage.getItem('backend_api_url') || '';
+            const remoteBackend = localStorage.getItem('backend_api_url') || 'https://autoapply-backend-hvdm.onrender.com';
             if (remoteBackend) {
                 url = remoteBackend.replace(/\/$/, '') + url;
             }
@@ -1380,7 +1380,7 @@ function resetCloudConfig() {
 // =============================================================================
 async function checkBackendHealth() {
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    const remoteBackend = localStorage.getItem('backend_api_url') || '';
+    const remoteBackend = localStorage.getItem('backend_api_url') || 'https://autoapply-backend-hvdm.onrender.com';
     const statusDot = document.getElementById("backendStatusDot");
     const statusText = document.getElementById("backendStatusText");
     const statusPill = document.getElementById("backendStatusPill");
