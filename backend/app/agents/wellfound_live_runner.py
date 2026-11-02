@@ -45,17 +45,7 @@ class WellfoundLiveApplyEngine:
             "--single-process",
             "--no-zygote"
         ]
-        try:
-            return await p.chromium.launch(headless=True, args=args)
-        except Exception as e:
-            print(f"[Wellfound Bot] Browser launch notice: {e}. Attempting auto-install...")
-            import subprocess, sys
-            try:
-                subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], timeout=90)
-                return await p.chromium.launch(headless=True, args=args)
-            except Exception as e2:
-                print(f"[Wellfound Bot] Auto-install failed: {e2}")
-                raise e2
+        return await p.chromium.launch(headless=True, args=args)
 
     def _load_cookies(self):
         # 1. Check environment variable first (e.g. WELLFOUND_COOKIES on Render)

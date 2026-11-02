@@ -83,17 +83,7 @@ class RealNaukriApplyEngine:
             "--single-process",
             "--no-zygote"
         ]
-        try:
-            return await p.chromium.launch(headless=True, args=args)
-        except Exception as e:
-            print(f"[Naukri Bot] Browser launch notice: {e}. Attempting auto-install...")
-            import subprocess, sys
-            try:
-                subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], timeout=90)
-                return await p.chromium.launch(headless=True, args=args)
-            except Exception as e2:
-                print(f"[Naukri Bot] Auto-install failed: {e2}")
-                raise e2
+        return await p.chromium.launch(headless=True, args=args)
 
     def _load_cookies(self):
         # 1. Check environment variable first (e.g. NAUKRI_COOKIES on Render)
