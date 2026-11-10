@@ -10,11 +10,17 @@ logger = logging.getLogger("gemini_service")
 class GeminiService:
     """
     Direct, robust service for Google AI Studio Gemini API.
-    Supports high-speed structured JSON generation and free reasoning.
+    Supports high-speed structured JSON generation and free reasoning with multi-model failover.
     """
 
     def __init__(self):
-        self.model_endpoint = "gemini-2.0-flash"
+        self.candidate_models = [
+            "gemini-flash-lite-latest",
+            "gemini-2.5-flash-lite",
+            "gemini-2.5-flash",
+            "gemini-flash-latest",
+            "gemini-2.0-flash"
+        ]
 
     def get_api_key(self) -> str:
         key = os.getenv("GEMINI_API_KEY", "") or getattr(settings, "GEMINI_API_KEY", "") or ""
@@ -29,8 +35,6 @@ class GeminiService:
         if not api_key:
             return None
 
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model_endpoint}:generateContent?key={api_key}"
-        
         contents = []
         if system_prompt:
             contents.append({"role": "user", "parts": [{"text": f"SYSTEM INSTRUCTIONS:\n{system_prompt}\n\nPlease confirm."}]})
@@ -47,23 +51,27 @@ class GeminiService:
         if json_mode:
             payload["generationConfig"]["response_mime_type"] = "application/json"
 
-        try:
-            req = urllib.request.Request(
-                url,
-                data=json.dumps(payload).encode("utf-8"),
-                headers={"Content-Type": "application/json"}
-            )
-            res = urllib.request.urlopen(req, timeout=20)
-            data = json.loads(res.read().decode())
-            candidates = data.get("candidates", [])
-            if candidates and isinstance(candidates, list) and len(candidates) > 0:
-                parts = candidates[0].get("content", {}).get("parts", [])
-                if parts and isinstance(parts, list) and isinstance(parts[0], dict) and "text" in parts[0]:
-                    return parts[0]["text"].strip()
-        except Exception as e:
-            print(f"[Gemini Service] API call notice: {e}")
-            logger.warning(f"[Gemini Service] API call failed: {e}")
-            return None
+        encoded_data = json.dumps(payload).encode("utf-8")
+
+        for model_name in self.candidate_models:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+            try:
+                req = urllib.request.Request(
+                    url,
+                    data=encoded_data,
+                    headers={"Content-Type": "application/json"}
+                )
+                res = urllib.request.urlopen(req, timeout=15)
+                data = json.loads(res.read().decode())
+                candidates = data.get("candidates", [])
+                if candidates and isinstance(candidates, list) and len(candidates) > 0:
+                    parts = candidates[0].get("content", {}).get("parts", [])
+                    if parts and isinstance(parts, list) and isinstance(parts[0], dict) and "text" in parts[0]:
+                        logger.info(f"[Gemini Service] Success with model: {model_name}")
+                        return parts[0]["text"].strip()
+            except Exception as e:
+                logger.warning(f"[Gemini Service] Model {model_name} attempt: {e}")
+                continue
 
         return None
 

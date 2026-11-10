@@ -25,28 +25,46 @@ class LLMRouter:
         if settings.GEMINI_API_KEY:
             try:
                 from langchain_google_genai import ChatGoogleGenerativeAI
-                self._llms["gemini"] = ChatGoogleGenerativeAI(
-                    model="gemini-2.0-flash",
-                    google_api_key=settings.GEMINI_API_KEY,
-                    temperature=0.2
-                )
+                # Try gemini-flash-lite-latest first, fallback to 2.0-flash
+                for m in ["gemini-flash-lite-latest", "gemini-2.0-flash", "gemini-2.5-flash-lite"]:
+                    try:
+                        self._llms["gemini"] = ChatGoogleGenerativeAI(
+                            model=m,
+                            google_api_key=settings.GEMINI_API_KEY,
+                            temperature=0.2
+                        )
+                        break
+                    except Exception:
+                        continue
             except Exception as e:
                 print(f"Warning: Failed to load Gemini client: {e}")
 
-        # 2. Groq (Ultra-fast inference with Qwen 27B & GPT-OSS)
+        # 2. Groq (Ultra-fast inference with Qwen 27B, GPT-OSS, and LLaMA)
         if settings.GROQ_API_KEY:
             try:
                 from langchain_groq import ChatGroq
-                self._llms["groq_70b"] = ChatGroq(
-                    model="llama-3.3-70b-versatile",
-                    api_key=settings.GROQ_API_KEY,
-                    temperature=0.1
-                )
-                self._llms["groq_8b"] = ChatGroq(
-                    model="llama-3.1-8b-instant",
-                    api_key=settings.GROQ_API_KEY,
-                    temperature=0.1
-                )
+                # Prioritize available models for this key
+                for m70 in ["qwen/qwen3.8-27b", "openai/gpt-oss-120b", "llama-3.3-70b-versatile"]:
+                    try:
+                        self._llms["groq_70b"] = ChatGroq(
+                            model=m70,
+                            api_key=settings.GROQ_API_KEY,
+                            temperature=0.1
+                        )
+                        break
+                    except Exception:
+                        continue
+
+                for m8 in ["openai/gpt-oss-20b", "llama-3.1-8b-instant"]:
+                    try:
+                        self._llms["groq_8b"] = ChatGroq(
+                            model=m8,
+                            api_key=settings.GROQ_API_KEY,
+                            temperature=0.1
+                        )
+                        break
+                    except Exception:
+                        continue
             except Exception as e:
                 print(f"Warning: Failed to load Groq client: {e}")
 
@@ -79,18 +97,18 @@ class LLMRouter:
         Routes task to the optimal free LLM with intelligent fallbacks.
         """
         priority_map = {
-            TaskType.RESUME_ANALYSIS: ["gemini", "groq_70b"],
-            TaskType.SKILL_EXTRACTION: ["gemini", "groq_70b"],
-            TaskType.JOB_TITLE_MAPPING: ["gemini", "groq_70b"],
+            TaskType.RESUME_ANALYSIS: ["groq_70b", "gemini"],
+            TaskType.SKILL_EXTRACTION: ["groq_70b", "gemini"],
+            TaskType.JOB_TITLE_MAPPING: ["groq_70b", "gemini"],
             TaskType.HTML_PARSING: ["groq_70b", "gemini"],
-            TaskType.JOB_MATCHING: ["cohere", "gemini", "groq_70b"],
+            TaskType.JOB_MATCHING: ["cohere", "groq_70b", "gemini"],
             TaskType.COVER_LETTER: ["gemini", "groq_70b"],
             TaskType.FORM_FILLING: ["groq_8b", "mistral", "groq_70b"],
             TaskType.NOTIFICATION: ["mistral", "groq_8b", "gemini"],
             TaskType.COMPLEX_REASONING: ["gemini", "groq_70b"],
         }
 
-        providers = priority_map.get(task, ["gemini", "groq_70b"])
+        providers = priority_map.get(task, ["groq_70b", "gemini"])
         for provider in providers:
             if provider in self._llms:
                 return self._llms[provider]
