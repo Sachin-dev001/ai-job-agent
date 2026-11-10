@@ -744,8 +744,15 @@ async function loadQAMemory() {
             return;
         }
         const data = await res.json();
-        allMemories = data.memories || [];
-        localStorage.setItem(`autoapply_memories_${uid}`, JSON.stringify(allMemories));
+        // MULTI-TENANT PRIVACY GUARD:
+        // Unauthenticated guests NEVER see any other candidate's personal data.
+        if (!currentAuthUser) {
+            const guestMemories = JSON.parse(localStorage.getItem("autoapply_memories_guest-candidate") || "[]");
+            allMemories = guestMemories;
+        } else {
+            allMemories = data.memories || [];
+            localStorage.setItem(`autoapply_memories_${uid}`, JSON.stringify(allMemories));
+        }
         renderPendingQuestions(data.pending || []);
         renderMemoryVault(allMemories);
     } catch (e) {
@@ -981,6 +988,10 @@ async function saveNewMemory() {
         aInput.value = "";
         toggleAddMemoryForm();
         alert("✅ Successfully added to Memory Vault!");
+        const uid = currentAuthUser ? currentAuthUser.id : "guest-candidate";
+        let localList = JSON.parse(localStorage.getItem(`autoapply_memories_${uid}`) || "[]");
+        localList.push({ id: "mem_" + Date.now(), question, answer, category: "custom" });
+        localStorage.setItem(`autoapply_memories_${uid}`, JSON.stringify(localList));
         loadQAMemory();
     } catch (e) {
         alert("Error: " + e.message);
