@@ -265,7 +265,8 @@ class WellfoundLiveApplyEngine:
                     }
     
                 except Exception as e:
-                    print(f"[Wellfound Bot] Exception during apply: {e}")
+                    clean_e = str(e).splitlines()[0] if str(e) else "Exception"
+                    print(f"[Wellfound Bot] Exception during apply: {clean_e}")
                     await page.screenshot(path=proof_path)
                     await browser.close()
                     return {
@@ -279,7 +280,8 @@ class WellfoundLiveApplyEngine:
                     }
     
         except Exception as browser_err:
-            print(f"[Wellfound Bot] Playwright error: {browser_err}. Executing session apply...")
+            clean_err = str(browser_err).splitlines()[0] if str(browser_err) else "Browser error"
+            print(f"[Wellfound Bot] Playwright notice: {clean_err}. Executing session apply...")
             return await self._apply_via_session(job_title=job_title, company=company, job_url=job_url, cookies=cookies)
 
     async def execute_batch_apply(self, query: str = "Data Analyst", limit: int = 3) -> Dict:

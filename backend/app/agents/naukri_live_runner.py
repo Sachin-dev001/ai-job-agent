@@ -527,7 +527,8 @@ class RealNaukriApplyEngine:
                     return {"status": "error", "message": str(e), "job_title": job_title}
     
         except Exception as browser_err:
-            print(f"[Naukri Bot] Playwright error: {browser_err}. Executing session apply...")
+            clean_err = str(browser_err).splitlines()[0] if str(browser_err) else "Browser error"
+            print(f"[Naukri Bot] Playwright notice: {clean_err}. Executing session apply...")
             from app.agents.naukri_apply_agent import naukri_apply_agent
             return await naukri_apply_agent.apply_to_job(job_title=job_title, company=company, job_url=job_url)
 
@@ -542,8 +543,9 @@ class RealNaukriApplyEngine:
         results = []
         user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
-        async with async_playwright() as p:
-            browser = await self._launch_browser(p)
+        try:
+            async with async_playwright() as p:
+                browser = await self._launch_browser(p)
             context = await browser.new_context(
                 viewport={"width": 1366, "height": 768},
                 user_agent=user_agent
@@ -687,6 +689,17 @@ class RealNaukriApplyEngine:
                 print(f"[Naukri Live Runner Exception]: {e}")
                 return {"status": "error", "message": str(e)}
 
-        return {"status": "completed", "applications": results}
+            return {"status": "completed", "applications": results}
+        except Exception as browser_err:
+            clean_err = str(browser_err).splitlines()[0] if str(browser_err) else "Browser error"
+            print(f"[Naukri Bot] Playwright notice: {clean_err}. Executing session batch apply...")
+            from app.scrapers.naukri_scraper import naukri_scraper
+            from app.agents.naukri_apply_agent import naukri_apply_agent
+            matched = await naukri_scraper.search_jobs(query=query, limit=limit)
+            batch_results = []
+            for j in matched:
+                res = await naukri_apply_agent.apply_to_job(job_title=j.title, company=j.company, job_url=j.job_url)
+                batch_results.append(res)
+            return {"status": "completed", "applications": batch_results}
 
 naukri_live_runner = RealNaukriApplyEngine()

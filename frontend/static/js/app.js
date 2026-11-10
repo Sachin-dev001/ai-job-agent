@@ -1,6 +1,7 @@
 // =============================================================================
 // GLOBAL FETCH WRAPPER: Automatically injects JWT Bearer token on all API calls
 // =============================================================================
+const DEFAULT_REMOTE_BACKEND = "https://autoapply-backend-hvdm.onrender.com";
 const originalFetch = window.fetch;
 window.fetch = async function(url, options = {}) {
     options = options || {};
@@ -10,7 +11,7 @@ window.fetch = async function(url, options = {}) {
     if (typeof url === 'string' && url.startsWith('/api/')) {
         const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
         if (!isLocal) {
-            const remoteBackend = localStorage.getItem('backend_api_url') || 'https://autoapply-backend-hvdm.onrender.com';
+            const remoteBackend = localStorage.getItem('backend_api_url') || DEFAULT_REMOTE_BACKEND;
             if (remoteBackend) {
                 url = remoteBackend.replace(/\/$/, '') + url;
             }
@@ -510,7 +511,7 @@ async function executeCurrentPlatformLiveBot() {
             body: JSON.stringify({ query: query, limit: 3 })
         });
 
-        const data = await res.json();
+        const data = await safeParseJson(res);
         const apps = data.applications || [];
 
         let successCount = 0;
@@ -625,8 +626,12 @@ async function triggerApply(jobIndex) {
 
     activeApplyingJobIndex = jobIndex;
     const actionCell = document.getElementById(`action-cell-${jobIndex}`);
-    const originalBtn = actionCell.innerHTML;
-    actionCell.innerHTML = `<span class="text-xs text-indigo-400 animate-pulse">Drafting pitch...</span>`;
+    const actionCard = document.getElementById(`action-card-${jobIndex}`);
+    const originalCellBtn = actionCell ? actionCell.innerHTML : null;
+    const originalCardBtn = actionCard ? actionCard.innerHTML : null;
+
+    if (actionCell) actionCell.innerHTML = `<span class="text-xs text-indigo-400 animate-pulse">Drafting pitch...</span>`;
+    if (actionCard) actionCard.innerHTML = `<span class="text-xs text-indigo-400 animate-pulse">Drafting pitch...</span>`;
 
     try {
         const res = await fetch("/api/jobs/prepare-application", {
@@ -641,8 +646,7 @@ async function triggerApply(jobIndex) {
             })
         });
 
-        if (!res.ok) throw new Error("Could not prepare application");
-        const data = await res.json();
+        const data = await safeParseJson(res);
 
         document.getElementById("modalRole").textContent = `${job.title} at ${job.company}`;
         document.getElementById("modalCoverLetter").value = data.cover_letter;
@@ -652,10 +656,12 @@ async function triggerApply(jobIndex) {
         const statNeedsHuman = document.getElementById("statNeedsHuman");
         if (statNeedsHuman) statNeedsHuman.textContent = parseInt(statNeedsHuman.textContent || "0") + 1;
 
-        actionCell.innerHTML = originalBtn;
+        if (actionCell && originalCellBtn) actionCell.innerHTML = originalCellBtn;
+        if (actionCard && originalCardBtn) actionCard.innerHTML = originalCardBtn;
     } catch (e) {
-        actionCell.innerHTML = originalBtn;
-        alert("Failed: " + e.message);
+        if (actionCell && originalCellBtn) actionCell.innerHTML = originalCellBtn;
+        if (actionCard && originalCardBtn) actionCard.innerHTML = originalCardBtn;
+        alert("Failed to prepare pitch: " + e.message);
     }
 }
 
@@ -674,6 +680,8 @@ function markSubmitted() {
     if (activeApplyingJobIndex !== null) {
         const statusCell = document.getElementById(`status-cell-${activeApplyingJobIndex}`);
         const actionCell = document.getElementById(`action-cell-${activeApplyingJobIndex}`);
+        const statusCard = document.getElementById(`status-card-${activeApplyingJobIndex}`);
+        const actionCard = document.getElementById(`action-card-${activeApplyingJobIndex}`);
         const statApplied = document.getElementById("statApplied");
 
         if (statusCell) {
@@ -683,9 +691,23 @@ function markSubmitted() {
                 </span>
             `;
         }
+        if (statusCard) {
+            statusCard.innerHTML = `
+                <span class="inline-flex items-center gap-1.5 text-emerald-400 text-xs font-semibold">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Applied ✅
+                </span>
+            `;
+        }
         if (actionCell) {
             actionCell.innerHTML = `
                 <span class="text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-lg font-medium">
+                    Submitted ✅
+                </span>
+            `;
+        }
+        if (actionCard) {
+            actionCard.innerHTML = `
+                <span class="text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg font-medium">
                     Submitted ✅
                 </span>
             `;
@@ -1105,7 +1127,6 @@ function initMouseInteractiveAnimations() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-    initSupabase();
     initMouseInteractiveAnimations();
 });
 
@@ -1477,33 +1498,44 @@ function openCloudConfigModal() {
 }
 
 function saveCloudConfig() {
-    const url = document.getElementById("cfgSupabaseUrl").value.trim();
-    const key = document.getElementById("cfgSupabaseAnonKey").value.trim();
-    if (!url || !key) {
-        alert("Please enter both Supabase Project URL and Anon Public Key.");
+    const url = document.getElementById("cfgSupabaseUrl")?.value?.trim() || "";
+    const key = document.getElementById("cfgSupabaseAnonKey")?.value?.trim() || "";
+    const backendUrl = document.getElementById("cfgBackendUrl")?.value?.trim() || "";
+
+    if (!url && !key && !backendUrl) {
+        alert("Please enter either Supabase credentials or a Backend Server URL.");
         return;
     }
-    localStorage.setItem("supabase_url", url);
-    localStorage.setItem("supabase_anon_key", key);
-    const backendUrl = document.getElementById("cfgBackendUrl")?.value?.trim() || "";
+    if ((url && !key) || (!url && key)) {
+        alert("Please enter both Supabase Project URL and Anon Public Key, or leave both empty to keep defaults.");
+        return;
+    }
+    if (url && key) {
+        localStorage.setItem("supabase_url", url);
+        localStorage.setItem("supabase_anon_key", key);
+    }
     if (backendUrl) {
         localStorage.setItem("backend_api_url", backendUrl);
     } else {
         localStorage.removeItem("backend_api_url");
     }
-    alert("Supabase keys saved! Re-initializing client...");
+    alert("Configuration saved! Updating client...");
     toggleCloudConfigModal(false);
     initSupabase();
+    checkBackendHealth();
 }
 
 function resetCloudConfig() {
     localStorage.removeItem("supabase_url");
     localStorage.removeItem("supabase_anon_key");
-    document.getElementById("cfgSupabaseUrl").value = "";
-    document.getElementById("cfgSupabaseAnonKey").value = "";
-    alert("Reset to default local storage mode.");
+    localStorage.removeItem("backend_api_url");
+    if (document.getElementById("cfgSupabaseUrl")) document.getElementById("cfgSupabaseUrl").value = "";
+    if (document.getElementById("cfgSupabaseAnonKey")) document.getElementById("cfgSupabaseAnonKey").value = "";
+    if (document.getElementById("cfgBackendUrl")) document.getElementById("cfgBackendUrl").value = "";
+    alert("Reset to default configuration.");
     toggleCloudConfigModal(false);
     initSupabase();
+    checkBackendHealth();
 }
 
 
@@ -1512,7 +1544,7 @@ function resetCloudConfig() {
 // =============================================================================
 async function checkBackendHealth() {
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    const remoteBackend = localStorage.getItem('backend_api_url') || 'https://autoapply-backend-hvdm.onrender.com';
+    const remoteBackend = localStorage.getItem('backend_api_url') || DEFAULT_REMOTE_BACKEND;
     const statusDot = document.getElementById("backendStatusDot");
     const statusText = document.getElementById("backendStatusText");
     const statusPill = document.getElementById("backendStatusPill");
@@ -1766,3 +1798,36 @@ async function assistantGeneratePitchAndOpen() {
         if (btn) btn.disabled = false;
     }
 }
+
+
+// =============================================================================
+// Keyboard Escape & Backdrop Click Modal Dismissal
+// =============================================================================
+document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+        closeModal();
+        closePlatformModal();
+        toggleAuthModal(false);
+        toggleCloudConfigModal(false);
+        closeQuickApplyModal();
+        toggleVaultModal(false);
+        closeUserDropdown();
+        toggleMobileNavMenu(false);
+    }
+});
+
+["applyModal", "platformSelectorModal", "authModal", "cloudConfigModal", "quickApplyAssistantModal", "memoryVaultModal"].forEach(modalId => {
+    const el = document.getElementById(modalId);
+    if (el) {
+        el.addEventListener("click", (e) => {
+            if (e.target === el) {
+                if (modalId === "applyModal") closeModal();
+                else if (modalId === "platformSelectorModal") closePlatformModal();
+                else if (modalId === "authModal") toggleAuthModal(false);
+                else if (modalId === "cloudConfigModal") toggleCloudConfigModal(false);
+                else if (modalId === "quickApplyAssistantModal") closeQuickApplyModal();
+                else if (modalId === "memoryVaultModal") toggleVaultModal(false);
+            }
+        });
+    }
+});
