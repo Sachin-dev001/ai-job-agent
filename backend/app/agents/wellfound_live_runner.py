@@ -46,24 +46,58 @@ class WellfoundLiveApplyEngine:
 
     def _load_cookies(self, user_id: str = None) -> List[Dict]:
         """
-        Loads session cookies strictly for the specified user_id.
-        No global fallbacks or cross-tenant leakage.
+        Loads session cookies for specified user_id with robust persistence:
+        1. Local disk user-specific cache: DATA_COOKIES_DIR / str(user_id) / "wellfound_cookies.json"
+        2. Supabase cloud database / local profile storage (restores cookies across Render restarts)
+        3. Project fallback: backend/cookies/wellfound_cookies.json
         """
-        if not user_id:
-            return []
+        from app.utils.cookie_normalizer import normalize_cookies
+        from app.database.supabase_client import cloud_db
 
-        cookie_file = DATA_COOKIES_DIR / str(user_id) / "wellfound_cookies.json"
-        if not cookie_file.exists():
-            return []
+        uid = user_id or "guest-candidate"
 
+        # Tier 1: Local disk user-specific cache
+        cookie_file = DATA_COOKIES_DIR / str(uid) / "wellfound_cookies.json"
+        if cookie_file.exists():
+            try:
+                with open(cookie_file, "r", encoding="utf-8") as f:
+                    raw = json.load(f)
+                norm = normalize_cookies(raw, "wellfound")
+                if norm and len(norm) > 0:
+                    return norm
+            except Exception as e:
+                print(f"[Wellfound Bot] Error reading local user cookie file: {e}")
+
+        # Tier 2: Cloud DB / Profile persistence (restores cookies on Render ephemeral instances)
         try:
-            with open(cookie_file, "r", encoding="utf-8") as f:
-                raw = json.load(f)
-            from app.utils.cookie_normalizer import normalize_cookies
-            return normalize_cookies(raw, "wellfound")
+            cloud_cookies = cloud_db.get_cookies_sync(uid, "wellfound")
+            if cloud_cookies and len(cloud_cookies) > 0:
+                norm = normalize_cookies(cloud_cookies, "wellfound")
+                if norm and len(norm) > 0:
+                    try:
+                        cookie_file.parent.mkdir(parents=True, exist_ok=True)
+                        with open(cookie_file, "w", encoding="utf-8") as f:
+                            json.dump(norm, f, indent=2)
+                        print(f"[Wellfound Bot] Restored {len(norm)} Wellfound cookies from cloud database for user {uid}")
+                    except Exception:
+                        pass
+                    return norm
         except Exception as e:
-            print(f"[Wellfound Bot] Error loading cookies for user {user_id}: {e}")
-            return []
+            print(f"[Wellfound Bot] Cloud cookies restoration note for user {uid}: {e}")
+
+        # Tier 3: Global project fallback: backend/cookies/wellfound_cookies.json
+        try:
+            fallback_file = Path(__file__).resolve().parent.parent.parent / "cookies" / "wellfound_cookies.json"
+            if fallback_file.exists():
+                with open(fallback_file, "r", encoding="utf-8") as f:
+                    raw = json.load(f)
+                norm = normalize_cookies(raw, "wellfound")
+                if norm and len(norm) > 0:
+                    return norm
+        except Exception as e:
+            print(f"[Wellfound Bot] Fallback cookies load note: {e}")
+
+        return []
 
     async def apply_single_job(self, job_url: str, job_title: str = "Startup Role", company: str = "Tech Startup", user_id: str = None) -> Dict:
         cookies = self._load_cookies(user_id=user_id)

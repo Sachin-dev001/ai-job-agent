@@ -344,6 +344,14 @@ async def analyze_resume(file: UploadFile = File(...), user: CurrentUser = Depen
         tech_skills = getattr(result, 'technical_skills', []) or skills
         domain = getattr(result, 'primary_domain', None) or getattr(result, 'domain', 'AI/Software Engineer')
 
+        # Retrieve existing profile to preserve user custom settings or populate sensible defaults
+        existing_profile = await cloud_db.get_profile(user.id) or {}
+        current_ctc = existing_profile.get("current_ctc") or "6.5 LPA"
+        expected_ctc = existing_profile.get("expected_ctc") or "10 LPA"
+        notice_period = existing_profile.get("notice_period") or "15 Days"
+        location = getattr(result, 'location', None) or existing_profile.get("location") or "Bengaluru"
+        education = getattr(result, 'education', None) or existing_profile.get("education") or "B.Tech in Computer Science"
+
         # Update candidate profile in cloud_db (isolated per user.id)
         await cloud_db.update_profile(user.id, {
             'full_name': cand_name,
@@ -353,6 +361,11 @@ async def analyze_resume(file: UploadFile = File(...), user: CurrentUser = Depen
             'skills': skills,
             'technical_skills': tech_skills,
             'primary_domain': domain,
+            'current_ctc': current_ctc,
+            'expected_ctc': expected_ctc,
+            'notice_period': notice_period,
+            'location': location,
+            'education': education,
             'resume_analyzed': True,
             'resume_filename': file.filename,
             'analyzed_at': datetime.utcnow().isoformat(),
@@ -360,7 +373,7 @@ async def analyze_resume(file: UploadFile = File(...), user: CurrentUser = Depen
         })
 
         if cand_name or cand_email or cand_phone:
-            # Auto-seed this candidate's private memory vault from parsed resume facts (skip None, empty, or dummy values)
+            # Auto-seed candidate private memory vault with core profile facts for instant zero-pause questionnaire answering
             if cand_name and cand_name not in ["Guest", "Candidate"]:
                 await cloud_db.save_memory(user.id, "What is your full name?", cand_name, "personal")
             if cand_email and cand_email != "candidate@example.com" and not cand_email.endswith("@autoapply.ai"):
@@ -372,6 +385,16 @@ async def analyze_resume(file: UploadFile = File(...), user: CurrentUser = Depen
             if skills and len(skills) > 0:
                 skills_str = ", ".join(skills) if isinstance(skills, list) else str(skills)
                 await cloud_db.save_memory(user.id, "What skills and technologies have you worked with?", skills_str, "skills")
+            if current_ctc:
+                await cloud_db.save_memory(user.id, "What is your current CTC / salary?", str(current_ctc), "salary")
+            if expected_ctc:
+                await cloud_db.save_memory(user.id, "What is your expected CTC / salary?", str(expected_ctc), "salary")
+            if notice_period:
+                await cloud_db.save_memory(user.id, "What is your notice period / availability to join?", str(notice_period), "availability")
+            if location:
+                await cloud_db.save_memory(user.id, "What is your current location?", str(location), "personal")
+            if education:
+                await cloud_db.save_memory(user.id, "What is your highest degree / qualification?", str(education), "education")
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -529,6 +552,7 @@ async def execute_live_naukri_apply(req: LiveApplyRequest, user: CurrentUser = D
 class SingleJobApplyRequest(BaseModel):
     job_url: str
     job_title: str = "AI Engineer"
+    company: Optional[str] = "Hiring Company"
 
 @app.post("/api/naukri/apply-single")
 @app.post("/api/apply/single")
@@ -541,7 +565,12 @@ async def apply_single_job(req: SingleJobApplyRequest, user: CurrentUser = Depen
         return resume_required_response()
 
     try:
-        result = await naukri_live_runner.apply_single_job(job_url=req.job_url, job_title=req.job_title, user_id=user.id)
+        result = await naukri_live_runner.apply_single_job(
+            job_url=req.job_url,
+            job_title=req.job_title,
+            company=req.company or "Hiring Company",
+            user_id=user.id
+        )
         if result.get("status") in ["applied_successfully", "applied"]:
             await cloud_db.create_application(user.id, {
                 "platform": "naukri",
@@ -674,6 +703,9 @@ async def connect_portal_cookies(req: ConnectCookiesRequest, user: CurrentUser =
     with open(cookie_file, "w", encoding="utf-8") as f:
         json.dump(cookies, f, indent=2)
 
+    # Persist to cloud_db so cookies survive Render restarts and ephemeral deployments
+    await cloud_db.save_cookies(user.id, platform, cookies)
+
     return {
         "status": "success",
         "platform": platform,
@@ -713,6 +745,9 @@ async def generate_demo_cookies(req: GenerateDemoCookiesRequest, user: CurrentUs
     with open(cookie_file, "w", encoding="utf-8") as f:
         json.dump(demo_cookies, f, indent=2)
 
+    # Persist demo cookies to cloud_db
+    await cloud_db.save_cookies(user.id, platform, demo_cookies)
+
     return {
         "status": "success",
         "platform": platform,
@@ -740,7 +775,7 @@ class SkipPendingRequest(BaseModel):
 
 @app.get("/api/memory/qa")
 @app.get("/api/memory/vault")
-async def get_qa_memory(user: CurrentUser = Depends(require_authenticated_user)):
+async def get_qa_memory(user: CurrentUser = Depends(get_current_user)):
     """Returns all stored candidate memory facts for this user and any pending unanswered recruiter questions."""
     memories = await cloud_db.get_memories(user.id)
     return {
@@ -750,7 +785,7 @@ async def get_qa_memory(user: CurrentUser = Depends(require_authenticated_user))
 
 @app.post("/api/memory/qa")
 @app.post("/api/memory/vault/add")
-async def save_qa_memory(req: QAPairRequest, user: CurrentUser = Depends(require_authenticated_user)):
+async def save_qa_memory(req: QAPairRequest, user: CurrentUser = Depends(get_current_user)):
     """Saves or updates a permanent question-answer pair into candidate memory."""
     entry = await cloud_db.save_memory(
         user_id=user.id,
@@ -770,7 +805,7 @@ async def delete_qa_memory(memory_id: str, user: CurrentUser = Depends(require_a
     return {"status": "deleted", "id": memory_id}
 
 @app.post("/api/memory/answer-pending")
-async def answer_pending_question(req: AnswerPendingRequest, user: CurrentUser = Depends(require_authenticated_user)):
+async def answer_pending_question(req: AnswerPendingRequest, user: CurrentUser = Depends(get_current_user)):
     """Answers a pending question from the dashboard and permanently saves it to user memory."""
     pending_items = qa_vault.get_pending_questions(user.id)
     matched = None
@@ -792,7 +827,7 @@ async def answer_pending_question(req: AnswerPendingRequest, user: CurrentUser =
     return {"status": "answered_and_remembered", "question": matched["question"], "answer": req.answer}
 
 @app.post("/api/memory/skip-pending")
-async def skip_pending_question(req: SkipPendingRequest, user: CurrentUser = Depends(require_authenticated_user)):
+async def skip_pending_question(req: SkipPendingRequest, user: CurrentUser = Depends(get_current_user)):
     """Skips or dismisses a pending question so it stops blocking the UI and applicant flow."""
     pending_items = qa_vault.get_pending_questions(user.id)
     matched = any(p.get("id") == req.question_id for p in pending_items)

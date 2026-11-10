@@ -273,9 +273,30 @@ document.addEventListener("DOMContentLoaded", () => {
         loadUserApplications();
     }
 
-    // Initialize Memory Vault
+    // Initialize Memory Vault & Polling (default 6s standard interval)
     loadQAMemory();
-    setInterval(loadQAMemory, 8000);
+    startQAPolling(6000);
+
+    // Setup Enter key submission on #pendingModalAnswerInput
+    const pendingModalInput = document.getElementById("pendingModalAnswerInput");
+    if (pendingModalInput) {
+        pendingModalInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                handlePendingModalSubmit();
+            }
+        });
+    }
+
+    // Auto-restore cookies in background if stored in localStorage
+    if (typeof getStoredCookiesFromLocalStorage === "function") {
+        if (getStoredCookiesFromLocalStorage("naukri")) {
+            tryRestoreSessionCookies("naukri");
+        }
+        if (getStoredCookiesFromLocalStorage("wellfound")) {
+            tryRestoreSessionCookies("wellfound");
+        }
+    }
 });
 
 // ==========================================
@@ -599,6 +620,9 @@ async function directApplyRow(idx) {
     const job = foundJobs[idx];
     if (!job) return;
 
+    // Switch to FAST QA polling (1.5s) during active application
+    setFastQAPolling();
+
     const actionCell = document.getElementById(`action-cell-${idx}`);
     const actionCard = document.getElementById(`action-card-${idx}`);
     const statusCell = document.getElementById(`status-cell-${idx}`);
@@ -615,17 +639,14 @@ async function directApplyRow(idx) {
     if (actionCard) actionCard.innerHTML = `<div class="w-full text-center py-2 text-indigo-300 text-xs font-medium"><span class="animate-spin mr-1 inline-block">⟳</span> Applying on ${platformLabel}...</div>`;
 
     try {
-        const payload = isWellfound ? {
+        const payload = {
             job_url: job.job_url,
             job_title: job.title,
-            company: job.company
-        } : {
-            job_url: job.job_url,
-            job_title: job.title
+            company: job.company || "Hiring Company"
         };
 
         const token = getAuthToken();
-        const res = await fetch(endpoint, {
+        let res = await fetch(endpoint, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -633,7 +654,25 @@ async function directApplyRow(idx) {
             },
             body: JSON.stringify(payload)
         });
-        const data = await safeParseJson(res);
+        let data = await safeParseJson(res);
+
+        // Auto-retry once if backend returns session_required and cookies are stored in localStorage
+        if (data && data.status === "session_required") {
+            console.log(`[Apply] Received session_required for ${platformLabel}. Auto-restoring cookies from localStorage...`);
+            const restored = await tryRestoreSessionCookies(isWellfound ? "wellfound" : "naukri");
+            if (restored) {
+                console.log(`[Apply] Session restored! Retrying application for ${job.title}...`);
+                res = await fetch(endpoint, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        ...(token ? { "Authorization": `Bearer ${token}` } : {})
+                    },
+                    body: JSON.stringify(payload)
+                });
+                data = await safeParseJson(res);
+            }
+        }
         const statApplied = document.getElementById("statApplied");
 
         if (data.status === "applied_successfully") {
@@ -712,6 +751,8 @@ async function directApplyRow(idx) {
         if (actionCell) actionCell.innerHTML = originalContent;
         if (actionCard) actionCard.innerHTML = originalCardContent;
         openQuickApplyModal(idx, e.message || "Automation error");
+    } finally {
+        setStandardQAPolling();
     }
 }
 
@@ -725,6 +766,9 @@ async function executeCurrentPlatformLiveBot() {
         document.getElementById("resumeFileInput")?.click();
         return;
     }
+
+    // Switch to FAST QA polling (1.5s) during live autonomous batch execution
+    setFastQAPolling();
 
     const runBtn = document.getElementById("runPlatformLiveBtn");
     const botStatus = document.getElementById("botLiveStatus");
@@ -745,7 +789,7 @@ async function executeCurrentPlatformLiveBot() {
 
     try {
         const token = getAuthToken();
-        const res = await fetch(endpoint, {
+        let res = await fetch(endpoint, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -754,7 +798,25 @@ async function executeCurrentPlatformLiveBot() {
             body: JSON.stringify({ query: query, limit: 3 })
         });
 
-        const data = await safeParseJson(res);
+        let data = await safeParseJson(res);
+
+        // Auto-retry once if backend returns session_required and cookies are stored in localStorage
+        if (data && data.status === "session_required") {
+            console.log(`[Batch Apply] Received session_required for ${platformLabel}. Auto-restoring cookies from localStorage...`);
+            const restored = await tryRestoreSessionCookies(isWellfound ? "wellfound" : "naukri");
+            if (restored) {
+                console.log(`[Batch Apply] Session restored! Retrying autonomous batch apply on ${platformLabel}...`);
+                res = await fetch(endpoint, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        ...(token ? { "Authorization": `Bearer ${token}` } : {})
+                    },
+                    body: JSON.stringify({ query: query, limit: 3 })
+                });
+                data = await safeParseJson(res);
+            }
+        }
         const apps = data.applications || [];
 
         let successCount = 0;
@@ -802,6 +864,7 @@ async function executeCurrentPlatformLiveBot() {
     } catch (e) {
         botStatus.innerHTML = `<span class="text-rose-400">❌ Error running live bot: ${e.message}</span>`;
     } finally {
+        setStandardQAPolling();
         runBtn.disabled = false;
         runBtn.innerHTML = `
             <i data-lucide="zap" class="w-3.5 h-3.5 text-amber-300"></i>
@@ -1014,18 +1077,262 @@ async function runSingleJobLiveSubmit() {
 }
 
 // ==========================================
-// Candidate Q&A Memory Vault Logic
+// Candidate Q&A Memory Vault & HITL Screening Modal
 // ==========================================
 let allMemories = [];
+let currentPendingModalQuestion = null;
+let pendingModalCountdownTimer = null;
+let pendingModalTimeLeft = 35;
+let qaPollInterval = null;
+let currentPollIntervalMs = 6000;
+let originalDocTitle = document.title || "Antigravity - AI Autonomous Job Agent";
+let titleAlertInterval = null;
 
-async function loadQAMemory() {
-    if (!currentAuthUser || !currentAuthUser.id || currentAuthUser.id === "guest-candidate") {
-        allMemories = [];
-        renderPendingQuestions([]);
-        renderMemoryVault([]);
+function startQAPolling(intervalMs = 6000) {
+    if (qaPollInterval) {
+        clearInterval(qaPollInterval);
+        qaPollInterval = null;
+    }
+    currentPollIntervalMs = intervalMs;
+    qaPollInterval = setInterval(loadQAMemory, intervalMs);
+}
+
+function setFastQAPolling() {
+    if (currentPollIntervalMs === 1500) return;
+    console.log("[QA Polling] Activated FAST polling (1.5s) for live application");
+    startQAPolling(1500);
+    loadQAMemory();
+}
+
+function setStandardQAPolling() {
+    if (currentPollIntervalMs === 6000) return;
+    console.log("[QA Polling] Restored STANDARD polling (6.0s)");
+    startQAPolling(6000);
+}
+
+function playHitlNotificationChime() {
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        const ctx = new AudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.12, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.35);
+    } catch (e) {
+        // Ignored if browser restricts autoplay before user interaction
+    }
+}
+
+function startDocTitleAlert(text) {
+    if (titleAlertInterval) clearInterval(titleAlertInterval);
+    let toggle = false;
+    titleAlertInterval = setInterval(() => {
+        document.title = toggle ? `⚠️ ${text}` : `🔴 ACTION REQUIRED - Answer Recruiter`;
+        toggle = !toggle;
+    }, 1000);
+}
+
+function stopDocTitleAlert() {
+    if (titleAlertInterval) {
+        clearInterval(titleAlertInterval);
+        titleAlertInterval = null;
+    }
+    document.title = originalDocTitle;
+}
+
+function openPendingQuestionModal(questionItem) {
+    if (!questionItem) return;
+    // Prevent UI jitter if the user is already answering this exact question
+    if (currentPendingModalQuestion && currentPendingModalQuestion.id === questionItem.id) {
         return;
     }
-    const uid = currentAuthUser.id;
+    currentPendingModalQuestion = questionItem;
+
+    const modal = document.getElementById("pendingQuestionModal");
+    const companyEl = document.getElementById("pendingModalCompany");
+    const roleEl = document.getElementById("pendingModalRole");
+    const platformEl = document.getElementById("pendingModalPlatformBadge");
+    const questionEl = document.getElementById("pendingModalQuestionText");
+    const askedEl = document.getElementById("pendingModalAskedTime");
+    const optionsContainer = document.getElementById("pendingModalOptionsContainer");
+    const optionsList = document.getElementById("pendingModalOptionsList");
+    const inputEl = document.getElementById("pendingModalAnswerInput");
+
+    if (companyEl) companyEl.textContent = questionItem.company || "Direct Employer";
+    if (roleEl) roleEl.textContent = questionItem.job_title || "Job Opening";
+
+    let platform = questionItem.platform;
+    if (!platform && questionItem.job_url) {
+        platform = questionItem.job_url.toLowerCase().includes("wellfound") ? "Wellfound" : "Naukri";
+    }
+    if (platformEl) platformEl.textContent = (platform || "Naukri").toUpperCase();
+
+    if (questionEl) questionEl.textContent = questionItem.question || "";
+    if (askedEl) askedEl.textContent = questionItem.asked_at || "just now";
+
+    // Clickable options chips (if recruiter provided multi-choice)
+    if (optionsContainer && optionsList) {
+        if (Array.isArray(questionItem.options) && questionItem.options.length > 0) {
+            optionsContainer.classList.remove("hidden");
+            optionsList.innerHTML = questionItem.options.map(opt => `
+                <button type="button" onclick="selectPendingModalOption('${escapeHtml(opt)}')" class="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-emerald-600/30 hover:border-emerald-500/50 hover:text-white text-zinc-300 text-xs border border-zinc-700/80 transition cursor-pointer font-medium">
+                    ${escapeHtml(opt)}
+                </button>
+            `).join("");
+        } else {
+            optionsContainer.classList.add("hidden");
+            optionsList.innerHTML = "";
+        }
+    }
+
+    if (inputEl) {
+        inputEl.value = "";
+        setTimeout(() => inputEl.focus(), 150);
+    }
+
+    // 35-Second Visual Countdown Timer with animated progress bar
+    if (pendingModalCountdownTimer) {
+        clearInterval(pendingModalCountdownTimer);
+        pendingModalCountdownTimer = null;
+    }
+    pendingModalTimeLeft = 35;
+    const timerText = document.getElementById("pendingModalTimerText");
+    const progressBar = document.getElementById("pendingModalProgressBar");
+    if (timerText) {
+        timerText.textContent = `${pendingModalTimeLeft}s remaining`;
+        timerText.className = "font-mono font-bold text-amber-400";
+    }
+    if (progressBar) {
+        progressBar.style.width = "100%";
+        progressBar.className = "bg-gradient-to-r from-amber-500 to-emerald-400 h-1.5 rounded-full transition-all duration-1000 ease-linear";
+    }
+
+    pendingModalCountdownTimer = setInterval(() => {
+        pendingModalTimeLeft--;
+        if (timerText) timerText.textContent = `${Math.max(0, pendingModalTimeLeft)}s remaining`;
+        if (progressBar) {
+            const pct = Math.max(0, (pendingModalTimeLeft / 35) * 100);
+            progressBar.style.width = `${pct}%`;
+            if (pendingModalTimeLeft <= 10) {
+                progressBar.className = "bg-rose-500 h-1.5 rounded-full transition-all duration-1000 ease-linear";
+                if (timerText) timerText.className = "font-mono font-bold text-rose-400 animate-pulse";
+            }
+        }
+        if (pendingModalTimeLeft <= 0) {
+            clearInterval(pendingModalCountdownTimer);
+            pendingModalCountdownTimer = null;
+            if (timerText) timerText.textContent = "Response window elapsed";
+        }
+    }, 1000);
+
+    if (modal) modal.classList.remove("hidden");
+    playHitlNotificationChime();
+    startDocTitleAlert(`Question Pending: ${questionItem.company || 'Job'}`);
+    if (window.lucide) lucide.createIcons();
+}
+
+function selectPendingModalOption(val) {
+    const input = document.getElementById("pendingModalAnswerInput");
+    if (input) {
+        input.value = val;
+        input.focus();
+    }
+}
+
+function closePendingQuestionModal() {
+    const modal = document.getElementById("pendingQuestionModal");
+    if (modal) modal.classList.add("hidden");
+    if (pendingModalCountdownTimer) {
+        clearInterval(pendingModalCountdownTimer);
+        pendingModalCountdownTimer = null;
+    }
+    currentPendingModalQuestion = null;
+    stopDocTitleAlert();
+}
+
+async function handlePendingModalSubmit() {
+    if (!currentPendingModalQuestion) return;
+    const input = document.getElementById("pendingModalAnswerInput");
+    const answer = input ? input.value.trim() : "";
+    if (!answer) {
+        alert("Please enter or select an answer.");
+        if (input) input.focus();
+        return;
+    }
+
+    const qId = currentPendingModalQuestion.id;
+    const submitBtn = document.getElementById("pendingModalSubmitBtn");
+    const originalText = submitBtn ? submitBtn.innerHTML : "";
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = `<span class="inline-block animate-spin mr-1">⟳</span> Submitting...`;
+    }
+
+    try {
+        const token = getAuthToken();
+        const res = await fetch("/api/memory/answer-pending", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                ...(token ? { "Authorization": `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({ question_id: qId, answer: answer })
+        });
+        if (!res.ok) throw new Error("Could not save answer");
+        closePendingQuestionModal();
+        await loadQAMemory();
+    } catch (e) {
+        alert("Error saving answer: " + e.message);
+    } finally {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
+    }
+}
+
+async function handlePendingModalSkip() {
+    if (!currentPendingModalQuestion) return;
+    const qId = currentPendingModalQuestion.id;
+    const skipBtn = document.getElementById("pendingModalSkipBtn");
+    const originalText = skipBtn ? skipBtn.innerHTML : "";
+    if (skipBtn) {
+        skipBtn.disabled = true;
+        skipBtn.innerHTML = `<span class="inline-block animate-spin mr-1">⟳</span> Skipping...`;
+    }
+
+    try {
+        const token = getAuthToken();
+        const res = await fetch("/api/memory/skip-pending", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                ...(token ? { "Authorization": `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({ question_id: qId })
+        });
+        closePendingQuestionModal();
+        await loadQAMemory();
+    } catch (e) {
+        alert("Error skipping question: " + e.message);
+    } finally {
+        if (skipBtn) {
+            skipBtn.disabled = false;
+            skipBtn.innerHTML = originalText;
+        }
+    }
+}
+
+async function loadQAMemory() {
+    const uid = (currentAuthUser && currentAuthUser.id) ? currentAuthUser.id : "guest-candidate";
     const token = getAuthToken();
     try {
         const res = await fetch("/api/memory/qa", {
@@ -1038,15 +1345,8 @@ async function loadQAMemory() {
             return;
         }
         const data = await res.json();
-        // MULTI-TENANT PRIVACY GUARD:
-        // Unauthenticated guests NEVER see any other candidate's personal data.
-        if (!currentAuthUser) {
-            const guestMemories = JSON.parse(localStorage.getItem("autoapply_memories_guest-candidate") || "[]");
-            allMemories = guestMemories;
-        } else {
-            allMemories = data.memories || [];
-            localStorage.setItem(`autoapply_memories_${uid}`, JSON.stringify(allMemories));
-        }
+        allMemories = data.memories || [];
+        localStorage.setItem(`autoapply_memories_${uid}`, JSON.stringify(allMemories));
         renderPendingQuestions(data.pending || []);
         renderMemoryVault(allMemories);
     } catch (e) {
@@ -1060,70 +1360,84 @@ async function loadQAMemory() {
 function renderPendingQuestions(pending) {
     const container = document.getElementById("pendingQuestionsContainer");
     const list = document.getElementById("pendingQuestionsList");
-    if (!container || !list) return;
 
-    const activePending = pending.filter(p => p.status === "pending");
+    const activePending = (pending || []).filter(p => p.status === "pending");
     if (activePending.length === 0) {
-        container.classList.add("hidden");
+        if (container) container.classList.add("hidden");
+        // Automatically dismiss popup modal when questions are no longer pending
+        if (currentPendingModalQuestion) {
+            closePendingQuestionModal();
+        }
         return;
     }
 
-    container.classList.remove("hidden");
-    list.innerHTML = activePending.map(p => `
-        <div class="bg-zinc-950/80 border border-zinc-700/80 hover:border-zinc-600 rounded-xl p-4 space-y-3 transition shadow-sm interactive-card relative overflow-hidden">
-            <div class="flex items-center justify-between text-xs">
-                <div class="flex items-center gap-2">
-                    <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-                    <span class="font-semibold text-zinc-100">${p.company}</span>
-                    <span class="text-zinc-500">/</span>
-                    <span class="text-zinc-400">${p.job_title}</span>
+    // HIGH VISIBILITY POPUP MODAL: Pop up immediately when screening question is pending!
+    const topPending = activePending[activePending.length - 1];
+    openPendingQuestionModal(topPending);
+
+    if (container && list) {
+        container.classList.remove("hidden");
+        list.innerHTML = activePending.map(p => `
+            <div class="bg-zinc-950/80 border border-zinc-700/80 hover:border-zinc-600 rounded-xl p-4 space-y-3 transition shadow-sm interactive-card relative overflow-hidden">
+                <div class="flex items-center justify-between text-xs">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                        <span class="font-semibold text-zinc-100">${escapeHtml(p.company || 'Company')}</span>
+                        <span class="text-zinc-500">/</span>
+                        <span class="text-zinc-400">${escapeHtml(p.job_title || 'Role')}</span>
+                    </div>
+                    <span class="text-[10px] font-mono text-zinc-500">Asked: ${escapeHtml(p.asked_at || '')}</span>
                 </div>
-                <span class="text-[10px] font-mono text-zinc-500">Asked: ${p.asked_at}</span>
-            </div>
 
-            <div class="p-3 bg-zinc-900/90 border border-zinc-800 rounded-lg">
-                <span class="text-[10px] font-mono uppercase tracking-wider text-amber-400 font-semibold block mb-1">Recruiter Screening Prompt</span>
-                <p class="text-xs font-medium text-zinc-100 leading-relaxed">
-                    "${p.question}"
-                </p>
-            </div>
-
-            ${p.options && p.options.length > 0 ? `
-                <div class="text-[11px] text-zinc-400 flex flex-wrap gap-1.5 items-center">
-                    <span class="text-zinc-500">Allowed options:</span>
-                    ${p.options.map(o => `<span class="bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded text-[10px] text-zinc-300 font-mono">${o}</span>`).join('')}
+                <div class="p-3 bg-zinc-900/90 border border-zinc-800 rounded-lg">
+                    <span class="text-[10px] font-mono uppercase tracking-wider text-amber-400 font-semibold block mb-1">Recruiter Screening Prompt</span>
+                    <p class="text-xs font-medium text-zinc-100 leading-relaxed">
+                        "${escapeHtml(p.question)}"
+                    </p>
                 </div>
-            ` : ''}
 
-            <div class="flex flex-col sm:flex-row gap-2 pt-1">
-                <input id="pending-ans-${p.id}" type="text" placeholder="Type verified candidate answer..." class="flex-1 px-3 py-2 bg-zinc-900 border border-zinc-800 focus:border-zinc-600 rounded-lg text-xs text-white placeholder-zinc-500 outline-none font-mono">
-                <div class="flex gap-2">
-                    <button onclick="skipPendingQuestion('${p.id}')" class="px-3.5 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-zinc-200 text-xs font-medium transition flex items-center justify-center gap-1.5">
-                        <i data-lucide="skip-forward" class="w-3.5 h-3.5"></i>
-                        <span>Skip Question</span>
-                    </button>
-                    <button onclick="submitPendingAnswer('${p.id}')" class="px-4 py-2 rounded-lg bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs transition shadow-sm flex items-center justify-center gap-1.5">
-                        <i data-lucide="check" class="w-3.5 h-3.5 text-zinc-950"></i>
-                        <span>Save & Remember</span>
-                    </button>
+                ${p.options && p.options.length > 0 ? `
+                    <div class="text-[11px] text-zinc-400 flex flex-wrap gap-1.5 items-center">
+                        <span class="text-zinc-500">Allowed options:</span>
+                        ${p.options.map(o => `<span class="bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded text-[10px] text-zinc-300 font-mono">${escapeHtml(o)}</span>`).join('')}
+                    </div>
+                ` : ''}
+
+                <div class="flex flex-col sm:flex-row gap-2 pt-1">
+                    <input id="pending-ans-${p.id}" type="text" placeholder="Type verified candidate answer..." class="flex-1 px-3 py-2 bg-zinc-900 border border-zinc-800 focus:border-zinc-600 rounded-lg text-xs text-white placeholder-zinc-500 outline-none font-mono">
+                    <div class="flex gap-2">
+                        <button onclick="skipPendingQuestion('${p.id}')" class="px-3.5 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-zinc-200 text-xs font-medium transition flex items-center justify-center gap-1.5 cursor-pointer">
+                            <i data-lucide="skip-forward" class="w-3.5 h-3.5"></i>
+                            <span>Skip Question</span>
+                        </button>
+                        <button onclick="submitPendingAnswer('${p.id}')" class="px-4 py-2 rounded-lg bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs transition shadow-sm flex items-center justify-center gap-1.5 cursor-pointer">
+                            <i data-lucide="check" class="w-3.5 h-3.5 text-zinc-950"></i>
+                            <span>Save & Remember</span>
+                        </button>
+                    </div>
                 </div>
             </div>
-        </div>
-    `).join("");
+        `).join("");
 
-    if (window.lucide) {
-        lucide.createIcons();
+        if (window.lucide) {
+            lucide.createIcons();
+        }
     }
 }
 
 async function skipPendingQuestion(qId) {
     try {
+        const token = getAuthToken();
         const res = await fetch("/api/memory/skip-pending", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                ...(token ? { "Authorization": `Bearer ${token}` } : {})
+            },
             body: JSON.stringify({ question_id: qId })
         });
         await safeParseJson(res);
+        closePendingQuestionModal();
         await loadQAMemory();
     } catch (e) {
         alert("Error skipping question: " + e.message);
@@ -1150,6 +1464,7 @@ async function submitPendingAnswer(qId) {
         });
         if (!res.ok) throw new Error("Could not save answer");
         alert("✅ Answer saved to Memory Vault! The agent will use this for future applications.");
+        closePendingQuestionModal();
         loadQAMemory();
     } catch (e) {
         alert("Error: " + e.message);
@@ -2187,6 +2502,91 @@ async function testBackendUrl() {
 
 
 // =============================================================================
+// =============================================================================
+// CLIENT-SIDE COOKIE PERSISTENCE & AUTO-RESTORE
+// =============================================================================
+function saveCookiesToLocalStorage(platform, cookieData) {
+    try {
+        const platKey = (platform || "naukri").toLowerCase().trim().includes("wellfound") ? "wellfound" : "naukri";
+        const storageKey = platKey === "wellfound" ? "autoapply_wellfound_cookies" : "autoapply_naukri_cookies";
+        const val = typeof cookieData === "string" ? cookieData : JSON.stringify(cookieData);
+        localStorage.setItem(storageKey, val);
+        console.log(`[Cookies] Persisted session cookies for ${platKey} to localStorage '${storageKey}'`);
+    } catch (e) {
+        console.warn("[Cookies] Could not persist cookies to localStorage:", e);
+    }
+}
+
+function getStoredCookiesFromLocalStorage(platform) {
+    try {
+        const platKey = (platform || "naukri").toLowerCase().trim().includes("wellfound") ? "wellfound" : "naukri";
+        const storageKey = platKey === "wellfound" ? "autoapply_wellfound_cookies" : "autoapply_naukri_cookies";
+        const raw = localStorage.getItem(storageKey);
+        if (!raw) return null;
+        try {
+            return JSON.parse(raw);
+        } catch {
+            return raw;
+        }
+    } catch (e) {
+        return null;
+    }
+}
+
+async function handleConnectCookies(platform, cookieData) {
+    saveCookiesToLocalStorage(platform, cookieData);
+    return await saveConnectedCookies(platform, cookieData);
+}
+
+let isRestoringSession = false;
+async function tryRestoreSessionCookies(platform) {
+    if (isRestoringSession) return false;
+    const platKey = (platform || "naukri").toLowerCase().trim().includes("wellfound") ? "wellfound" : "naukri";
+    const stored = getStoredCookiesFromLocalStorage(platKey);
+    if (!stored) {
+        return false;
+    }
+
+    isRestoringSession = true;
+    try {
+        console.log(`[Auto-Restore] Attempting to re-sync saved ${platKey} cookies to backend...`);
+        const token = getAuthToken();
+        const headers = { "Content-Type": "application/json" };
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+
+        const res = await fetch("/api/session/connect-cookies", {
+            method: "POST",
+            headers: headers,
+            body: JSON.stringify({
+                platform: platKey,
+                cookies: stored
+            })
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            if (data.status === "success") {
+                console.log(`[Auto-Restore] Successfully re-connected ${platKey} session to backend!`);
+                const badgeN = document.getElementById("badgeNaukriStatus");
+                const badgeW = document.getElementById("badgeWellfoundStatus");
+                if (platKey === "naukri" && badgeN) {
+                    badgeN.textContent = `Connected (${data.cookies_count || 1})`;
+                    badgeN.className = "text-emerald-400 font-semibold";
+                } else if (platKey === "wellfound" && badgeW) {
+                    badgeW.textContent = `Connected (${data.cookies_count || 1})`;
+                    badgeW.className = "text-emerald-400 font-semibold";
+                }
+                return true;
+            }
+        }
+    } catch (e) {
+        console.warn(`[Auto-Restore] Failed re-syncing ${platKey} cookies:`, e);
+    } finally {
+        isRestoringSession = false;
+    }
+    return false;
+}
+
 // PORTAL SESSION COOKIES & QUICK APPLY ASSISTANT
 // =============================================================================
 async function checkPortalSessionStatus() {
@@ -2216,6 +2616,8 @@ async function checkPortalSessionStatus() {
 
 async function saveConnectedCookies(platform, cookieData, fromAssistant = false) {
     try {
+        // Save to localStorage immediately so session survives server cold starts & restarts
+        saveCookiesToLocalStorage(platform, cookieData);
         const token = getAuthToken();
         const headers = { "Content-Type": "application/json" };
         if (token) headers["Authorization"] = `Bearer ${token}`;

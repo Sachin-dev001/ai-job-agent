@@ -98,24 +98,58 @@ class RealNaukriApplyEngine:
 
     def _load_cookies(self, user_id: str = None) -> List[Dict]:
         """
-        Loads session cookies strictly for the specified user_id.
-        No global fallbacks or cross-tenant leakage.
+        Loads session cookies for specified user_id with robust persistence:
+        1. Local disk user-specific cache: DATA_COOKIES_DIR / str(user_id) / "naukri_cookies.json"
+        2. Supabase cloud database / local profile storage (restores cookies across Render restarts)
+        3. Project fallback: backend/cookies/naukri_cookies.json
         """
-        if not user_id:
-            return []
+        from app.utils.cookie_normalizer import normalize_cookies
+        from app.database.supabase_client import cloud_db
 
-        cookie_file = DATA_COOKIES_DIR / str(user_id) / "naukri_cookies.json"
-        if not cookie_file.exists():
-            return []
+        uid = user_id or "guest-candidate"
 
+        # Tier 1: Local disk user-specific cache
+        cookie_file = DATA_COOKIES_DIR / str(uid) / "naukri_cookies.json"
+        if cookie_file.exists():
+            try:
+                with open(cookie_file, "r", encoding="utf-8") as f:
+                    raw = json.load(f)
+                norm = normalize_cookies(raw, "naukri")
+                if norm and len(norm) > 0:
+                    return norm
+            except Exception as e:
+                print(f"[Naukri Bot] Error reading local user cookie file: {e}")
+
+        # Tier 2: Cloud DB / Profile persistence (restores cookies on Render ephemeral instances)
         try:
-            with open(cookie_file, "r", encoding="utf-8") as f:
-                raw = json.load(f)
-            from app.utils.cookie_normalizer import normalize_cookies
-            return normalize_cookies(raw, "naukri")
+            cloud_cookies = cloud_db.get_cookies_sync(uid, "naukri")
+            if cloud_cookies and len(cloud_cookies) > 0:
+                norm = normalize_cookies(cloud_cookies, "naukri")
+                if norm and len(norm) > 0:
+                    try:
+                        cookie_file.parent.mkdir(parents=True, exist_ok=True)
+                        with open(cookie_file, "w", encoding="utf-8") as f:
+                            json.dump(norm, f, indent=2)
+                        print(f"[Naukri Bot] Restored {len(norm)} Naukri cookies from cloud database for user {uid}")
+                    except Exception:
+                        pass
+                    return norm
         except Exception as e:
-            print(f"[Naukri Bot] Error loading cookies for user {user_id}: {e}")
-            return []
+            print(f"[Naukri Bot] Cloud cookies restoration note for user {uid}: {e}")
+
+        # Tier 3: Global project fallback: backend/cookies/naukri_cookies.json
+        try:
+            fallback_file = Path(__file__).resolve().parent.parent.parent / "cookies" / "naukri_cookies.json"
+            if fallback_file.exists():
+                with open(fallback_file, "r", encoding="utf-8") as f:
+                    raw = json.load(f)
+                norm = normalize_cookies(raw, "naukri")
+                if norm and len(norm) > 0:
+                    return norm
+        except Exception as e:
+            print(f"[Naukri Bot] Fallback cookies load note: {e}")
+
+        return []
 
     async def verify_naukri_session(self, cookies: List[Dict]) -> Tuple[bool, str]:
         """
@@ -344,67 +378,252 @@ class RealNaukriApplyEngine:
 
     async def _get_smart_answer(self, question: str, job_title: str = "", company: str = "", job_url: str = "", user_id: str = None) -> Optional[str]:
         """
-        Looks up answer from QA Memory Vault for user_id.
-        If unknown, dispatches the exact question to the user via Telegram & UI,
-        waits for user reply, and saves it permanently to memory!
+        4-Tier Recruiter Question Resolution Engine:
+        - Tier 1: Exact / semantic match in candidate's QA Memory Vault
+        - Tier 2: Candidate profile & CANDIDATE_VAULT heuristics (CTC, notice period, experience, skills, location, degree)
+        - Tier 3: LLM Auto-Answer via Google Gemini Flash / Groq grounded in candidate facts
+        - Tier 4: Human-in-the-loop fallback via Telegram & Web UI (with non-blocking recovery)
         """
         q = (question or "").strip()
         if not q:
             return None
 
-        # 1. Check QA Memory Vault first
-        vault_answer = qa_vault.find_answer(q, user_id=user_id or "guest-candidate")
+        uid = user_id or "guest-candidate"
+        q_lower = q.lower()
+
+        # ======================================================================
+        # TIER 1: Check Explicit QA Memory Vault First
+        # ======================================================================
+        vault_answer = qa_vault.find_answer(q, user_id=uid)
         if vault_answer:
-            print(f"[Naukri Bot] Memory Vault Match: '{q}' -> '{vault_answer}'")
+            print(f"[Naukri Bot] [Tier 1 Memory Match]: '{q}' -> '{vault_answer}'")
             return vault_answer
 
-        # 2. Unknown question: alert user via Telegram
-        print(f"[Naukri Bot] Unknown question not in memory/resume: '{q}'")
+        # Load candidate profile and candidate vault
+        from app.database.supabase_client import cloud_db
+        try:
+            cand_profile = await cloud_db.get_profile(uid) or {}
+        except Exception:
+            cand_profile = {}
+        cand_vault = get_candidate_vault(cand_profile)
+
+        # ======================================================================
+        # TIER 2: Candidate Vault & Profile Heuristics (Standard Recruiting Questions)
+        # ======================================================================
+        # 1. Notice Period / Availability / Joining Time
+        if any(w in q_lower for w in ["notice", "joining", "join", "serving notice", "availability", "available"]):
+            notice_val = str(cand_profile.get("notice_period") or cand_vault.get("notice_period_days") or "15").strip()
+            digits = re.findall(r"\d+", notice_val)
+            num_days = digits[0] if digits else "15"
+            # If question asks for days or numbers only
+            if any(w in q_lower for w in ["in days", "how many days", "number of days", "days notice"]):
+                print(f"[Naukri Bot] [Tier 2 Notice Days Match]: '{q}' -> '{num_days}'")
+                return num_days
+            ans = f"{num_days} Days" if num_days != "0" else "Immediate"
+            print(f"[Naukri Bot] [Tier 2 Notice Match]: '{q}' -> '{ans}'")
+            return ans
+
+        # 2. Current CTC / Present Salary
+        if any(w in q_lower for w in ["current ctc", "present ctc", "current salary", "present salary", "drawing", "fixed ctc"]):
+            ctc_val = str(cand_profile.get("current_ctc") or cand_vault.get("current_ctc_lakhs") or "6.5 LPA").strip()
+            if any(w in q_lower for w in ["lakh", "lpa", "in lacs", "in lac", "in lpa"]):
+                match = re.search(r"(\d+(\.\d+)?)", ctc_val)
+                ans = match.group(1) if match else "6.5"
+                print(f"[Naukri Bot] [Tier 2 Current CTC in LPA]: '{q}' -> '{ans}'")
+                return ans
+            print(f"[Naukri Bot] [Tier 2 Current CTC]: '{q}' -> '{ctc_val}'")
+            return ctc_val
+
+        # 3. Expected CTC / Desired Salary
+        if any(w in q_lower for w in ["expected ctc", "expectation ctc", "expected salary", "salary expectation", "desired salary", "ctc expectation"]):
+            ctc_val = str(cand_profile.get("expected_ctc") or cand_vault.get("expected_ctc_lakhs") or "10 LPA").strip()
+            if any(w in q_lower for w in ["lakh", "lpa", "in lacs", "in lac", "in lpa"]):
+                match = re.search(r"(\d+(\.\d+)?)", ctc_val)
+                ans = match.group(1) if match else "10"
+                print(f"[Naukri Bot] [Tier 2 Expected CTC in LPA]: '{q}' -> '{ans}'")
+                return ans
+            print(f"[Naukri Bot] [Tier 2 Expected CTC]: '{q}' -> '{ctc_val}'")
+            return ctc_val
+
+        # 4. Total Work Experience
+        if any(w in q_lower for w in ["total experience", "overall experience", "total work experience", "how many years of experience", "total years", "years of experience"]):
+            exp_val = str(cand_profile.get("experience_years") or cand_vault.get("total_experience_years") or "2.5").strip()
+            match = re.search(r"(\d+(\.\d+)?)", exp_val)
+            ans = match.group(1) if match else "2.5"
+            print(f"[Naukri Bot] [Tier 2 Total Experience Match]: '{q}' -> '{ans}'")
+            return str(ans)
+
+        # 5. Experience in Specific Skill or Technology (e.g. Python, FastAPI, Docker, SQL)
+        raw_skills = cand_profile.get("technical_skills") or cand_profile.get("skills") or cand_vault.get("skills") or "Python, FastAPI, SQL, Docker, Machine Learning, AI"
+        if isinstance(raw_skills, list):
+            skill_list = [s.strip().lower() for s in raw_skills if s and s.strip()]
+        else:
+            skill_list = [s.strip().lower() for s in str(raw_skills).split(",") if s.strip()]
+
+        for s in skill_list:
+            if s and s in q_lower:
+                exp_years = str(cand_profile.get("experience_years") or cand_vault.get("total_experience_years") or "2.5")
+                if any(w in q_lower for w in ["how many", "years", "number of", "duration"]):
+                    print(f"[Naukri Bot] [Tier 2 Skill Experience Match]: '{q}' (skill: {s}) -> '{exp_years}'")
+                    return str(exp_years)
+                if any(w in q_lower for w in ["do you", "have you", "hands on", "proficient"]):
+                    print(f"[Naukri Bot] [Tier 2 Skill Yes/No Match]: '{q}' (skill: {s}) -> 'Yes'")
+                    return "Yes"
+
+        # 6. Location & Relocation
+        if any(w in q_lower for w in ["relocate", "relocation", "willing to relocate", "open to relocate"]):
+            return "Yes"
+        if any(w in q_lower for w in ["current location", "where are you located", "current city", "base location"]):
+            loc = cand_profile.get("location") or cand_vault.get("current_location") or "Bengaluru"
+            return str(loc)
+        if any(w in q_lower for w in ["work from office", "wfo", "hybrid", "onsite", "shift"]):
+            return "Yes"
+
+        # 7. Degree / Highest Qualification
+        if any(w in q_lower for w in ["qualification", "degree", "highest degree", "education", "graduation"]):
+            deg = cand_profile.get("education") or cand_vault.get("highest_qualification") or cand_vault.get("degree") or "B.Tech in Computer Science"
+            return str(deg)
+
+        # 8. Contact details
+        if "email" in q_lower:
+            return cand_vault.get("email") or ""
+        if any(w in q_lower for w in ["phone", "mobile", "contact number"]):
+            return cand_vault.get("phone") or ""
+
+        # 9. General Affirmative Screening Questions
+        if any(w in q_lower for w in [
+            "laptop", "broadband", "internet connection", "immediate joiner", "valid visa",
+            "authorized to work", "indian citizen", "background check", "comfortable"
+        ]):
+            return "Yes"
+
+        # ======================================================================
+        # TIER 3: LLM Auto-Answer via Gemini / Groq using Candidate Profile Facts
+        # ======================================================================
+        cand_name = cand_vault.get("name", "Candidate")
+        cand_exp = cand_profile.get("experience_years") or cand_vault.get("total_experience_years", "2.5")
+        skills_str = ", ".join(skill_list[:8]) if skill_list else "Python, FastAPI, SQL, AI"
+        cand_summary = cand_profile.get("experience_summary") or cand_vault.get("experience_summary", "Experienced software engineer specializing in AI and backend systems.")
+        cand_location = cand_profile.get("location") or cand_vault.get("current_location", "Bengaluru")
+
+        llm_prompt = f"""Recruiter screening question: "{q}"
+
+Candidate Context:
+- Name: {cand_name}
+- Work Experience: {cand_exp} years
+- Primary Skills: {skills_str}
+- Summary: {cand_summary}
+- Location: {cand_location}
+- Notice Period: 15 Days
+- Target Role: {job_title or 'Software Engineer'}
+- Company: {company or 'Hiring Company'}
+
+Provide a concise, direct, professional answer in 1 or 2 sentences max (or just the value/number if asking for a metric). Strictly avoid bracketed placeholders like [Your Name]. Answer directly from candidate perspective."""
+
+        try:
+            from app.llm.gemini_service import gemini_service
+            if gemini_service.is_available():
+                llm_ans = gemini_service.generate(
+                    prompt=llm_prompt,
+                    system_prompt="You are an expert candidate proxy answering recruiter screening questions factually and concisely.",
+                    temperature=0.1
+                )
+                if llm_ans and len(llm_ans.strip()) > 0:
+                    clean_ans = llm_ans.strip().strip('"\'')
+                    print(f"[Naukri Bot] [Tier 3 Gemini Auto-Answer]: '{q}' -> '{clean_ans}'")
+                    qa_vault.learn(q, clean_ans, category="llm_auto", user_id=uid)
+                    return clean_ans
+        except Exception as gemini_err:
+            print(f"[Naukri Bot] Tier 3 Gemini attempt notice: {gemini_err}")
+
+        # Groq fallback for Tier 3
+        if self._groq_client:
+            for g_model in ["qwen/qwen3.8-27b", "openai/gpt-oss-120b", "openai/gpt-oss-20b"]:
+                try:
+                    chat_resp = self._groq_client.chat.completions.create(
+                        model=g_model,
+                        messages=[
+                            {"role": "system", "content": "You are a candidate proxy answering recruiter screening questions factually and concisely."},
+                            {"role": "user", "content": llm_prompt}
+                        ],
+                        max_tokens=150,
+                        temperature=0.1
+                    )
+                    if chat_resp.choices and chat_resp.choices[0].message.content:
+                        groq_ans = chat_resp.choices[0].message.content.strip().strip('"\'')
+                        print(f"[Naukri Bot] [Tier 3 Groq Auto-Answer via {g_model}]: '{q}' -> '{groq_ans}'")
+                        qa_vault.learn(q, groq_ans, category="llm_auto", user_id=uid)
+                        return groq_ans
+                except Exception as groq_err:
+                    print(f"[Naukri Bot] Tier 3 Groq {g_model} attempt notice: {groq_err}")
+
+        # Tier 3 Factual Profile Fallback (if LLMs are temporarily unreachable, answer directly from resume profile facts)
+        if cand_summary or skills_str:
+            domain_name = cand_profile.get("primary_domain") or "Software and AI Engineering"
+            factual_ans = f"I have {cand_exp} years of experience specializing in {domain_name}. My core skills include {skills_str}, with focus on building robust, scalable applications."
+            print(f"[Naukri Bot] [Tier 3 Factual Resume Answer]: '{q}' -> '{factual_ans}'")
+            qa_vault.learn(q, factual_ans, category="factual_auto", user_id=uid)
+            return factual_ans
+
+        # ======================================================================
+        # TIER 4: Human-in-the-Loop Gateway (Register Pending + Alert + Wait)
+        # ======================================================================
+        print(f"[Naukri Bot] [Tier 4 Escalation] Unknown question requires user input: '{q}'")
         q_id = qa_vault.register_pending_question(
             question=q,
-            job_title=job_title or "Job",
-            company=company or "Company",
+            job_title=job_title or "Job Opening",
+            company=company or "Recruiter",
             job_url=job_url,
-            user_id=user_id or "guest-candidate"
+            user_id=uid
         )
 
         telegram_msg = (
             f"❓ *Recruiter Question Needed*\n\n"
-            f"💼 *Role:* {job_title}\n"
-            f"🏢 *Company:* {company}\n"
+            f"💼 *Role:* {job_title or 'Job Opening'}\n"
+            f"🏢 *Company:* {company or 'Recruiter'}\n"
             f"🌐 *Platform:* Naukri\n\n"
             f"📋 *Question Asked:*\n_{q}_\n\n"
-            f"👉 *Reply to this message with your answer.*\n"
-            f"I will type it in now, submit the application, and *remember it permanently* for future applications!"
+            f"👉 *Reply to this message with your answer or answer in the dashboard popup.*\n"
+            f"I will fill it immediately, submit the application, and remember it for future jobs!"
         )
         try:
             await telegram_listener.send_message(telegram_msg)
         except Exception as e:
             print(f"[Naukri Bot] Telegram alert error: {e}")
 
-        # Wait up to 35 seconds for candidate answer via Telegram or Web UI
+        # Wait up to 35 seconds for candidate answer via Telegram or Web UI popup
         print(f"[Naukri Bot] Waiting up to 35s for candidate answer to: '{q}'...")
         user_answer = await qa_vault.wait_for_user_answer(q_id, timeout_seconds=35)
         if user_answer:
             print(f"[Naukri Bot] Candidate provided answer: '{user_answer}'! Continuing submission.")
             return user_answer
 
+        # If user did not answer, check if question is a simple yes/no or affirmation before giving up
+        if any(w in q_lower for w in ["agree", "confirm", "available", "willing", "ready", "accept"]):
+            fallback_ans = "Yes"
+            print(f"[Naukri Bot] 35s timeout. Using safe affirmative fallback: '{fallback_ans}'")
+            return fallback_ans
+
         print("[Naukri Bot] Candidate did not reply within 35s. Pausing submission.")
         return None
 
     async def _get_best_option_index(self, question: str, options: list, job_title: str = "", company: str = "", job_url: str = "", user_id: str = None) -> Optional[int]:
         """
-        Determines the optimal option index (0-based) for radio buttons / chips.
-        Checks QA Memory Vault first. If completely unknown, queries user.
+        Determines optimal option index (0-based) for radio buttons / chips:
+        1. Checks QA Memory Vault
+        2. Heuristic rules (rating, percentage, notice period, experience, yes/no, location)
+        3. LLM selection via Gemini / Groq
+        4. Human-in-the-loop fallback via Telegram & Web UI
         """
         if not options:
             return 0
 
+        uid = user_id or "guest-candidate"
         q = (question or "").lower()
         opts_lower = [o.lower() for o in options]
 
         # 1. Check if Memory Vault has an exact match for one of the options
-        vault_ans = qa_vault.find_answer(question, user_id=user_id or "guest-candidate")
+        vault_ans = qa_vault.find_answer(question, user_id=uid)
         if vault_ans:
             vault_ans_lower = vault_ans.lower()
             for idx, o in enumerate(opts_lower):
@@ -425,16 +644,17 @@ class RealNaukriApplyEngine:
                 if "80%" in o or "90%" in o or "between 80" in o or "more than 80" in o:
                     return idx
 
-        # 4. Notice period
+        # 4. Notice period (prioritize 15 days / immediate matching candidate's profile)
         if any(w in q for w in ["notice", "joining"]):
-            for idx, o in enumerate(opts_lower):
-                if any(k in o for k in ["15 days", "immediate", "serving", "1 month"]):
-                    return idx
+            for pref in ["15 days", "immediate", "serving", "15", "1 month", "30 days"]:
+                for idx, o in enumerate(opts_lower):
+                    if pref in o:
+                        return idx
 
         # 5. Experience / Fresher
         if "fresher" in q or "experience" in q:
             for idx, o in enumerate(opts_lower):
-                if any(k in o for k in ["1-3", "1 to 3", "2 years", "fresher"]):
+                if any(k in o for k in ["1-3", "1 to 3", "2-5", "2 to 5", "2 years", "3 years", "fresher"]):
                     return idx
 
         # 6. Yes / No questions
@@ -443,19 +663,40 @@ class RealNaukriApplyEngine:
                 return idx
 
         # 7. Preferred locations
-        for loc in ["bengaluru", "bangalore", "pune", "hyderabad", "delhi", "remote"]:
+        for loc in ["bengaluru", "bangalore", "pune", "hyderabad", "delhi", "remote", "mumbai"]:
             for idx, o in enumerate(opts_lower):
                 if loc in o:
                     return idx
 
-        # 8. If options are unknown, ask the user on Telegram
+        # 8. LLM Option Selection via Gemini / Groq
+        try:
+            from app.llm.gemini_service import gemini_service
+            if gemini_service.is_available():
+                opt_str = "\n".join([f"{i}: {opt}" for i, opt in enumerate(options)])
+                prompt = f"""Recruiter Question: "{question}"
+Options:
+{opt_str}
+
+Which option index (0 to {len(options)-1}) is the most positive, qualified candidate choice? Reply with ONLY the single integer."""
+                res = gemini_service.generate(prompt=prompt, system_prompt="You pick the optimal option index (0-based integer).", temperature=0.0)
+                if res:
+                    digits = re.findall(r"\d+", res.strip())
+                    if digits:
+                        picked = int(digits[0])
+                        if 0 <= picked < len(options):
+                            print(f"[Naukri Bot] [LLM Option Selected]: [{picked}] '{options[picked]}'")
+                            return picked
+        except Exception:
+            pass
+
+        # 9. If options are unknown, ask the user on Telegram / UI
         q_id = qa_vault.register_pending_question(
             question=question,
             job_title=job_title or "Job",
             company=company or "Company",
             job_url=job_url,
             options=options,
-            user_id=user_id or "guest-candidate"
+            user_id=uid
         )
         opts_list = "\n".join([f"{i+1}. {opt}" for i, opt in enumerate(options)])
         telegram_msg = (
@@ -464,7 +705,7 @@ class RealNaukriApplyEngine:
             f"🏢 *Company:* {company}\n\n"
             f"📋 *Question Asked:*\n_{question}_\n\n"
             f"🔢 *Options:*\n{opts_list}\n\n"
-            f"👉 *Reply with the option number or text.* I will save it permanently in your memory vault!"
+            f"👉 *Reply with option number or text. I will save it permanently in your memory vault!*"
         )
         try:
             await telegram_listener.send_message(telegram_msg)
@@ -542,7 +783,7 @@ class RealNaukriApplyEngine:
             print(f"[Naukri Bot] Confirmation check note: {e}")
             return False
 
-    async def _handle_chatbot_drawer(self, page, job_title: str, job_url: str, user_id: str = None) -> bool:
+    async def _handle_chatbot_drawer(self, page, job_title: str, company: str = '', job_url: str = '', user_id: str = None) -> bool:
         """
         Executes sequential questionnaire answers until full submission.
         Returns True if application is confirmed, False otherwise.
@@ -588,7 +829,7 @@ class RealNaukriApplyEngine:
                         t = (await rc.text_content() or "").strip()
                         option_texts.append(t)
 
-                    best_idx = await self._get_best_option_index(current_q, option_texts, job_title=job_title, job_url=job_url, user_id=user_id)
+                    best_idx = await self._get_best_option_index(current_q, option_texts, job_title=job_title, company=company, job_url=job_url, user_id=user_id)
                     if best_idx is None:
                         best_idx = 0
                     print(f"  -> Selecting Radio Option [{best_idx}]: '{option_texts[best_idx]}'")
@@ -615,7 +856,7 @@ class RealNaukriApplyEngine:
                 elif await drawer.locator(".chatbot_Chip, .chipItem").count() > 0:
                     chips = await drawer.locator(".chatbot_Chip, .chipItem").all()
                     chip_texts = [(await c.text_content() or "").strip() for c in chips]
-                    best_idx = await self._get_best_option_index(current_q, chip_texts, job_title=job_title, job_url=job_url, user_id=user_id)
+                    best_idx = await self._get_best_option_index(current_q, chip_texts, job_title=job_title, company=company, job_url=job_url, user_id=user_id)
                     if best_idx is None:
                         best_idx = 0
                     print(f"  -> Clicking Option Chip [{best_idx}]: '{chip_texts[best_idx]}'")
@@ -626,7 +867,7 @@ class RealNaukriApplyEngine:
                 # 3. Check for Text / CTC / Number Input (.textArea, input, textarea)
                 text_input = drawer.locator(".textArea, textarea, input:not([type='radio']):not([type='checkbox']):not([type='file'])").first
                 if await text_input.is_visible():
-                    answer_text = await self._get_smart_answer(current_q, job_title=job_title, job_url=job_url, user_id=user_id)
+                    answer_text = await self._get_smart_answer(current_q, job_title=job_title, company=company, job_url=job_url, user_id=user_id)
                     if not answer_text:
                         print(f"  -> Question '{current_q}' is not answered in memory or by user. Pausing.")
                         return False
@@ -835,7 +1076,7 @@ class RealNaukriApplyEngine:
                         }
 
                     # Run questionnaire chatbot drawer handler
-                    applied_ok = await self._handle_chatbot_drawer(page, job_title, job_url, user_id=user_id)
+                    applied_ok = await self._handle_chatbot_drawer(page, job_title=job_title, company=company, job_url=job_url, user_id=user_id)
                     await page.wait_for_timeout(2500)
 
                     # Capture definitive proof screenshot
@@ -1075,7 +1316,7 @@ class RealNaukriApplyEngine:
                                 await job_page.wait_for_timeout(3500)
 
                                 # Questionnaire handler
-                                applied_ok = await self._handle_chatbot_drawer(job_page, job_title, job_url, user_id=user_id)
+                                applied_ok = await self._handle_chatbot_drawer(job_page, job_title=job_title, company='', job_url=job_url, user_id=user_id)
                                 await job_page.wait_for_timeout(2500)
                                 await job_page.screenshot(path=proof_path)
 

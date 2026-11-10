@@ -5,11 +5,17 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from datetime import datetime
+from dotenv import load_dotenv
 
 logger = logging.getLogger("supabase_client")
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
+env_path = BACKEND_DIR / ".env"
+load_dotenv(dotenv_path=env_path)
+
 DATA_DIR = BACKEND_DIR / "data"
+DATA_COOKIES_DIR = DATA_DIR / "cookies"
+DATA_COOKIES_DIR.mkdir(parents=True, exist_ok=True)
 PROFILES_FILE = DATA_DIR / "user_profiles.json"
 USERS_FILE = DATA_DIR / "users.json"
 APPLICATIONS_FILE = DATA_DIR / "applications.json"
@@ -126,47 +132,67 @@ class CloudDatabaseService:
         user_record = {
             "id": user_id,
             "email": email.strip().lower(),
-            "full_name": full_name.strip(),
-            "name": full_name.strip(),
             "password_hash": password_hash,
+            "name": full_name.strip(),
             "created_at": datetime.utcnow().isoformat()
         }
         users[user_id] = user_record
         self._save_local_users(users)
-        await self.update_profile(user_id, {
-            "full_name": full_name.strip(),
-            "email": email.strip().lower()
-        })
+
+        local_profiles = self._load_local_profiles()
+        if user_id not in local_profiles:
+            local_profiles[user_id] = {
+                "id": user_id,
+                "full_name": full_name.strip(),
+                "email": email.strip().lower(),
+                "phone": "",
+                "current_ctc": "6.5 LPA",
+                "expected_ctc": "10 LPA",
+                "notice_period": "15 Days",
+                "experience_years": 2.5,
+                "resume_analyzed": False
+            }
+            self._save_local_profiles(local_profiles)
         return user_record
 
     # --------------------------------------------------------------------------
     # User Profile Operations
     # --------------------------------------------------------------------------
-    async def get_profile(self, user_id: str) -> Optional[Dict[str, Any]]:
+    def get_profile_sync(self, user_id: str) -> Optional[Dict[str, Any]]:
+        local_profiles = self._load_local_profiles()
+        local_prof = local_profiles.get(user_id, {})
+
         if self.is_cloud_enabled() and is_valid_uuid(user_id):
             try:
                 res = _supabase_client.table("profiles").select("*").eq("id", user_id).execute()
                 if res.data:
-                    return res.data[0]
+                    profile = dict(res.data[0])
+                    # Merge any cookies stored locally if missing in cloud
+                    for ck in ["naukri_cookies", "wellfound_cookies"]:
+                        if not profile.get(ck) and local_prof.get(ck):
+                            profile[ck] = local_prof[ck]
+                    return profile
             except Exception as e:
                 logger.error(f"[Supabase] Error getting profile for {user_id}: {e}")
 
-        # Local storage check
-        local_profiles = self._load_local_profiles()
         if user_id in local_profiles:
             return local_profiles[user_id]
 
-        # Isolated candidate profile fallback (never leak private contact details across users)
+        # Isolated candidate profile fallback
         return {
             "id": user_id,
             "full_name": "Candidate",
             "email": f"{user_id}@candidate.autoapply.ai" if user_id != "guest-candidate" else "guest@autoapply.ai",
             "phone": "",
-            "current_ctc": "",
-            "expected_ctc": "",
-            "notice_period": "",
+            "current_ctc": "6.5 LPA",
+            "expected_ctc": "10 LPA",
+            "notice_period": "15 Days",
+            "experience_years": 2.5,
             "resume_analyzed": False
         }
+
+    async def get_profile(self, user_id: str) -> Optional[Dict[str, Any]]:
+        return self.get_profile_sync(user_id)
 
     async def update_profile(self, user_id: str, updates: Dict[str, Any]) -> bool:
         if self.is_cloud_enabled() and is_valid_uuid(user_id):
@@ -176,8 +202,17 @@ class CloudDatabaseService:
                 _supabase_client.table("profiles").update(updates_copy).eq("id", user_id).execute()
             except Exception as e:
                 logger.error(f"[Supabase] Error updating profile for {user_id}: {e}")
+                # If update failed due to extra fields not in supabase schema, retry with core fields
+                cookie_keys = [k for k in updates if k.endswith("_cookies")]
+                if cookie_keys:
+                    try:
+                        safe_updates = {k: v for k, v in updates.items() if not k.endswith("_cookies")}
+                        safe_updates["updated_at"] = datetime.utcnow().isoformat()
+                        _supabase_client.table("profiles").update(safe_updates).eq("id", user_id).execute()
+                    except Exception as retry_err:
+                        logger.error(f"[Supabase] Fallback update without cookies also failed: {retry_err}")
 
-        # Always save locally so local testing and offline modes retain user profiles
+        # Always save locally so local testing, offline modes, and Render restarts retain full profile & cookies
         local_profiles = self._load_local_profiles()
         current = local_profiles.get(user_id, {
             "id": user_id,
@@ -190,6 +225,119 @@ class CloudDatabaseService:
         local_profiles[user_id] = current
         self._save_local_profiles(local_profiles)
         return True
+
+    # --------------------------------------------------------------------------
+    # Cookie Persistence & Auto-Restoration (Survives Ephemeral Render Restarts)
+    # --------------------------------------------------------------------------
+    def save_cookies_sync(self, user_id: str, platform: str, cookies: List[Dict]) -> bool:
+        if not user_id or not cookies:
+            return False
+        plat = (platform or "naukri").lower().strip()
+        cookie_key = f"{plat}_cookies"
+
+        # 1. Save to dedicated local disk file
+        try:
+            user_cookie_dir = DATA_COOKIES_DIR / str(user_id)
+            user_cookie_dir.mkdir(parents=True, exist_ok=True)
+            cookie_path = user_cookie_dir / f"{plat}_cookies.json"
+            with open(cookie_path, "w", encoding="utf-8") as f:
+                json.dump(cookies, f, indent=2)
+        except Exception as e:
+            logger.warning(f"[Supabase] Could not cache cookies to local disk: {e}")
+
+        # 2. Persist in local profiles JSON
+        local_profiles = self._load_local_profiles()
+        current = local_profiles.get(user_id, {
+            "id": user_id,
+            "full_name": "Candidate",
+            "email": f"{user_id}@candidate.autoapply.ai",
+            "resume_analyzed": False
+        })
+        current[cookie_key] = cookies
+        current["updated_at"] = datetime.utcnow().isoformat()
+        local_profiles[user_id] = current
+        self._save_local_profiles(local_profiles)
+
+        # 3. If cloud enabled, persist to Supabase profiles table
+        if self.is_cloud_enabled() and is_valid_uuid(user_id):
+            try:
+                _supabase_client.table("profiles").update({
+                    cookie_key: cookies,
+                    "updated_at": datetime.utcnow().isoformat()
+                }).eq("id", user_id).execute()
+                logger.info(f"[Supabase] Persisted {plat} cookies to cloud DB for user {user_id}")
+            except Exception as e:
+                logger.warning(f"[Supabase] Cloud table cookie save note: {e}")
+
+        return True
+
+    async def save_cookies(self, user_id: str, platform: str, cookies: List[Dict]) -> bool:
+        return self.save_cookies_sync(user_id, platform, cookies)
+
+    def get_cookies_sync(self, user_id: str, platform: str) -> List[Dict]:
+        if not user_id:
+            return []
+        plat = (platform or "naukri").lower().strip()
+        cookie_key = f"{plat}_cookies"
+
+        # Tier A: Local disk cache for this user
+        user_cookie_file = DATA_COOKIES_DIR / str(user_id) / f"{plat}_cookies.json"
+        if user_cookie_file.exists():
+            try:
+                with open(user_cookie_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                if data and isinstance(data, list) and len(data) > 0:
+                    return data
+            except Exception as e:
+                logger.warning(f"[Supabase] Error reading local user cookie file: {e}")
+
+        # Tier B: Supabase cloud DB profile
+        if self.is_cloud_enabled() and is_valid_uuid(user_id):
+            try:
+                res = _supabase_client.table("profiles").select(cookie_key).eq("id", user_id).execute()
+                if res.data and len(res.data) > 0:
+                    cloud_cookies = res.data[0].get(cookie_key)
+                    if cloud_cookies and isinstance(cloud_cookies, list) and len(cloud_cookies) > 0:
+                        # Auto-cache back to local disk
+                        try:
+                            user_cookie_file.parent.mkdir(parents=True, exist_ok=True)
+                            with open(user_cookie_file, "w", encoding="utf-8") as f:
+                                json.dump(cloud_cookies, f, indent=2)
+                        except Exception:
+                            pass
+                        return cloud_cookies
+            except Exception as e:
+                logger.warning(f"[Supabase] Could not fetch {cookie_key} from cloud: {e}")
+
+        # Tier C: Local profile JSON storage
+        local_profiles = self._load_local_profiles()
+        prof = local_profiles.get(user_id, {})
+        prof_cookies = prof.get(cookie_key)
+        if prof_cookies and isinstance(prof_cookies, list) and len(prof_cookies) > 0:
+            # Auto-cache to local disk
+            try:
+                user_cookie_file.parent.mkdir(parents=True, exist_ok=True)
+                with open(user_cookie_file, "w", encoding="utf-8") as f:
+                    json.dump(prof_cookies, f, indent=2)
+            except Exception:
+                pass
+            return prof_cookies
+
+        # Tier D: Global/project-level cookies fallback
+        project_fallback = BACKEND_DIR / "cookies" / f"{plat}_cookies.json"
+        if project_fallback.exists():
+            try:
+                with open(project_fallback, "r", encoding="utf-8") as f:
+                    fb_data = json.load(f)
+                if fb_data and isinstance(fb_data, list) and len(fb_data) > 0:
+                    return fb_data
+            except Exception:
+                pass
+
+        return []
+
+    async def get_cookies(self, user_id: str, platform: str) -> List[Dict]:
+        return self.get_cookies_sync(user_id, platform)
 
     # --------------------------------------------------------------------------
     # Q&A Memory Vault Operations

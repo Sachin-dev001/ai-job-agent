@@ -15,11 +15,10 @@ class GeminiService:
 
     def __init__(self):
         self.candidate_models = [
-            "gemini-flash-lite-latest",
-            "gemini-2.5-flash-lite",
-            "gemini-2.5-flash",
+            "gemini-3.8-flash",
+            "gemini-3.5-flash",
             "gemini-flash-latest",
-            "gemini-2.0-flash"
+            "gemini-flash-lite-latest"
         ]
 
     def get_api_key(self) -> str:
@@ -62,8 +61,8 @@ class GeminiService:
                     data=encoded_data,
                     headers={"Content-Type": "application/json"}
                 )
-                res = urllib.request.urlopen(req, timeout=6)
-                data = json.loads(res.read().decode())
+                with urllib.request.urlopen(req, timeout=4) as res:
+                    data = json.loads(res.read().decode())
                 candidates = data.get("candidates", [])
                 if candidates and isinstance(candidates, list) and len(candidates) > 0:
                     parts = candidates[0].get("content", {}).get("parts", [])
