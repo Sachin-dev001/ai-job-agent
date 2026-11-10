@@ -100,7 +100,7 @@ class WellfoundLiveApplyEngine:
         return []
 
     async def apply_single_job(self, job_url: str, job_title: str = "Startup Role", company: str = "Tech Startup", user_id: str = None) -> Dict:
-        cookies = self._load_cookies(user_id=user_id)
+        cookies = override_cookies or self._load_cookies(user_id=user_id)
         if not cookies:
             return {
                 "status": "session_required",
@@ -313,7 +313,7 @@ class WellfoundLiveApplyEngine:
         """
         Batch auto-apply on Wellfound startup jobs matching query.
         """
-        cookies = self._load_cookies(user_id=user_id)
+        cookies = override_cookies or self._load_cookies(user_id=user_id)
         if not cookies:
             return {
                 "status": "session_required",

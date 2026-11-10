@@ -895,13 +895,13 @@ Which option index (0 to {len(options)-1}) is the most positive, qualified candi
             print(f"[Naukri Bot] Questionnaire handler exception: {e}")
             return await self._is_submission_confirmed(page)
 
-    async def apply_single_job(self, job_url: str, job_title: str = "AI Engineer", company: str = "Recruiter", user_id: str = None):
+    async def apply_single_job(self, job_url: str, job_title: str = "AI Engineer", company: str = "Recruiter", user_id: str = None, override_cookies: List[Dict] = None):
         """
         Executes end-to-end autonomous application to a single live Naukri job listing.
         Strict verification: Only returns applied_successfully if verified on the live DOM!
         Never simulates or fakes submission.
         """
-        cookies = self._load_cookies(user_id=user_id)
+        cookies = override_cookies or self._load_cookies(user_id=user_id)
         if not cookies:
             return {
                 "status": "session_required",
@@ -1135,12 +1135,12 @@ Which option index (0 to {len(options)-1}) is the most positive, qualified candi
                 "job_url": job_url
             }
 
-    async def execute_live_apply(self, query: str = "AI Engineer", limit: int = 3, user_id: str = None):
+    async def execute_live_apply(self, query: str = "AI Engineer", limit: int = 3, user_id: str = None, override_cookies: List[Dict] = None):
         """
         Batch autonomous application across matching Naukri listings.
         Strict verification: Only records applied_successfully when confirmed on live DOM.
         """
-        cookies = self._load_cookies(user_id=user_id)
+        cookies = override_cookies or self._load_cookies(user_id=user_id)
         if not cookies:
             return {
                 "status": "session_required",

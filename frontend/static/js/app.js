@@ -207,45 +207,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 resumeFileInput?.click();
                 return;
             }
-
-            analyzeBtn.disabled = true;
-            analyzeBtn.textContent = "Analyzing...";
-
-            const formData = new FormData();
-            formData.append("file", file);
-
-            try {
-                const token = getAuthToken();
-                const res = await fetch("/api/resume/analyze", {
-                    method: "POST",
-                    headers: token ? { "Authorization": `Bearer ${token}` } : {},
-                    body: formData
-                });
-
-                const data = await safeParseJson(res);
-                currentAnalysis = data;
-                renderProfile(data);
-                // Refresh Memory Vault to immediately display candidate extracted facts
-                loadQAMemory();
-
-                let targetRole = "Software Engineer";
-                if (data.recommended_job_titles && data.recommended_job_titles.length > 0) {
-                    const topObj = data.recommended_job_titles[0];
-                    targetRole = typeof topObj === "object" ? (topObj.title || topObj) : topObj;
-                } else if (data.primary_domain) {
-                    targetRole = data.primary_domain;
-                }
-                currentSelectedRole = targetRole;
-
-                // Scout jobs for extracted role
-                triggerJobSearch(currentSelectedRole);
-                openPlatformSelector(currentSelectedRole);
-            } catch (error) {
-                alert("Resume Analysis Notice:\n\n" + error.message);
-            } finally {
-                analyzeBtn.disabled = false;
-                analyzeBtn.textContent = "Analyze Resume with LLM";
-            }
+            await analyzeSelectedResumeFile(file);
         });
     }
 
@@ -615,6 +577,57 @@ function renderJobsTable(jobs) {
 // ==========================================
 async function applySingleJob(idx) { return directApplyRow(idx); }
 
+
+async function analyzeSelectedResumeFile(file) {
+    if (!file) return null;
+    const analyzeBtn = document.getElementById("analyzeBtn");
+    if (analyzeBtn) {
+        analyzeBtn.disabled = true;
+        analyzeBtn.textContent = "Analyzing...";
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+        const token = getAuthToken();
+        const res = await fetch("/api/resume/analyze", {
+            method: "POST",
+            headers: token ? { "Authorization": `Bearer ${token}` } : {},
+            body: formData
+        });
+
+        const data = await safeParseJson(res);
+        currentAnalysis = data;
+        renderProfile(data);
+        // Refresh Memory Vault to immediately display candidate extracted facts
+        loadQAMemory();
+
+        let targetRole = "Software Engineer";
+        if (data.recommended_job_titles && data.recommended_job_titles.length > 0) {
+            const topObj = data.recommended_job_titles[0];
+            targetRole = typeof topObj === "object" ? (topObj.title || topObj) : topObj;
+        } else if (data.primary_domain) {
+            targetRole = data.primary_domain;
+        }
+        currentSelectedRole = targetRole;
+
+        // Scout jobs for extracted role
+        triggerJobSearch(currentSelectedRole);
+        openPlatformSelector(currentSelectedRole);
+        return data;
+    } catch (error) {
+        console.warn("Resume Analysis Notice:", error);
+        alert("Resume Analysis Notice:\n\n" + error.message);
+        throw error;
+    } finally {
+        if (analyzeBtn) {
+            analyzeBtn.disabled = false;
+            analyzeBtn.textContent = "Analyze Resume with LLM";
+        }
+    }
+}
+
 async function directApplyRow(idx) {
     if (!requireAuth("apply for jobs")) return;
     const job = foundJobs[idx];
@@ -639,10 +652,36 @@ async function directApplyRow(idx) {
     if (actionCard) actionCard.innerHTML = `<div class="w-full text-center py-2 text-indigo-300 text-xs font-medium"><span class="animate-spin mr-1 inline-block">⟳</span> Applying on ${platformLabel}...</div>`;
 
     try {
+        // Auto-analyze selected resume if not yet analyzed
+        if (!currentAnalysis) {
+            const resumeFileInput = document.getElementById("resumeFileInput");
+            if (resumeFileInput && resumeFileInput.files && resumeFileInput.files.length > 0) {
+                console.log("[Apply] Resume file selected but unanalyzed. Auto-analyzing now...");
+                if (actionCell) actionCell.innerHTML = `<span class="text-xs text-amber-400 animate-spin mr-1">⟳</span> <span class="text-xs text-amber-300 font-medium">Extracting skills...</span>`;
+                if (actionCard) actionCard.innerHTML = `<div class="w-full text-center py-2 text-amber-300 text-xs font-medium"><span class="animate-spin mr-1 inline-block">⟳</span> Extracting skills...</div>`;
+                try {
+                    await analyzeSelectedResumeFile(resumeFileInput.files[0]);
+                } catch (autoErr) {
+                    console.warn("[Apply] Auto-analysis notice:", autoErr);
+                }
+            } else if (currentAuthUser) {
+                await loadUserProfile();
+            }
+        }
+
+        const platformKey = isWellfound ? "wellfound" : "naukri";
+        const storedCookiesRaw = localStorage.getItem(`autoapply_${platformKey}_cookies`);
+        let attachedCookies = null;
+        if (storedCookiesRaw) {
+            try { attachedCookies = JSON.parse(storedCookiesRaw); } catch(_) {}
+        }
+
         const payload = {
             job_url: job.job_url,
             job_title: job.title,
-            company: job.company || "Hiring Company"
+            company: job.company || "Hiring Company",
+            cookies: attachedCookies,
+            candidate_profile: currentAnalysis
         };
 
         const token = getAuthToken();
@@ -761,6 +800,21 @@ async function directApplyRow(idx) {
 // ==========================================
 async function executeCurrentPlatformLiveBot() {
     if (!requireAuth("launch autonomous live auto-apply")) return;
+
+    if (!currentAnalysis) {
+        const resumeFileInput = document.getElementById("resumeFileInput");
+        if (resumeFileInput && resumeFileInput.files && resumeFileInput.files.length > 0) {
+            console.log("[Batch Apply] Auto-analyzing resume file before batch apply...");
+            try {
+                await analyzeSelectedResumeFile(resumeFileInput.files[0]);
+            } catch (autoErr) {
+                console.warn("[Batch Apply] Auto-analysis notice:", autoErr);
+            }
+        } else if (currentAuthUser) {
+            await loadUserProfile();
+        }
+    }
+
     if (!currentAnalysis) {
         alert("Please upload and analyze your resume first! The AI agent needs your candidate DNA to tailor applications and match relevant openings.");
         document.getElementById("resumeFileInput")?.click();
@@ -2752,7 +2806,21 @@ function openQuickApplyModal(idx, reason) {
     if (companyEl) companyEl.textContent = `${job.company} • ${platformDisplay}`;
     if (alertEl) {
         const reasonText = (reason && reason.trim()) ? reason : `${platformDisplay} session not synced or cloud browser unavailable.`;
-        alertEl.innerHTML = `<span class="font-semibold">${reasonText}</span> Choose an option below to apply right now:`;
+        if (reasonText.includes("Resume profile required") || reasonText.includes("resume first")) {
+            alertEl.innerHTML = `
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div>
+                        <span class="font-bold text-amber-300">Resume profile needs analysis:</span>
+                        <div class="text-xs text-zinc-300 mt-0.5">Click below to auto-analyze your resume and continue immediately.</div>
+                    </div>
+                    <button type="button" onclick="autoAnalyzeAndRetryCurrentJob()" class="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-emerald-500 text-black font-bold text-xs rounded-lg shadow hover:opacity-90 transition whitespace-nowrap cursor-pointer">
+                        ⚡ Auto-Analyze & Apply Now
+                    </button>
+                </div>
+            `;
+        } else {
+            alertEl.innerHTML = `<span class="font-semibold">${reasonText}</span> Choose an option below to apply right now:`;
+        }
     }
     if (sessionTitle) {
         sessionTitle.textContent = `Connect ${platformDisplay} Session for Background Auto-Apply`;
@@ -3031,3 +3099,27 @@ function handleExternalJobClick(event, url) {
     return false;
 }
 
+
+
+async function autoAnalyzeAndRetryCurrentJob() {
+    const fileInput = document.getElementById("resumeFileInput");
+    const file = fileInput?.files?.[0];
+    const alertEl = document.getElementById("assistantReasonAlert");
+    if (alertEl) alertEl.innerHTML = `<span class="text-amber-400 animate-spin mr-1">⟳</span> <span class="text-amber-300">Analyzing resume with LLM...</span>`;
+
+    try {
+        if (file) {
+            await analyzeSelectedResumeFile(file);
+        } else {
+            await loadUserProfile();
+        }
+    } catch (e) {
+        console.warn("Auto-analysis error:", e);
+    }
+
+    const targetIdx = activeAssistantJobIdx;
+    closeQuickApplyModal();
+    if (targetIdx !== null) {
+        directApplyRow(targetIdx);
+    }
+}
