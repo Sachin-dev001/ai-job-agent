@@ -49,14 +49,15 @@ class CloudDatabaseService:
                     return res.data[0]
             except Exception as e:
                 logger.error(f"[Supabase] Error getting profile for {user_id}: {e}")
+        # Isolated candidate profile fallback (never leak private contact details across users)
         return {
             "id": user_id,
-            "full_name": "Sachin Sharma",
-            "email": "sachin.sharma.coder@gmail.com",
-            "phone": "6378046617",
-            "current_ctc": "7 LPA",
-            "expected_ctc": "10 LPA",
-            "notice_period": "15 Days"
+            "full_name": "Candidate",
+            "email": f"{user_id}@candidate.autoapply.ai" if user_id != "guest-candidate" else "guest@autoapply.ai",
+            "phone": "",
+            "current_ctc": "",
+            "expected_ctc": "",
+            "notice_period": ""
         }
 
     async def update_profile(self, user_id: str, updates: Dict[str, Any]) -> bool:
@@ -81,7 +82,7 @@ class CloudDatabaseService:
             except Exception as e:
                 logger.error(f"[Supabase] Error getting memories for {user_id}: {e}")
         from app.memory.qa_vault import qa_vault
-        return qa_vault.get_all_memories()
+        return qa_vault.get_user_memories(user_id=user_id)
 
     async def save_memory(self, user_id: str, question: str, answer: str, category: str = "custom", keywords: List[str] = None) -> Dict[str, Any]:
         keywords = keywords or []
@@ -102,7 +103,7 @@ class CloudDatabaseService:
             except Exception as e:
                 logger.error(f"[Supabase] Error saving memory for {user_id}: {e}")
         from app.memory.qa_vault import qa_vault
-        return qa_vault.learn(question=question, answer=answer, category=category)
+        return qa_vault.learn(question=question, answer=answer, category=category, user_id=user_id)
 
     async def delete_memory(self, user_id: str, memory_id: str) -> bool:
         if self.is_cloud_enabled() and is_valid_uuid(user_id):
@@ -113,7 +114,7 @@ class CloudDatabaseService:
                 logger.error(f"[Supabase] Error deleting memory {memory_id}: {e}")
                 return False
         from app.memory.qa_vault import qa_vault
-        return qa_vault.delete_memory(memory_id)
+        return qa_vault.delete_memory(memory_id=memory_id, user_id=user_id)
 
     # --------------------------------------------------------------------------
     # Job Application Tracker Operations

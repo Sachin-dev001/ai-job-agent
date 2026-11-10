@@ -9,7 +9,8 @@ from app.config import settings
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DATA_DIR = os.path.join(BACKEND_DIR, "data")
 os.makedirs(DATA_DIR, exist_ok=True)
-MEMORY_FILE = os.path.join(DATA_DIR, "qa_memory.json")
+USER_MEMORIES_FILE = os.path.join(DATA_DIR, "user_memories.json")
+LEGACY_MEMORY_FILE = os.path.join(DATA_DIR, "qa_memory.json")
 PENDING_FILE = os.path.join(DATA_DIR, "pending_questions.json")
 
 STOP_WORDS = {
@@ -22,174 +23,62 @@ def extract_distinctive_keywords(text: str) -> List[str]:
     words = [w for w in re.split(r"\W+", (text or "").lower()) if len(w) > 2 and w not in STOP_WORDS]
     return words
 
-# Default verified candidate facts from Sachin Sharma's profile & resume
-DEFAULT_MEMORIES = [
-    {
-        "id": "full_name",
-        "question": "What is your full name?",
-        "keywords": ["full name", "your name", "candidate name", "first name", "last name"],
-        "answer": "Sachin Sharma",
-        "category": "personal"
-    },
-    {
-        "id": "mobile_phone",
-        "question": "What is your mobile/contact number?",
-        "keywords": ["mobile", "phone", "contact number", "whatsapp", "reach you"],
-        "answer": "6378046617",
-        "category": "contact"
-    },
-    {
-        "id": "email_address",
-        "question": "What is your email address?",
-        "keywords": ["email", "e-mail", "mail address"],
-        "answer": "sachin.sharma.coder@gmail.com",
-        "category": "contact"
-    },
-    {
-        "id": "current_ctc",
-        "question": "What is your current CTC in Lacs per annum?",
-        "keywords": ["current ctc", "current salary", "present ctc", "present salary", "existing ctc"],
-        "answer": "7",
-        "category": "compensation"
-    },
-    {
-        "id": "expected_ctc",
-        "question": "What is your expected CTC in Lacs per annum?",
-        "keywords": ["expected ctc", "expected salary", "salary expectation"],
-        "answer": "10",
-        "category": "compensation"
-    },
-    {
-        "id": "notice_period",
-        "question": "What is your notice period / joining time?",
-        "keywords": ["notice period", "days to join", "how soon", "available to join", "joining time"],
-        "answer": "15 Days or less",
-        "category": "availability"
-    },
-    {
-        "id": "total_experience",
-        "question": "How many total years of work experience do you have?",
-        "keywords": ["total experience", "overall experience", "total years", "years of experience"],
-        "answer": "2",
-        "category": "experience"
-    },
-    {
-        "id": "current_location",
-        "question": "What is your current city / location?",
-        "keywords": ["current location", "current city", "where are you located", "where do you live", "current address"],
-        "answer": "Bengaluru",
-        "category": "location"
-    },
-    {
-        "id": "willing_relocate",
-        "question": "Are you willing to relocate?",
-        "keywords": ["relocate", "relocation", "willing to move"],
-        "answer": "Yes",
-        "category": "location"
-    },
-    {
-        "id": "highest_education",
-        "question": "What is your highest qualification / degree?",
-        "keywords": ["highest qualification", "degree", "highest education", "graduation", "undergraduate"],
-        "answer": "B.Tech in Computer Science and Engineering",
-        "category": "education"
-    },
-    {
-        "id": "ssc_10th",
-        "question": "Please specify your percentage in S.S.C (10th Standard)?",
-        "keywords": ["s.s.c", "10th standard", "10th percentage", "ssc marks"],
-        "answer": "Between 80% to 90%",
-        "category": "education"
-    },
-    {
-        "id": "hsc_12th",
-        "question": "Please specify your percentage in H.S.C (12th Standard)/Diploma?",
-        "keywords": ["h.s.c", "12th standard", "12th percentage", "hsc marks"],
-        "answer": "Between 80% to 90%",
-        "category": "education"
-    },
-    {
-        "id": "english_rating",
-        "question": "How would you rate your English Communication skills?",
-        "keywords": ["english communication", "communication skill", "english proficiency"],
-        "answer": "5",
-        "category": "skills"
-    },
-    {
-        "id": "skills_technologies",
-        "question": "What skills and technologies have you worked with?",
-        "keywords": ["skills and technologies", "tech stack", "tools have you worked", "technical skills"],
-        "answer": "Python, FastAPI, LangChain, LangGraph, Generative AI, RAG, Autonomous Agents, LLMs, Docker, PyTorch, SQL, Vector Databases (ChromaDB)",
-        "category": "skills"
-    },
-    {
-        "id": "agentic_workflows",
-        "question": "Have you worked on agentic workflows, context-engineering or AI applications?",
-        "keywords": ["agentic workflows", "agentic", "context-engineering", "autonomous agents", "langgraph"],
-        "answer": "Yes. I designed autonomous agents and multi-agent workflows using LangGraph and LangChain, focusing on context engineering, tool-calling, and RAG optimization for production AI applications.",
-        "category": "skills"
-    },
-    {
-        "id": "exp_python",
-        "question": "How many years of experience in Python?",
-        "keywords": ["experience in python", "experience do you have in python", "years in python"],
-        "answer": "2",
-        "category": "experience"
-    },
-    {
-        "id": "exp_sql",
-        "question": "How many years of experience in SQL?",
-        "keywords": ["experience in sql", "experience do you have in sql", "years in sql"],
-        "answer": "2",
-        "category": "experience"
-    },
-    {
-        "id": "exp_pandas",
-        "question": "How many years of experience in Pandas?",
-        "keywords": ["experience in pandas", "experience do you have in pandas", "years in pandas"],
-        "answer": "2",
-        "category": "experience"
-    },
-    {
-        "id": "exp_etl",
-        "question": "How many years of experience in ETL Development?",
-        "keywords": ["experience in etl", "experience do you have in etl", "etl development"],
-        "answer": "2",
-        "category": "experience"
-    }
-]
+# Default verified template screening questions (without any personal candidate data)
+# Each candidate maintains their own private answers in their account vault.
+DEFAULT_MEMORIES = []
 
 class QAMemoryVault:
     """
-    Persistent memory vault for recruiter screening questions and candidate answers.
-    - If question is known in memory -> returns verified answer.
+    Persistent multi-tenant memory vault for recruiter screening questions and candidate answers.
+    - Each candidate (or guest session) has isolated memories partitioned by user_id.
+    - Zero cross-account data leakage.
+    - If question is known in candidate's memory -> returns verified candidate answer.
     - If question is UNKNOWN -> does NOT make up answers; prompts user (via Telegram & UI),
-      waits for user reply, and saves the answer permanently to memory.
+      waits for user reply, and saves the answer permanently to that user's memory.
     """
     def __init__(self):
-        self._memories: List[Dict] = []
+        # user_id -> List of memory dicts
+        self._user_memories: Dict[str, List[Dict]] = {}
         self._pending_questions: Dict[str, Dict] = {} # question_id -> question details
         self._waiting_events: Dict[str, asyncio.Event] = {} # question_id -> Event
         self._load()
         self._load_pending()
 
+    def _sanitize_user_id(self, user_id: Optional[str]) -> str:
+        if not user_id or not str(user_id).strip():
+            return "guest-candidate"
+        return str(user_id).strip()
+
     def _load(self):
-        if os.path.exists(MEMORY_FILE):
+        # 1. Load multi-tenant storage if available
+        if os.path.exists(USER_MEMORIES_FILE):
             try:
-                with open(MEMORY_FILE, "r", encoding="utf-8") as f:
+                with open(USER_MEMORIES_FILE, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    self._memories = data.get("memories", [])
+                    if isinstance(data, dict):
+                        self._user_memories = data.get("users", {})
             except Exception as e:
-                print(f"[QA Vault] Load error: {e}, using defaults.")
-                self._memories = list(DEFAULT_MEMORIES)
+                print(f"[QA Vault] Multi-tenant load error: {e}")
+                self._user_memories = {}
         else:
-            self._memories = list(DEFAULT_MEMORIES)
+            self._user_memories = {}
             self._save()
+
+        # Sanitize legacy file so no hardcoded personal details remain on disk
+        if os.path.exists(LEGACY_MEMORY_FILE):
+            try:
+                with open(LEGACY_MEMORY_FILE, "w", encoding="utf-8") as f:
+                    json.dump({"memories": [], "updated_at": datetime.now().isoformat()}, f, indent=2)
+            except Exception:
+                pass
 
     def _save(self):
         try:
-            with open(MEMORY_FILE, "w", encoding="utf-8") as f:
-                json.dump({"memories": self._memories, "updated_at": datetime.now().isoformat()}, f, indent=2)
+            with open(USER_MEMORIES_FILE, "w", encoding="utf-8") as f:
+                json.dump({
+                    "users": self._user_memories,
+                    "updated_at": datetime.now().isoformat()
+                }, f, indent=2)
         except Exception as e:
             print(f"[QA Vault] Save error: {e}")
 
@@ -211,29 +100,41 @@ class QAMemoryVault:
         except Exception as e:
             print(f"[QA Vault] Pending save error: {e}")
 
-    def get_all_memories(self) -> List[Dict]:
-        return self._memories
+    def get_user_memories(self, user_id: str = "guest-candidate") -> List[Dict]:
+        uid = self._sanitize_user_id(user_id)
+        return list(self._user_memories.get(uid, []))
 
-    def get_pending_questions(self) -> List[Dict]:
+    def get_all_memories(self, user_id: str = "guest-candidate") -> List[Dict]:
+        """Backward-compatible alias for get_user_memories."""
+        return self.get_user_memories(user_id)
+
+    def get_pending_questions(self, user_id: Optional[str] = None) -> List[Dict]:
         self._load_pending()
-        return list(self._pending_questions.values())
+        all_pending = list(self._pending_questions.values())
+        if user_id:
+            uid = self._sanitize_user_id(user_id)
+            return [p for p in all_pending if p.get("user_id", "guest-candidate") == uid]
+        return all_pending
 
-    def learn(self, question: str, answer: str, category: str = "custom") -> Dict:
+    def learn(self, question: str, answer: str, category: str = "custom", user_id: str = "guest-candidate") -> Dict:
         """
-        Learns and persists a new question & answer pair permanently.
+        Learns and persists a new question & answer pair permanently for a specific candidate account.
         """
+        uid = self._sanitize_user_id(user_id)
         clean_q = question.strip()
         clean_ans = answer.strip()
         q_id = re.sub(r"[^a-zA-Z0-9]+", "_", clean_q.lower())[:40].strip("_")
 
-        # Check if already exists; if so, update answer
-        for item in self._memories:
+        user_list = self._user_memories.setdefault(uid, [])
+
+        # Check if already exists in this user's vault; if so, update answer
+        for item in user_list:
             if item.get("id") == q_id or item.get("question", "").lower() == clean_q.lower():
                 item["answer"] = clean_ans
                 item["updated_at"] = datetime.now().isoformat()
                 self._save()
                 self._resolve_pending_event(clean_q, clean_ans)
-                print(f"[QA Vault] Updated existing Q&A: '{clean_q}' -> '{clean_ans}'")
+                print(f"[QA Vault] [{uid}] Updated existing Q&A: '{clean_q}' -> '{clean_ans}'")
                 return item
 
         distinct_kw = extract_distinctive_keywords(clean_q)
@@ -245,32 +146,36 @@ class QAMemoryVault:
             "category": category,
             "learned_at": datetime.now().isoformat()
         }
-        self._memories.append(new_entry)
+        user_list.append(new_entry)
         self._save()
         self._resolve_pending_event(clean_q, clean_ans)
-        print(f"[QA Vault] Successfully learned new Q&A: '{clean_q}' -> '{clean_ans}'")
+        print(f"[QA Vault] [{uid}] Successfully learned new Q&A: '{clean_q}' -> '{clean_ans}'")
         return new_entry
 
-    def delete_memory(self, memory_id: str) -> bool:
-        initial_len = len(self._memories)
-        self._memories = [m for m in self._memories if m.get("id") != memory_id]
-        if len(self._memories) < initial_len:
+    def delete_memory(self, memory_id: str, user_id: str = "guest-candidate") -> bool:
+        uid = self._sanitize_user_id(user_id)
+        user_list = self._user_memories.get(uid, [])
+        initial_len = len(user_list)
+        self._user_memories[uid] = [m for m in user_list if m.get("id") != memory_id]
+        if len(self._user_memories[uid]) < initial_len:
             self._save()
             return True
         return False
 
-    def find_answer(self, question: str) -> Optional[str]:
+    def find_answer(self, question: str, user_id: str = "guest-candidate") -> Optional[str]:
         """
-        Looks up an answer from memory using exact match and keyword heuristics.
-        Returns None if not found (strictly avoids hallucinating).
+        Looks up an answer from this specific user's memory vault using exact match and keyword heuristics.
+        Returns None if not found (strictly avoids hallucinating or leaking other users' answers).
         """
         if not question:
             return None
 
+        uid = self._sanitize_user_id(user_id)
+        user_list = self._user_memories.get(uid, [])
         q_clean = question.lower().strip()
 
         # 1. Exact or substring match in stored question
-        for item in self._memories:
+        for item in user_list:
             stored_q = item.get("question", "").lower()
             if stored_q and (stored_q in q_clean or q_clean in stored_q):
                 return item.get("answer")
@@ -280,7 +185,7 @@ class QAMemoryVault:
         if q_distinct:
             best_match = None
             max_matches = 0
-            for item in self._memories:
+            for item in user_list:
                 item_kw = set(item.get("keywords", []))
                 item_distinct = set(extract_distinctive_keywords(item.get("question", "")))
                 combined = item_kw.union(item_distinct)
@@ -295,27 +200,9 @@ class QAMemoryVault:
             if best_match:
                 return best_match.get("answer")
 
-        # 3. Specific pattern rules for standard HR questions
-        if any(w in q_clean for w in ["current ctc", "current salary", "present ctc"]):
-            return "7"
-        if any(w in q_clean for w in ["expected ctc", "expected salary"]):
-            return "10"
-        if any(w in q_clean for w in ["notice period", "days to join", "how soon"]):
-            return "15 Days or less"
-        if any(w in q_clean for w in ["mobile", "phone number", "whatsapp number"]):
-            return "6378046617"
-        if "email" in q_clean:
-            return "sachin.sharma.coder@gmail.com"
-        if any(w in q_clean for w in ["total experience", "overall experience"]):
-            return "2"
-        if any(w in q_clean for w in ["current location", "current city"]):
-            return "Bengaluru"
-        if any(w in q_clean for w in ["relocate", "relocation"]):
-            return "Yes"
-
         return None
 
-    def register_pending_question(self, question: str, job_title: str, company: str, job_url: str, options: List[str] = None) -> str:
+    def register_pending_question(self, question: str, job_title: str, company: str, job_url: str, options: List[str] = None, user_id: str = "guest-candidate") -> str:
         """
         Registers an unanswered question into the pending queue and prepares an async wait event.
         """
@@ -323,6 +210,7 @@ class QAMemoryVault:
         q_id = re.sub(r"[^a-zA-Z0-9]+", "_", question.lower())[:30].strip("_")
         entry = {
             "id": q_id,
+            "user_id": self._sanitize_user_id(user_id),
             "question": question,
             "job_title": job_title,
             "company": company,

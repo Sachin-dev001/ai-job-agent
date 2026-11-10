@@ -24,7 +24,7 @@ os.makedirs(PROOF_DIR, exist_ok=True)
 class WellfoundLiveApplyEngine:
     """
     Autonomous Playwright Engine for Wellfound (formerly AngelList Talent):
-    - Uses authenticated session cookies (sachin.sharma.coder@gmail.com).
+    - Uses authenticated session cookies (candidate@example.com).
     - Navigates to startup job postings on Wellfound.
     - Clicks Apply button, drafts personalized pitch, answers recruiter questions
       via Candidate Q&A Vault (never guessing/hallucinating).

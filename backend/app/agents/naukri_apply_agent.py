@@ -82,7 +82,7 @@ class NaukriApplyAgent:
                     "company": company,
                     "platform": "Naukri.com",
                     "applied_at": applied_time,
-                    "message": f"Successfully auto-applied to '{job_title}' at '{company}' using your authenticated profile (sachin.sharma.coder@gmail.com)!"
+                    "message": f"Successfully auto-applied to '{job_title}' at '{company}' using your authenticated candidate profile!"
                 }
         except Exception as e:
             return {"status": "error", "detail": str(e)}

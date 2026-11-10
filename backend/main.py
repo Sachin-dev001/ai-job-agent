@@ -150,6 +150,19 @@ async def analyze_resume(file: UploadFile = File(...), user: CurrentUser = Depen
                 'phone': cand_phone,
                 'experience_years': cand_exp
             })
+            # Auto-seed this candidate's private memory vault from parsed resume facts
+            if cand_name and cand_name != "Guest":
+                await cloud_db.save_memory(user.id, "What is your full name?", cand_name, "personal")
+            if cand_email and not cand_email.endswith("@autoapply.ai"):
+                await cloud_db.save_memory(user.id, "What is your email address?", cand_email, "contact")
+            if cand_phone:
+                await cloud_db.save_memory(user.id, "What is your mobile/contact number?", str(cand_phone), "contact")
+            if cand_exp:
+                await cloud_db.save_memory(user.id, "How many total years of work experience do you have?", str(cand_exp), "experience")
+            skills = getattr(result, 'skills', []) or []
+            if skills:
+                skills_str = ", ".join(skills) if isinstance(skills, list) else str(skills)
+                await cloud_db.save_memory(user.id, "What skills and technologies have you worked with?", skills_str, "skills")
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -354,7 +367,7 @@ async def get_qa_memory(user: CurrentUser = Depends(get_current_user)):
     memories = await cloud_db.get_memories(user.id)
     return {
         "memories": memories,
-        "pending": qa_vault.get_pending_questions()
+        "pending": qa_vault.get_pending_questions(user.id)
     }
 
 @app.post("/api/memory/qa")
@@ -395,7 +408,7 @@ async def answer_pending_question(req: AnswerPendingRequest, user: CurrentUser =
         category="recruiter_qa"
     )
     # Also resolve in local cache
-    qa_vault.learn(question=matched["question"], answer=req.answer, category="recruiter_qa")
+    qa_vault.learn(question=matched["question"], answer=req.answer, category="recruiter_qa", user_id=user.id)
     return {"status": "answered_and_remembered", "question": matched["question"], "answer": req.answer}
 
 @app.post("/api/memory/skip-pending")

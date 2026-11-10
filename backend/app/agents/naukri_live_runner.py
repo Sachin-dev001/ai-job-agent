@@ -22,33 +22,36 @@ if "PLAYWRIGHT_BROWSERS_PATH" not in os.environ:
 PROOF_DIR = str(BACKEND_DIR / "proofs")
 os.makedirs(PROOF_DIR, exist_ok=True)
 
-# Complete candidate knowledge vault for Sachin Sharma
-CANDIDATE_VAULT = {
-    "name": "Sachin Sharma",
-    "first_name": "Sachin",
-    "last_name": "Sharma",
-    "email": "sachin.sharma.coder@gmail.com",
-    "phone": "6378046617",
-    "mobile": "6378046617",
-    "current_location": "Bengaluru",
-    "preferred_location": "Bengaluru",
-    "current_ctc_lakhs": "7",
-    "expected_ctc_lakhs": "10",
-    "notice_period_days": "15",
-    "notice_period_str": "15 Days or less",
-    "total_experience_years": "2",
-    "relevant_experience_years": "2",
-    "highest_qualification": "B.Tech in Computer Science and Engineering",
-    "degree": "B.Tech",
-    "ssc_10th_percentage": "Between 80% to 90%",
-    "hsc_12th_percentage": "Between 80% to 90%",
-    "graduation_percentage": "Between 80% to 90%",
-    "english_rating": "5",
-    "ready_to_relocate": "Yes",
-    "gender": "Male",
-    "skills": "Python, FastAPI, LangChain, LangGraph, Generative AI, RAG, Autonomous Agents, LLMs, Docker, PyTorch, SQL, Vector Databases (ChromaDB)",
-    "experience_summary": "2 years building production Generative AI applications, multi-agent workflows with LangGraph, scalable REST APIs with FastAPI, and RAG pipelines."
-}
+# Dynamic candidate knowledge vault loaded from active profile/session
+def get_candidate_vault(profile: dict = None) -> dict:
+    p = profile or {}
+    return {
+        "name": p.get("full_name") or os.getenv("CANDIDATE_NAME", "Candidate"),
+        "first_name": (p.get("full_name") or os.getenv("CANDIDATE_NAME", "Candidate")).split()[0],
+        "last_name": " ".join((p.get("full_name") or os.getenv("CANDIDATE_NAME", "Candidate")).split()[1:]),
+        "email": p.get("email") or os.getenv("CANDIDATE_EMAIL", ""),
+        "phone": p.get("phone") or os.getenv("CANDIDATE_PHONE", ""),
+        "mobile": p.get("phone") or os.getenv("CANDIDATE_PHONE", ""),
+        "current_location": p.get("location") or os.getenv("CANDIDATE_LOCATION", "Bengaluru"),
+        "preferred_location": p.get("preferred_location") or os.getenv("CANDIDATE_LOCATION", "Bengaluru"),
+        "current_ctc_lakhs": str(p.get("current_ctc") or os.getenv("CANDIDATE_CURRENT_CTC", "")),
+        "expected_ctc_lakhs": str(p.get("expected_ctc") or os.getenv("CANDIDATE_EXPECTED_CTC", "")),
+        "notice_period_days": str(p.get("notice_period") or os.getenv("CANDIDATE_NOTICE_DAYS", "15")),
+        "notice_period_str": "15 Days or less",
+        "total_experience_years": str(p.get("experience_years") or os.getenv("CANDIDATE_EXPERIENCE_YEARS", "2")),
+        "relevant_experience_years": str(p.get("experience_years") or os.getenv("CANDIDATE_EXPERIENCE_YEARS", "2")),
+        "highest_qualification": p.get("highest_qualification") or "B.Tech in Computer Science and Engineering",
+        "degree": "B.Tech",
+        "ssc_10th_percentage": "Between 80% to 90%",
+        "hsc_12th_percentage": "Between 80% to 90%",
+        "graduation_percentage": "Between 80% to 90%",
+        "english_rating": "5",
+        "ready_to_relocate": "Yes",
+        "gender": p.get("gender", ""),
+        "skills": p.get("skills") or "Python, AI, Automation",
+        "experience_summary": p.get("experience_summary") or "Experienced software engineer specializing in AI applications."
+    }
+CANDIDATE_VAULT = get_candidate_vault()
 
 class RealNaukriApplyEngine:
     """

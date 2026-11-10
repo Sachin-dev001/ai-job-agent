@@ -122,6 +122,8 @@ document.addEventListener("DOMContentLoaded", () => {
             const data = await safeParseJson(res);
             currentAnalysis = data;
             renderProfile(data);
+            // Refresh Memory Vault to immediately display candidate extracted facts
+            loadQAMemory();
 
             if (data.recommended_job_titles && data.recommended_job_titles.length > 0) {
                 const topRole = data.recommended_job_titles[0].title;
@@ -732,15 +734,25 @@ async function runSingleJobLiveSubmit() {
 let allMemories = [];
 
 async function loadQAMemory() {
+    const uid = currentAuthUser ? currentAuthUser.id : "guest-candidate";
     try {
         const res = await fetch("/api/memory/qa");
-        if (!res.ok) return;
+        if (!res.ok) {
+            const cached = JSON.parse(localStorage.getItem(`autoapply_memories_${uid}`) || "[]");
+            allMemories = cached;
+            renderMemoryVault(allMemories);
+            return;
+        }
         const data = await res.json();
         allMemories = data.memories || [];
+        localStorage.setItem(`autoapply_memories_${uid}`, JSON.stringify(allMemories));
         renderPendingQuestions(data.pending || []);
         renderMemoryVault(allMemories);
     } catch (e) {
         console.error("Error loading QA Memory:", e);
+        const cached = JSON.parse(localStorage.getItem(`autoapply_memories_${uid}`) || "[]");
+        allMemories = cached;
+        renderMemoryVault(allMemories);
     }
 }
 
@@ -849,38 +861,76 @@ function toggleVaultModal(show) {
     }
 }
 
+function escapeHtml(str) {
+    if (!str) return "";
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
 function renderMemoryVault(memories) {
     const list = document.getElementById("memoryVaultList");
     const countText = document.getElementById("memoryCountText");
     const vaultBadge = document.getElementById("vaultCountBadge");
+    const ownerBadge = document.getElementById("vaultOwnerBadge");
     if (!list) return;
 
     if (vaultBadge) {
         vaultBadge.textContent = memories.length;
     }
 
+    const candidateName = currentAuthUser ? currentAuthUser.name : "Guest";
+    if (ownerBadge) {
+        ownerBadge.textContent = currentAuthUser ? `Vault: ${currentAuthUser.name}` : "Vault: Guest (Isolated)";
+    }
+
     if (countText) {
-        countText.textContent = `${memories.length} Remembered Answers in Vault`;
+        countText.textContent = `${memories.length} Remembered Answers for ${candidateName}`;
     }
 
     if (memories.length === 0) {
-        list.innerHTML = `<p class="text-xs text-slate-500 text-center py-4">No remembered questions yet.</p>`;
+        list.innerHTML = `
+            <div class="text-center py-8 px-4 space-y-3 bg-zinc-950/60 rounded-xl border border-dashed border-zinc-800/80 my-2">
+                <div class="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 mx-auto flex items-center justify-center shadow-inner">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    </svg>
+                </div>
+                <div class="space-y-1">
+                    <h4 class="text-sm font-semibold text-zinc-200">No Candidate Facts in Your Vault</h4>
+                    <p class="text-xs text-zinc-400 max-w-sm mx-auto leading-relaxed">
+                        Each candidate has their own private memory vault. Upload your resume or teach the agent custom facts below to automatically answer recruiter questions.
+                    </p>
+                </div>
+                <div class="pt-1 flex items-center justify-center gap-2">
+                    <button onclick="toggleAddMemoryForm()" class="px-3.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-semibold text-xs transition shadow-sm inline-flex items-center gap-1.5 cursor-pointer">
+                        <span>+ Add Your First Fact</span>
+                    </button>
+                    ${!currentAuthUser ? `
+                    <button onclick="toggleVaultModal(false); toggleAuthModal(true);" class="px-3.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-medium text-xs transition border border-zinc-700 inline-flex items-center gap-1.5 cursor-pointer">
+                        <span>Sign In with Google</span>
+                    </button>` : ''}
+                </div>
+            </div>
+        `;
         return;
     }
 
-    // Clean padding and rounded cards with no text clipping
     list.innerHTML = memories.slice().reverse().map(m => `
         <div class="bg-zinc-950 border border-zinc-800 hover:border-zinc-700 p-3 rounded-lg flex items-start justify-between gap-3 transition">
             <div class="space-y-1.5 text-xs flex-1">
                 <div class="flex items-center gap-2 flex-wrap">
-                    <span class="font-medium text-zinc-200">${m.question}</span>
-                    <span class="text-[10px] text-zinc-500 bg-zinc-900 border border-zinc-800 px-1.5 py-0.2 rounded capitalize">${m.category || "custom"}</span>
+                    <span class="font-medium text-zinc-200">${escapeHtml(m.question)}</span>
+                    <span class="text-[10px] text-zinc-500 bg-zinc-900 border border-zinc-800 px-1.5 py-0.2 rounded capitalize">${escapeHtml(m.category || "custom")}</span>
                 </div>
                 <div class="text-zinc-300 font-mono text-[11px] bg-zinc-900 border border-zinc-800 px-2.5 py-1 rounded-md block">
-                    <span class="text-emerald-400 font-bold mr-1.5">↳</span>${m.answer}
+                    <span class="text-emerald-400 font-bold mr-1.5">↳</span>${escapeHtml(m.answer)}
                 </div>
             </div>
-            <button onclick="deleteMemory('${m.id}')" title="Delete from memory" class="text-zinc-500 hover:text-zinc-300 p-1 rounded transition text-xs shrink-0">
+            <button onclick="deleteMemory('${m.id}')" title="Delete from memory" class="text-zinc-500 hover:text-rose-400 p-1 rounded transition text-xs shrink-0 cursor-pointer">
                 ✕
             </button>
         </div>
@@ -1261,17 +1311,51 @@ function initSupabase() {
     setInterval(checkBackendHealth, 15000);
 }
 
+function createLocalAuthToken(user) {
+    const b64 = (str) => btoa(unescape(encodeURIComponent(str))).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+    const header = b64(JSON.stringify({ alg: "HS256", typ: "JWT" }));
+    const payload = b64(JSON.stringify({
+        sub: user.id,
+        id: user.id,
+        email: user.email,
+        user_metadata: {
+            full_name: user.name,
+            name: user.name,
+            avatar_url: user.avatar || ""
+        },
+        exp: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60)
+    }));
+    const sig = b64("autoapply_client_sig");
+    return `${header}.${payload}.${sig}`;
+}
+
 function setLoggedInUser(user, token) {
     currentAuthUser = {
         id: user.id,
         email: user.email,
-        name: user.user_metadata?.full_name || user.email.split("@")[0]
+        name: user.user_metadata?.full_name || user.name || user.email.split("@")[0],
+        avatar: user.user_metadata?.avatar_url || user.avatar || null,
+        provider: user.app_metadata?.provider || user.provider || "email"
     };
-    currentAuthToken = token;
+    currentAuthToken = token || createLocalAuthToken(currentAuthUser);
     localStorage.setItem("autoapply_user", JSON.stringify(currentAuthUser));
-    localStorage.setItem("autoapply_auth_token", token);
+    localStorage.setItem("autoapply_auth_token", currentAuthToken);
+
+    // Save to device saved accounts list for fast 1-click switching
+    try {
+        let saved = JSON.parse(localStorage.getItem("autoapply_saved_accounts") || "[]");
+        saved = saved.filter(a => a.email.toLowerCase() !== currentAuthUser.email.toLowerCase());
+        saved.unshift(currentAuthUser);
+        if (saved.length > 5) saved = saved.slice(0, 5);
+        localStorage.setItem("autoapply_saved_accounts", JSON.stringify(saved));
+    } catch (e) {}
+
     renderAuthNavbar();
     toggleAuthModal(false);
+    backToMainAuthView();
+    // Reload candidate-specific isolated memories & applications
+    loadQAMemory();
+    loadUserApplications();
 }
 
 function setLoggedOutUser() {
@@ -1280,19 +1364,21 @@ function setLoggedOutUser() {
     localStorage.removeItem("autoapply_user");
     localStorage.removeItem("autoapply_auth_token");
     renderAuthNavbar();
+    backToMainAuthView();
+    // Reset Memory Vault to guest state (zero personal facts)
+    loadQAMemory();
+    loadUserApplications();
 }
 
 function loginAsDemoUser() {
-    currentAuthUser = {
+    const demoUser = {
         id: "demo-guest-" + Date.now().toString(36),
         email: "demo.candidate@autoapply.ai",
-        name: "Demo Candidate"
+        name: "Demo Candidate",
+        provider: "demo"
     };
-    currentAuthToken = "demo_guest_token";
-    localStorage.setItem("autoapply_user", JSON.stringify(currentAuthUser));
-    localStorage.setItem("autoapply_auth_token", currentAuthToken);
-    renderAuthNavbar();
-    toggleAuthModal(false);
+    const token = createLocalAuthToken(demoUser);
+    setLoggedInUser(demoUser, token);
 }
 
 function renderAuthNavbar() {
@@ -1312,10 +1398,23 @@ function renderAuthNavbar() {
         if (userMenu) userMenu.classList.remove("hidden");
         if (nameDisplay) nameDisplay.textContent = currentAuthUser.name;
         if (emailDisplay) emailDisplay.textContent = currentAuthUser.email;
-        if (avatarDisplay) avatarDisplay.textContent = (currentAuthUser.name[0] || "U").toUpperCase();
+        
+        if (avatarDisplay) {
+            if (currentAuthUser.avatar) {
+                avatarDisplay.innerHTML = `<img src="${currentAuthUser.avatar}" alt="${escapeHtml(currentAuthUser.name)}" class="w-full h-full rounded-full object-cover" onerror="this.parentElement.textContent='${(currentAuthUser.name[0] || 'U').toUpperCase()}'" />`;
+            } else {
+                avatarDisplay.textContent = (currentAuthUser.name[0] || "U").toUpperCase();
+            }
+        }
 
         if (mobileUserName) mobileUserName.textContent = currentAuthUser.name;
-        if (mobileUserAvatar) mobileUserAvatar.textContent = (currentAuthUser.name[0] || "U").toUpperCase();
+        if (mobileUserAvatar) {
+            if (currentAuthUser.avatar) {
+                mobileUserAvatar.innerHTML = `<img src="${currentAuthUser.avatar}" alt="${escapeHtml(currentAuthUser.name)}" class="w-full h-full rounded-full object-cover" onerror="this.parentElement.textContent='${(currentAuthUser.name[0] || 'U').toUpperCase()}'" />`;
+            } else {
+                mobileUserAvatar.textContent = (currentAuthUser.name[0] || "U").toUpperCase();
+            }
+        }
         if (mobileSignInBtn) mobileSignInBtn.classList.add("hidden");
         if (mobileSignOutBtn) mobileSignOutBtn.classList.remove("hidden");
     } else {
@@ -1328,6 +1427,160 @@ function renderAuthNavbar() {
         if (mobileSignOutBtn) mobileSignOutBtn.classList.add("hidden");
     }
     if (window.lucide) lucide.createIcons();
+}
+
+// Google & GitHub Sub-Views
+function openGoogleAuthView() {
+    const main = document.getElementById("mainAuthView");
+    const google = document.getElementById("googleAuthView");
+    const github = document.getElementById("githubAuthView");
+    if (main) main.classList.add("hidden");
+    if (github) github.classList.add("hidden");
+    if (google) google.classList.remove("hidden");
+    renderGoogleSavedAccounts();
+    if (window.lucide) lucide.createIcons();
+}
+
+function openGitHubAuthView() {
+    const main = document.getElementById("mainAuthView");
+    const google = document.getElementById("googleAuthView");
+    const github = document.getElementById("githubAuthView");
+    if (main) main.classList.add("hidden");
+    if (google) google.classList.add("hidden");
+    if (github) github.classList.remove("hidden");
+    if (window.lucide) lucide.createIcons();
+}
+
+function backToMainAuthView() {
+    const main = document.getElementById("mainAuthView");
+    const google = document.getElementById("googleAuthView");
+    const github = document.getElementById("githubAuthView");
+    if (google) google.classList.add("hidden");
+    if (github) github.classList.add("hidden");
+    if (main) main.classList.remove("hidden");
+    if (window.lucide) lucide.createIcons();
+}
+
+function renderGoogleSavedAccounts() {
+    const container = document.getElementById("googleSavedAccountsList");
+    if (!container) return;
+    try {
+        const saved = JSON.parse(localStorage.getItem("autoapply_saved_accounts") || "[]");
+        const googleAccounts = saved.filter(a => a.provider === "google");
+        if (googleAccounts.length === 0) {
+            container.classList.add("hidden");
+            return;
+        }
+        container.classList.remove("hidden");
+        container.innerHTML = `
+            <span class="text-[10px] uppercase font-mono text-zinc-500 block mb-1">Previous Google Accounts</span>
+            ${googleAccounts.map(a => `
+                <div onclick="selectSavedAccount('${escapeHtml(a.id)}')" class="flex items-center justify-between p-2 rounded-lg bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 cursor-pointer transition">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-7 h-7 rounded-full bg-blue-600/20 text-blue-400 font-bold text-xs flex items-center justify-center border border-blue-500/30 shrink-0">
+                            ${(a.name[0] || 'G').toUpperCase()}
+                        </div>
+                        <div class="text-left">
+                            <p class="text-xs font-semibold text-zinc-200">${escapeHtml(a.name)}</p>
+                            <p class="text-[10px] text-zinc-400 font-mono">${escapeHtml(a.email)}</p>
+                        </div>
+                    </div>
+                    <span class="text-[10px] text-blue-400 font-medium">Continue →</span>
+                </div>
+            `).join('')}
+        `;
+    } catch (e) {
+        container.classList.add("hidden");
+    }
+}
+
+function selectSavedAccount(accountId) {
+    try {
+        const saved = JSON.parse(localStorage.getItem("autoapply_saved_accounts") || "[]");
+        const match = saved.find(a => a.id === accountId);
+        if (match) {
+            const token = createLocalAuthToken(match);
+            setLoggedInUser(match, token);
+        }
+    } catch (e) {}
+}
+
+function handleGoogleDirectSubmit(event) {
+    event.preventDefault();
+    const emailInput = document.getElementById("googleEmailInput");
+    const nameInput = document.getElementById("googleNameInput");
+    if (!emailInput) return;
+    const email = emailInput.value.trim().toLowerCase();
+    const name = nameInput?.value?.trim() || "";
+    signInWithGoogleDirect(email, name);
+}
+
+function signInWithGoogleDirect(email, name) {
+    if (!email || !email.includes("@")) {
+        alert("Please enter a valid Google email address.");
+        return;
+    }
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanName = (name && name.trim()) ? name.trim() : cleanEmail.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+    const hash = btoa(cleanEmail).replace(/[^a-zA-Z0-9]/g, "").slice(0, 16);
+    const user = {
+        id: "google-" + hash,
+        email: cleanEmail,
+        name: cleanName,
+        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=4285F4&color=fff&bold=true`,
+        provider: "google"
+    };
+    const token = createLocalAuthToken(user);
+    setLoggedInUser(user, token);
+}
+
+function updateGitHubPreview(val) {
+    const preview = document.getElementById("githubAvatarPreview");
+    const img = document.getElementById("githubAvatarImg");
+    const name = document.getElementById("githubPreviewName");
+    if (!preview || !img || !name) return;
+    const clean = val.trim().replace(/^@/, '').split('@')[0];
+    if (clean.length >= 2) {
+        preview.classList.remove("hidden");
+        preview.classList.add("flex");
+        img.src = `https://github.com/${clean}.png`;
+        name.textContent = clean;
+    } else {
+        preview.classList.add("hidden");
+        preview.classList.remove("flex");
+    }
+}
+
+function handleGitHubDirectSubmit(event) {
+    event.preventDefault();
+    const userInput = document.getElementById("githubUsernameInput");
+    const nameInput = document.getElementById("githubNameInput");
+    if (!userInput) return;
+    const username = userInput.value.trim();
+    const name = nameInput?.value?.trim() || "";
+    signInWithGitHubDirect(username, name);
+}
+
+function signInWithGitHubDirect(username, name) {
+    if (!username || !username.trim()) {
+        alert("Please enter your GitHub username or handle.");
+        return;
+    }
+    const cleanUser = username.trim().replace(/^@/, '');
+    const isEmail = cleanUser.includes("@");
+    const handle = isEmail ? cleanUser.split("@")[0] : cleanUser;
+    const cleanEmail = isEmail ? cleanUser.toLowerCase() : `${handle.toLowerCase()}@users.noreply.github.com`;
+    const cleanName = (name && name.trim()) ? name.trim() : handle;
+    const hash = btoa(cleanUser.toLowerCase()).replace(/[^a-zA-Z0-9]/g, "").slice(0, 16);
+    const user = {
+        id: "github-" + hash,
+        email: cleanEmail,
+        name: cleanName,
+        avatar: `https://github.com/${handle.replace(/[^a-zA-Z0-9-]/g, '')}.png`,
+        provider: "github"
+    };
+    const token = createLocalAuthToken(user);
+    setLoggedInUser(user, token);
 }
 
 function toggleMobileNavMenu(forceState) {
@@ -1424,11 +1677,15 @@ async function handleEmailAuth(event) {
 
     if (!hasRealSupabase || !supabaseClient) {
         const cleanName = fullName || email.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-        setLoggedInUser({
-            id: "user-" + btoa(email).replace(/[^a-zA-Z0-9]/g, "").slice(0, 12),
+        const userObj = {
+            id: "email-" + btoa(email).replace(/[^a-zA-Z0-9]/g, "").slice(0, 14),
             email: email,
-            user_metadata: { full_name: cleanName }
-        }, "local_auth_token_" + Date.now());
+            name: cleanName,
+            user_metadata: { full_name: cleanName },
+            provider: "email"
+        };
+        const token = createLocalAuthToken(userObj);
+        setLoggedInUser(userObj, token);
         return;
     }
 
