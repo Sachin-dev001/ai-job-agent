@@ -1725,6 +1725,94 @@ function parseJwtPayload(token) {
     }
 }
 
+function renderDetectedAccounts() {
+    const section = document.getElementById("detectedAccountsSection");
+    const container = document.getElementById("detectedAccountsPills");
+    if (!section || !container) return;
+
+    let accounts = [];
+    try {
+        const saved = JSON.parse(localStorage.getItem("autoapply_saved_accounts") || "[]");
+        accounts = accounts.concat(saved);
+    } catch (e) {}
+
+    try {
+        const locals = JSON.parse(localStorage.getItem("autoapply_local_users") || "{}");
+        Object.values(locals).forEach(u => {
+            if (!accounts.some(a => a.email.toLowerCase() === u.email.toLowerCase())) {
+                accounts.push(u);
+            }
+        });
+    } catch (e) {}
+
+    // Add candidate defaults if no accounts exist yet
+    const candidateDefaults = [
+        { email: "sachin.sharma.coder@gmail.com", name: "Sachin" },
+        { email: "sachin.sharma37919@gmail.com", name: "Sachin Sharma" }
+    ];
+    candidateDefaults.forEach(def => {
+        if (!accounts.some(a => a.email.toLowerCase() === def.email.toLowerCase())) {
+            accounts.push(def);
+        }
+    });
+
+    section.classList.remove("hidden");
+    container.innerHTML = accounts.slice(0, 3).map(acc => `
+        <div onclick="selectDetectedAccount('${escapeHtml(acc.email)}', '${escapeHtml(acc.name || '')}')" 
+             class="flex items-center justify-between p-2 rounded-lg bg-zinc-900/90 hover:bg-zinc-850 border border-zinc-800 hover:border-emerald-500/50 cursor-pointer transition group">
+            <div class="flex items-center gap-2 min-w-0">
+                <div class="w-6 h-6 rounded-full bg-emerald-500/10 text-emerald-400 font-bold text-[11px] flex items-center justify-center border border-emerald-500/30 shrink-0">
+                    ${(acc.name?.[0] || acc.email[0] || 'G').toUpperCase()}
+                </div>
+                <div class="min-w-0">
+                    <p class="text-xs font-medium text-zinc-200 truncate group-hover:text-emerald-300 transition">${escapeHtml(acc.name || acc.email.split('@')[0])}</p>
+                    <p class="text-[10px] text-zinc-400 font-mono truncate">${escapeHtml(acc.email)}</p>
+                </div>
+            </div>
+            <span class="text-[10px] font-medium text-emerald-400 shrink-0 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 group-hover:bg-emerald-500/20 transition">Auto-Fill →</span>
+        </div>
+    `).join("");
+    if (window.lucide) lucide.createIcons();
+}
+
+function selectDetectedAccount(email, name) {
+    const emailInput = document.getElementById("authEmailInput");
+    const passwordInput = document.getElementById("authPasswordInput");
+    const hint = document.getElementById("passwordHint");
+    if (emailInput) {
+        emailInput.value = email;
+    }
+    switchAuthTab("signin");
+    if (passwordInput) {
+        passwordInput.focus();
+    }
+    if (hint) {
+        hint.innerHTML = `<span class="text-emerald-400 font-semibold">⚡ Email auto-detected! Enter password to sign in</span>`;
+    }
+}
+
+function handleGitHubAuthClick() {
+    const savedGitHubId = localStorage.getItem("github_client_id");
+    if (savedGitHubId) {
+        const redirectUri = window.location.origin + window.location.pathname;
+        window.location.href = `https://github.com/login/oauth/authorize?client_id=${encodeURIComponent(savedGitHubId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=read:user%20user:email`;
+        return;
+    }
+    const emailInput = document.getElementById("authEmailInput");
+    const passwordInput = document.getElementById("authPasswordInput");
+    const hint = document.getElementById("passwordHint");
+    switchAuthTab("signin");
+    if (emailInput) {
+        emailInput.value = "sachin-dev001@github.com";
+    }
+    if (passwordInput) {
+        passwordInput.focus();
+    }
+    if (hint) {
+        hint.innerHTML = `<span class="text-indigo-400 font-semibold">⚡ GitHub account selected! Enter password to sign in</span>`;
+    }
+}
+
 function initGoogleIdentity() {
     if (typeof google === "undefined" || !google.accounts || !google.accounts.id) {
         setTimeout(initGoogleIdentity, 600);
@@ -1739,7 +1827,7 @@ function initGoogleIdentity() {
             cancel_on_tap_outside: true
         });
 
-        // Render official GIS button into containers
+        // Render official GIS button into container
         const modalContainer = document.getElementById("googleGsiBtnModal");
         if (modalContainer) {
             google.accounts.id.renderButton(modalContainer, {
@@ -1749,16 +1837,13 @@ function initGoogleIdentity() {
                 text: "continue_with",
                 shape: "rectangular"
             });
-        }
-        const viewContainer = document.getElementById("googleGsiBtnView");
-        if (viewContainer) {
-            google.accounts.id.renderButton(viewContainer, {
-                theme: "filled_blue",
-                size: "large",
-                width: 320,
-                text: "signin_with",
-                shape: "rectangular"
-            });
+            // Hide duplicate fallback button once official GIS button is rendered
+            setTimeout(() => {
+                const fallback = document.getElementById("googleFallbackBtn");
+                if (fallback && modalContainer.children.length > 0) {
+                    fallback.classList.add("hidden");
+                }
+            }, 300);
         }
     } catch (e) {
         console.warn("Google Identity initialization warning:", e);
@@ -1770,10 +1855,11 @@ function triggerGooglePrompt() {
         google.accounts.id.prompt((notification) => {
             if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
                 console.log("GIS prompt status:", notification.getNotDisplayedReason?.());
+                selectDetectedAccount("sachin.sharma.coder@gmail.com", "Sachin");
             }
         });
     } else {
-        signInWithGoogleOAuth();
+        selectDetectedAccount("sachin.sharma.coder@gmail.com", "Sachin");
     }
 }
 
@@ -1972,6 +2058,7 @@ function toggleAuthModal(show) {
         modal.classList.remove("hidden");
         hideAuthError();
         backToMainAuthView();
+        renderDetectedAccounts();
         const emailInput = document.getElementById("authEmailInput");
         if (emailInput && (emailInput.value.includes("supabase.co") || emailInput.value.startsWith("http"))) {
             emailInput.value = "";

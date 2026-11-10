@@ -123,13 +123,31 @@ async def run_tests():
         if not gsi_modal_btn:
             failed_assertions.append("Container #googleGsiBtnModal missing from auth modal")
 
-        # Verify Real OAuth Buttons (Google One Tap & GitHub OAuth)
-        gsi_prompt_btn = await page.query_selector("button:has-text('Auto-Detect Google Account')")
-        github_oauth_btn = await page.query_selector("button:has-text('Authorize with GitHub OAuth')")
-        print(f"Google One Tap button present: {gsi_prompt_btn is not None}", flush=True)
-        print(f"GitHub OAuth button present: {github_oauth_btn is not None}", flush=True)
-        if not gsi_prompt_btn or not github_oauth_btn:
-            failed_assertions.append("Real Google or GitHub OAuth trigger buttons missing")
+        # Verify Real OAuth Buttons (Google & GitHub)
+        google_btn = await page.query_selector("#authModal button:has-text('Continue with Google')")
+        github_btn = await page.query_selector("#authModal button:has-text('Continue with GitHub')")
+        print(f"Google button present: {google_btn is not None}", flush=True)
+        print(f"GitHub button present: {github_btn is not None}", flush=True)
+        if not google_btn or not github_btn:
+            failed_assertions.append("Google or GitHub trigger buttons missing")
+
+        # Verify Auto-Detected Gmail Accounts Section
+        detected_sec = await page.is_visible("#detectedAccountsSection:not(.hidden)")
+        print(f"Detected Accounts Section visible: {detected_sec}", flush=True)
+        if not detected_sec:
+            failed_assertions.append("Detected Accounts Section #detectedAccountsSection not visible")
+
+        # Test 1-click auto-fill on first detected Gmail pill
+        first_pill = await page.query_selector("#detectedAccountsPills > div")
+        if first_pill:
+            await first_pill.click()
+            await page.wait_for_timeout(300)
+            email_val = await page.input_value("#authEmailInput")
+            print(f"1-Click Auto-Filled Email: '{email_val}'", flush=True)
+            if not email_val or "gmail.com" not in email_val:
+                failed_assertions.append(f"Expected 1-click auto-fill to populate a Gmail address, got '{email_val}'")
+        else:
+            failed_assertions.append("No detected account pills rendered in #detectedAccountsPills")
 
         # Verify NO fake forms for Google/GitHub typing
         fake_google_input = await page.query_selector("#authModal input[placeholder*='Google account email']")
