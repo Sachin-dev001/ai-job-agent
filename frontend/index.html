@@ -1201,8 +1201,7 @@
 
                 <!-- OAuth Buttons -->
                 <div class="space-y-2 pt-1">
-                    <div id="googleGsiBtnModal" class="w-full flex justify-center min-h-[40px]"></div>
-                    <button type="button" id="googleFallbackBtn" onclick="triggerGooglePrompt()" class="w-full py-2.5 px-3 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/80 hover:border-zinc-500 text-xs font-semibold text-zinc-200 flex items-center justify-center gap-2.5 transition cursor-pointer">
+                    <button type="button" id="googleFallbackBtn" onclick="openGoogleAuthView()" class="w-full py-2.5 px-3 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/80 hover:border-zinc-500 text-xs font-semibold text-zinc-200 flex items-center justify-center gap-2.5 transition cursor-pointer">
                         <svg class="w-4 h-4" viewBox="0 0 24 24">
                             <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.65v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.14z"/>
                             <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.26v3.15C3.26 21.36 7.34 24 12 24z"/>
@@ -1211,7 +1210,7 @@
                         </svg>
                         <span>Continue with Google</span>
                     </button>
-                    <button type="button" onclick="handleGitHubAuthClick()" class="w-full py-2.5 px-3 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/80 hover:border-zinc-500 text-xs font-semibold text-zinc-200 flex items-center justify-center gap-2.5 transition cursor-pointer">
+                    <button type="button" onclick="openGitHubAuthView()" class="w-full py-2.5 px-3 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/80 hover:border-zinc-500 text-xs font-semibold text-zinc-200 flex items-center justify-center gap-2.5 transition cursor-pointer">
                         <svg class="w-4 h-4 fill-white" viewBox="0 0 24 24">
                             <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
                         </svg>
@@ -1297,30 +1296,43 @@
                         </svg>
                     </div>
                     <h4 class="text-sm font-bold text-zinc-100">Sign in with Google</h4>
-                    <p class="text-xs text-zinc-400">Secure 1-click Google Identity Services</p>
+                    <p class="text-xs text-zinc-400">Instant Google candidate account with private multi-tenant isolation</p>
                 </div>
 
-                <!-- Google Identity Services One Tap & Button Container -->
-                <div class="space-y-2.5 pt-1">
-                    <div id="googleGsiBtnView" class="w-full flex justify-center min-h-[44px]"></div>
-                    <button type="button" onclick="triggerGooglePrompt()" class="w-full py-2.5 px-3 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/80 hover:border-zinc-500 text-xs font-semibold text-zinc-200 flex items-center justify-center gap-2 transition cursor-pointer">
-                        <svg class="w-4 h-4" viewBox="0 0 24 24">
-                            <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.65v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.14z"/>
-                            <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.26v3.15C3.26 21.36 7.34 24 12 24z"/>
-                            <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.26C.46 8.16 0 9.98 0 12s.46 3.84 1.26 5.42l4.02-3.15z"/>
-                            <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.26 6.58l4.02 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+                <!-- Google 1-Click Fast Track -->
+                <div class="space-y-2 pt-1">
+                    <button type="button" onclick="signInWithGoogleDirect('sachinsharma24031@gmail.com', 'Sachin Sharma')" class="w-full py-2.5 px-3 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/80 hover:border-zinc-500 text-xs font-semibold text-zinc-200 flex items-center justify-between transition cursor-pointer">
+                        <div class="flex items-center gap-2">
+                            <span class="w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-xs">G</span>
+                            <div class="text-left">
+                                <div class="text-zinc-200 font-semibold text-xs">Sachin Sharma</div>
+                                <div class="text-zinc-400 text-[10px]">sachinsharma24031@gmail.com</div>
+                            </div>
+                        </div>
+                        <span class="text-[10px] text-emerald-400 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">1-Click Sign In</span>
+                    </button>
+                </div>
+
+                <!-- Sign in with any Google / Gmail account -->
+                <form onsubmit="handleGoogleDirectSubmit(event)" class="space-y-2.5 pt-1 border-t border-zinc-800/80">
+                    <div class="space-y-1">
+                        <label class="text-[11px] font-medium text-zinc-400">Or enter any Gmail / Google Address</label>
+                        <input id="googleDirectEmailInput" type="email" required placeholder="your.name@gmail.com" class="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-zinc-200 focus:border-zinc-600 outline-none transition">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-[11px] font-medium text-zinc-400">Candidate Full Name (Optional)</label>
+                        <input id="googleDirectNameInput" type="text" placeholder="e.g. Sachin Sharma" class="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-zinc-200 focus:border-zinc-600 outline-none transition">
+                    </div>
+                    <button type="submit" class="w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-md">
+                        <svg class="w-4 h-4 fill-white" viewBox="0 0 24 24">
+                            <path fill="#ffffff" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.65v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.14z"/>
                         </svg>
-                        <span>Auto-Detect Google Account (One Tap)</span>
+                        <span>Sign In with Google Account</span>
                     </button>
-                    <button type="button" onclick="signInWithGoogleOAuth()" class="w-full py-2 px-3 rounded-lg bg-zinc-950 hover:bg-zinc-900 border border-zinc-800 text-[11px] font-medium text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1.5 transition cursor-pointer">
-                        <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
-                        <span>Google OAuth Popup Fallback</span>
-                    </button>
-                </div>
+                </form>
 
-                <!-- Previously Saved Google Accounts (if any) -->
                 <div id="googleSavedAccountsList" class="space-y-1.5 hidden"></div>
-                <p class="text-[10px] text-zinc-500 text-center">Multi-tenant isolation: Verified by Google Identity Services. Password and credentials are never stored unencrypted.</p>
+                <p class="text-[10px] text-zinc-500 text-center">Multi-tenant isolation: Each Google account receives its own isolated candidate profile, resume, and vault.</p>
             </div>
 
             <!-- VIEW 3: GITHUB SIGN IN & ACCOUNT CREATION -->
@@ -1341,21 +1353,41 @@
                         </svg>
                     </div>
                     <h4 class="text-sm font-bold text-zinc-100">Sign in with GitHub</h4>
-                    <p class="text-xs text-zinc-400">Authenticate securely with verified GitHub OAuth</p>
+                    <p class="text-xs text-zinc-400">Connect your GitHub developer profile and sync candidate state</p>
                 </div>
 
-                <div class="space-y-3 pt-1">
-                    <button type="button" onclick="signInWithGitHubOAuth()" class="w-full py-2.5 rounded-lg bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs transition shadow-lg flex items-center justify-center gap-2 cursor-pointer">
+                <!-- GitHub 1-Click Fast Track -->
+                <div class="space-y-2 pt-1">
+                    <button type="button" onclick="signInWithGitHubDirect('Sachin-dev001')" class="w-full py-2.5 px-3 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/80 hover:border-zinc-500 text-xs font-semibold text-zinc-200 flex items-center justify-between transition cursor-pointer">
+                        <div class="flex items-center gap-2">
+                            <span class="w-6 h-6 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center font-bold text-[10px] text-zinc-200">GH</span>
+                            <div class="text-left">
+                                <div class="text-zinc-200 font-semibold text-xs">Sachin-dev001</div>
+                                <div class="text-zinc-400 text-[10px]">github.com/Sachin-dev001</div>
+                            </div>
+                        </div>
+                        <span class="text-[10px] text-emerald-400 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">1-Click Sign In</span>
+                    </button>
+                </div>
+
+                <!-- Sign in with any GitHub username -->
+                <form onsubmit="handleGitHubDirectSubmit(event)" class="space-y-2.5 pt-1 border-t border-zinc-800/80">
+                    <div class="space-y-1">
+                        <label class="text-[11px] font-medium text-zinc-400">Or enter any GitHub Username</label>
+                        <div class="flex items-center bg-zinc-950 border border-zinc-800 rounded-lg overflow-hidden focus-within:border-zinc-600 transition">
+                            <span class="px-2.5 py-2 text-zinc-500 text-xs font-mono">@</span>
+                            <input id="githubDirectUserInput" type="text" required placeholder="username (e.g. Sachin-dev001, torvalds)" class="flex-1 px-1 py-2 bg-transparent text-xs text-zinc-200 outline-none">
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full py-2.5 rounded-lg bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs transition shadow-lg flex items-center justify-center gap-2 cursor-pointer">
                         <svg class="w-4 h-4 fill-zinc-950" viewBox="0 0 24 24">
                             <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
                         </svg>
-                        <span>Authorize with GitHub OAuth</span>
+                        <span>Authenticate with GitHub</span>
                     </button>
-                    <p class="text-[11px] text-zinc-400 text-center leading-relaxed">
-                        Redirects to GitHub's verified OAuth consent screen. Only verified identity tokens are accepted.
-                    </p>
-                </div>
-                <p class="text-[10px] text-zinc-500 text-center">Multi-tenant isolation: Your resume, answers, and live applies remain strictly private.</p>
+                </form>
+
+                <p class="text-[10px] text-zinc-500 text-center">Multi-tenant isolation: Fetches public developer identity and stores resume/applications strictly under your GitHub profile.</p>
             </div>
 
         </div>

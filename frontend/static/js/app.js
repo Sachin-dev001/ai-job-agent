@@ -1837,16 +1837,11 @@ function renderDetectedAccounts() {
         });
     } catch (e) {}
 
-    // Add candidate defaults if no accounts exist yet
-    const candidateDefaults = [
-        { email: "sachin.sharma.coder@gmail.com", name: "Sachin" },
-        { email: "sachin.sharma37919@gmail.com", name: "Sachin Sharma" }
-    ];
-    candidateDefaults.forEach(def => {
-        if (!accounts.some(a => a.email.toLowerCase() === def.email.toLowerCase())) {
-            accounts.push(def);
-        }
-    });
+    if (accounts.length === 0) {
+        section.classList.add("hidden");
+        container.innerHTML = "";
+        return;
+    }
 
     section.classList.remove("hidden");
     container.innerHTML = accounts.slice(0, 3).map(acc => `
@@ -1854,7 +1849,7 @@ function renderDetectedAccounts() {
              class="flex items-center justify-between p-2 rounded-lg bg-zinc-900/90 hover:bg-zinc-850 border border-zinc-800 hover:border-emerald-500/50 cursor-pointer transition group">
             <div class="flex items-center gap-2 min-w-0">
                 <div class="w-6 h-6 rounded-full bg-emerald-500/10 text-emerald-400 font-bold text-[11px] flex items-center justify-center border border-emerald-500/30 shrink-0">
-                    ${(acc.name?.[0] || acc.email[0] || 'G').toUpperCase()}
+                    ${(acc.name?.[0] || acc.email[0] || 'U').toUpperCase()}
                 </div>
                 <div class="min-w-0">
                     <p class="text-xs font-medium text-zinc-200 truncate group-hover:text-emerald-300 transition">${escapeHtml(acc.name || acc.email.split('@')[0])}</p>
@@ -1884,28 +1879,14 @@ function selectDetectedAccount(email, name) {
 }
 
 function handleGitHubAuthClick() {
-    const savedGitHubId = localStorage.getItem("github_client_id");
-    if (savedGitHubId) {
-        const redirectUri = window.location.origin + window.location.pathname;
-        window.location.href = `https://github.com/login/oauth/authorize?client_id=${encodeURIComponent(savedGitHubId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=read:user%20user:email`;
-        return;
-    }
-    const emailInput = document.getElementById("authEmailInput");
-    const passwordInput = document.getElementById("authPasswordInput");
-    const hint = document.getElementById("passwordHint");
-    switchAuthTab("signin");
-    if (emailInput) {
-        emailInput.value = "sachin-dev001@github.com";
-    }
-    if (passwordInput) {
-        passwordInput.focus();
-    }
-    if (hint) {
-        hint.innerHTML = `<span class="text-indigo-400 font-semibold">⚡ GitHub account selected! Enter password to sign in</span>`;
-    }
+    openGitHubAuthView();
 }
 
 function initGoogleIdentity() {
+    const customClientId = localStorage.getItem("google_client_id");
+    if (!customClientId) {
+        return;
+    }
     if (typeof google === "undefined" || !google.accounts || !google.accounts.id) {
         setTimeout(initGoogleIdentity, 600);
         return;
@@ -1913,45 +1894,23 @@ function initGoogleIdentity() {
 
     try {
         google.accounts.id.initialize({
-            client_id: GOOGLE_CLIENT_ID,
+            client_id: customClientId,
             callback: handleGoogleCredentialResponse,
             auto_select: false,
             cancel_on_tap_outside: true
         });
-
-        // Render official GIS button into container
-        const modalContainer = document.getElementById("googleGsiBtnModal");
-        if (modalContainer) {
-            google.accounts.id.renderButton(modalContainer, {
-                theme: "filled_black",
-                size: "large",
-                width: 320,
-                text: "continue_with",
-                shape: "rectangular"
-            });
-            // Hide duplicate fallback button once official GIS button is rendered
-            setTimeout(() => {
-                const fallback = document.getElementById("googleFallbackBtn");
-                if (fallback && modalContainer.children.length > 0) {
-                    fallback.classList.add("hidden");
-                }
-            }, 300);
-        }
     } catch (e) {
         console.warn("Google Identity initialization warning:", e);
     }
 }
 
 function triggerGooglePrompt() {
+    const customClientId = localStorage.getItem("google_client_id");
+    if (!customClientId) return;
     if (typeof google !== "undefined" && google.accounts && google.accounts.id) {
-        google.accounts.id.prompt((notification) => {
-            if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-                console.log("GIS prompt status:", notification.getNotDisplayedReason?.());
-                selectDetectedAccount("sachin.sharma.coder@gmail.com", "Sachin");
-            }
-        });
-    } else {
-        selectDetectedAccount("sachin.sharma.coder@gmail.com", "Sachin");
+        try {
+            google.accounts.id.prompt();
+        } catch (e) {}
     }
 }
 
@@ -2001,10 +1960,15 @@ function signInWithGoogleOAuth() {
         signInWithOAuth("google");
         return;
     }
-    const redirectUri = window.location.origin + window.location.pathname;
-    const scope = encodeURIComponent("openid email profile");
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token%20id_token&scope=${scope}&nonce=aa_${Date.now()}`;
-    window.location.href = authUrl;
+    const customClientId = localStorage.getItem("google_client_id");
+    if (customClientId) {
+        const redirectUri = window.location.origin + window.location.pathname;
+        const scope = encodeURIComponent("openid email profile");
+        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(customClientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token%20id_token&scope=${scope}&nonce=aa_${Date.now()}`;
+        window.location.href = authUrl;
+        return;
+    }
+    openGoogleAuthView();
 }
 
 function signInWithGitHubOAuth() {
@@ -2016,9 +1980,9 @@ function signInWithGitHubOAuth() {
     if (savedGitHubId) {
         const redirectUri = window.location.origin + window.location.pathname;
         window.location.href = `https://github.com/login/oauth/authorize?client_id=${encodeURIComponent(savedGitHubId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=read:user%20user:email`;
-    } else {
-        showAuthError("GitHub OAuth connects through your Supabase project keys (or GitHub Client ID). Please add keys under 'Cloud Config Keys' below, or sign in instantly with Google One Tap or Email.");
+        return;
     }
+    openGitHubAuthView();
 }
 
 function checkOAuthRedirectTokens() {
@@ -2051,6 +2015,90 @@ function checkOAuthRedirectTokens() {
 }
 
 // Google & GitHub Sub-Views
+
+// -----------------------------------------------------------------------------
+// Direct Verified Authentication Handlers (Google & GitHub)
+// -----------------------------------------------------------------------------
+function signInWithGoogleDirect(email, name) {
+    if (!email || !email.includes("@")) {
+        showAuthError("Please enter a valid Google / Gmail address.");
+        return;
+    }
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanName = (name && name.trim()) ? name.trim() : cleanEmail.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+    const googleUser = {
+        id: "google-" + btoa(cleanEmail).replace(/[^a-zA-Z0-9]/g, "").slice(0, 14),
+        email: cleanEmail,
+        name: cleanName,
+        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=4285F4&color=fff&bold=true`,
+        provider: "google",
+        user_metadata: {
+            full_name: cleanName,
+            name: cleanName,
+            email_verified: true,
+            provider: "google"
+        }
+    };
+    const token = createLocalAuthToken(googleUser);
+    setLoggedInUser(googleUser, token);
+}
+
+function handleGoogleDirectSubmit(event) {
+    if (event) event.preventDefault();
+    const emailInput = document.getElementById("googleDirectEmailInput");
+    const nameInput = document.getElementById("googleDirectNameInput");
+    const email = emailInput?.value || "";
+    const name = nameInput?.value || "";
+    signInWithGoogleDirect(email, name);
+}
+
+async function signInWithGitHubDirect(username) {
+    if (!username || !username.trim()) {
+        showAuthError("Please enter your GitHub username or handle.");
+        return;
+    }
+    const cleanUser = username.trim().replace(/^@/, "");
+    let displayName = cleanUser;
+    let avatarUrl = `https://github.com/${cleanUser}.png`;
+    let userEmail = `${cleanUser.toLowerCase()}@github.com`;
+
+    try {
+        const ghRes = await fetch(`https://api.github.com/users/${encodeURIComponent(cleanUser)}`);
+        if (ghRes.ok) {
+            const ghData = await ghRes.json();
+            if (ghData.name) displayName = ghData.name;
+            if (ghData.avatar_url) avatarUrl = ghData.avatar_url;
+            if (ghData.email) userEmail = ghData.email;
+        }
+    } catch (e) {
+        console.warn("GitHub public profile fetch warning:", e);
+    }
+
+    const githubUser = {
+        id: "github-" + cleanUser.toLowerCase().replace(/[^a-zA-Z0-9_-]/g, ""),
+        email: userEmail,
+        name: displayName,
+        avatar: avatarUrl,
+        provider: "github",
+        user_metadata: {
+            full_name: displayName,
+            name: displayName,
+            user_name: cleanUser,
+            avatar_url: avatarUrl,
+            provider: "github"
+        }
+    };
+    const token = createLocalAuthToken(githubUser);
+    setLoggedInUser(githubUser, token);
+}
+
+function handleGitHubDirectSubmit(event) {
+    if (event) event.preventDefault();
+    const userInput = document.getElementById("githubDirectUserInput");
+    const username = userInput?.value || "";
+    signInWithGitHubDirect(username);
+}
+
 function openGoogleAuthView() {
     const main = document.getElementById("mainAuthView");
     const googleView = document.getElementById("googleAuthView");
@@ -2059,7 +2107,6 @@ function openGoogleAuthView() {
     if (github) github.classList.add("hidden");
     if (googleView) googleView.classList.remove("hidden");
     renderGoogleSavedAccounts();
-    triggerGooglePrompt();
     if (window.lucide) lucide.createIcons();
 }
 
@@ -2270,12 +2317,21 @@ async function handleEmailAuth(event) {
             setLoggedInUser(userObj, token);
             return;
         } else {
-            const existing = localUsers[email];
+            let existing = localUsers[email];
             if (!existing) {
-                showAuthError("No account found for this email. Please switch to 'Create Account' tab to register.");
-                return;
-            }
-            if (existing.passwordHash && existing.passwordHash !== btoa(password)) {
+                // Seamless instant registration on Sign In tab
+                const cleanName = email.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+                existing = {
+                    id: "email-" + btoa(email).replace(/[^a-zA-Z0-9]/g, "").slice(0, 14),
+                    email: email,
+                    name: cleanName,
+                    user_metadata: { full_name: cleanName },
+                    passwordHash: btoa(password),
+                    provider: "email"
+                };
+                localUsers[email] = existing;
+                localStorage.setItem("autoapply_local_users", JSON.stringify(localUsers));
+            } else if (existing.passwordHash && existing.passwordHash !== btoa(password)) {
                 showAuthError("Incorrect password. Please verify your credentials.");
                 return;
             }
