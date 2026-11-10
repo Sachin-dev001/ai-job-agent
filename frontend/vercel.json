@@ -4,8 +4,12 @@
   "trailingSlash": false,
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "https://autoapply-backend-hvdm.onrender.com/api/$1"
+      "source": "/proofs/:path*",
+      "destination": "https://autoapply-backend-hvdm.onrender.com/proofs/:path*"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "https://autoapply-backend-hvdm.onrender.com/api/:path*"
     }
   ]
 }

@@ -14,6 +14,7 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 import shutil
+import mimetypes
 import asyncio
 from datetime import datetime
 from typing import List, Optional, Any
@@ -73,8 +74,99 @@ os.makedirs(PROOF_DIR, exist_ok=True)
 
 if os.path.exists(STATIC_DIR):
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-if os.path.exists(PROOF_DIR):
-    app.mount("/proofs", StaticFiles(directory=PROOF_DIR), name="proofs")
+
+# Robust static mount for /proofs (unconditionally ensure directory exists & mount)
+os.makedirs(PROOF_DIR, exist_ok=True)
+app.mount("/proofs", StaticFiles(directory=PROOF_DIR), name="proofs")
+
+
+# ==============================================================================
+# Dedicated Safe Proof Serving Endpoints (CORS, Lightbox & Caching)
+# ==============================================================================
+@app.get("/api/proofs/{user_id}/{filename}")
+async def get_proof_screenshot(user_id: str, filename: str):
+    """
+    Safely serves an application proof screenshot for a given tenant user.
+    Includes security protection against path traversal, explicit CORS headers, and caching.
+    """
+    safe_user_id = os.path.basename(user_id.strip())
+    safe_filename = os.path.basename(filename.strip())
+    if not safe_user_id or not safe_filename or ".." in user_id or ".." in filename:
+        raise HTTPException(status_code=400, detail="Invalid proof path parameters")
+
+    candidate_paths = [
+        os.path.join(PROOF_DIR, safe_user_id, safe_filename),
+        os.path.join(PROJECT_ROOT, "proofs", safe_user_id, safe_filename),
+        os.path.join(PROOF_DIR, safe_filename),
+        os.path.join(PROJECT_ROOT, "proofs", safe_filename),
+    ]
+
+    target_file = None
+    for cp in candidate_paths:
+        norm_path = os.path.abspath(cp)
+        if (norm_path.startswith(os.path.abspath(PROOF_DIR)) or 
+            norm_path.startswith(os.path.abspath(os.path.join(PROJECT_ROOT, "proofs")))):
+            if os.path.isfile(norm_path):
+                target_file = norm_path
+                break
+
+    if not target_file:
+        raise HTTPException(status_code=404, detail="Proof screenshot not found")
+
+    content_type, _ = mimetypes.guess_type(target_file)
+    if not content_type:
+        content_type = "image/png"
+
+    headers = {
+        "Cache-Control": "public, max-age=86400, immutable",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+        "Access-Control-Allow-Headers": "*",
+        "Cross-Origin-Resource-Policy": "cross-origin",
+    }
+
+    return FileResponse(target_file, media_type=content_type, headers=headers)
+
+
+@app.get("/api/proofs/{filename}")
+async def get_root_proof_screenshot(filename: str):
+    """
+    Safely serves root-level or legacy proof screenshots.
+    """
+    safe_filename = os.path.basename(filename.strip())
+    if not safe_filename or ".." in filename:
+        raise HTTPException(status_code=400, detail="Invalid proof filename")
+
+    candidate_paths = [
+        os.path.join(PROOF_DIR, safe_filename),
+        os.path.join(PROJECT_ROOT, "proofs", safe_filename),
+    ]
+
+    target_file = None
+    for cp in candidate_paths:
+        norm_path = os.path.abspath(cp)
+        if (norm_path.startswith(os.path.abspath(PROOF_DIR)) or 
+            norm_path.startswith(os.path.abspath(os.path.join(PROJECT_ROOT, "proofs")))):
+            if os.path.isfile(norm_path):
+                target_file = norm_path
+                break
+
+    if not target_file:
+        raise HTTPException(status_code=404, detail="Proof screenshot not found")
+
+    content_type, _ = mimetypes.guess_type(target_file)
+    if not content_type:
+        content_type = "image/png"
+
+    headers = {
+        "Cache-Control": "public, max-age=86400, immutable",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+        "Access-Control-Allow-Headers": "*",
+        "Cross-Origin-Resource-Policy": "cross-origin",
+    }
+
+    return FileResponse(target_file, media_type=content_type, headers=headers)
 
 
 
@@ -382,6 +474,18 @@ class LiveApplyRequest(BaseModel):
     query: str = "AI Engineer"
     limit: int = 3
 
+@app.get("/api/naukri/applied-count")
+async def get_naukri_applied_count(user: CurrentUser = Depends(require_authenticated_user)):
+    """
+    Inspects https://www.naukri.com/myapply/historypage using candidate's connected session
+    and returns the official live applied count.
+    """
+    try:
+        result = await naukri_live_runner.check_naukri_application_count(user_id=user.id)
+        return result
+    except Exception as e:
+        return {"status": "error", "authenticated": False, "count": None, "message": str(e)}
+
 @app.post("/api/naukri/auto-apply-live")
 async def execute_live_naukri_apply(req: LiveApplyRequest, user: CurrentUser = Depends(require_authenticated_user)):
     """
@@ -393,28 +497,31 @@ async def execute_live_naukri_apply(req: LiveApplyRequest, user: CurrentUser = D
 
     try:
         result = await naukri_live_runner.execute_live_apply(query=req.query, limit=req.limit, user_id=user.id)
-        # Record applications from batch results or completed status
+        # Record applications from batch results only when confirmed on live DOM
         apps_to_record = result.get("applications", [])
         if apps_to_record:
             for app_item in apps_to_record:
-                status = "applied" if app_item.get("status") in ["applied_successfully", "applied", "already_applied"] else app_item.get("status", "in_progress")
-                await cloud_db.create_application(user.id, {
-                    "platform": "naukri",
-                    "job_title": app_item.get("job_title") or req.query,
-                    "company_name": app_item.get("company_name") or "Naukri Matched Employer",
-                    "job_url": app_item.get("url") or "https://www.naukri.com",
-                    "status": status,
-                    "match_score": app_item.get("match_score", 94.0)
-                })
-        elif result.get("success") or result.get("status") in ["applied_successfully", "completed"]:
-            await cloud_db.create_application(user.id, {
-                "platform": "naukri",
-                "job_title": req.query,
-                "company_name": "Naukri Matched Employer",
-                "job_url": "https://www.naukri.com",
-                "status": "applied",
-                "match_score": 94.0
-            })
+                app_status = app_item.get("status")
+                if app_status in ["applied_successfully", "applied"]:
+                    await cloud_db.create_application(user.id, {
+                        "platform": "naukri",
+                        "job_title": app_item.get("job_title") or req.query,
+                        "company_name": app_item.get("company_name") or "Naukri Matched Employer",
+                        "job_url": app_item.get("url") or "https://www.naukri.com",
+                        "status": "applied",
+                        "match_score": app_item.get("match_score", 94.0),
+                        "proof_url": app_item.get("proof_image")
+                    })
+                elif app_status == "already_applied":
+                    await cloud_db.create_application(user.id, {
+                        "platform": "naukri",
+                        "job_title": app_item.get("job_title") or req.query,
+                        "company_name": app_item.get("company_name") or "Naukri Matched Employer",
+                        "job_url": app_item.get("url") or "https://www.naukri.com",
+                        "status": "already_applied",
+                        "match_score": app_item.get("match_score", 94.0),
+                        "proof_url": app_item.get("proof_image")
+                    })
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

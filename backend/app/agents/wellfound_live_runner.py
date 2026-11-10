@@ -267,8 +267,13 @@ class WellfoundLiveApplyEngine:
     
         except Exception as browser_err:
             clean_err = str(browser_err).splitlines()[0] if str(browser_err) else "Browser error"
-            print(f"[Wellfound Bot] Playwright notice: {clean_err}. Executing session apply...")
-            return await self._apply_via_session(job_title=job_title, company=company, job_url=job_url, cookies=cookies, user_id=user_id)
+            print(f"[Wellfound Bot] Playwright error: {clean_err}")
+            return {
+                "status": "error",
+                "message": f"Browser automation error: {clean_err}",
+                "job_title": job_title,
+                "job_url": job_url
+            }
 
     async def execute_batch_apply(self, query: str = "Data Analyst", limit: int = 3, user_id: str = None) -> Dict:
         """

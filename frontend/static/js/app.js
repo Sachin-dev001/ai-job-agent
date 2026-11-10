@@ -24,6 +24,38 @@ window.fetch = async function(input, init = {}) {
 };
 
 // =============================================================================
+// BACKEND URL RESOLVER & PROOF ROUTING ENGINE
+// =============================================================================
+function getBackendApiUrl() {
+    const custom = localStorage.getItem("backend_api_url");
+    if (custom && custom.trim()) {
+        return custom.trim().replace(/\/$/, "");
+    }
+    const isLocal = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+    if (isLocal) {
+        return window.location.origin;
+    }
+    return (DEFAULT_REMOTE_BACKEND || "https://autoapply-backend-hvdm.onrender.com").replace(/\/$/, "");
+}
+
+function getProofUrl(proofPath) {
+    if (!proofPath || typeof proofPath !== "string") return "";
+    const cleanPath = proofPath.trim();
+    if (!cleanPath || cleanPath === "#") return "";
+    if (cleanPath.startsWith("http://") || cleanPath.startsWith("https://")) {
+        return cleanPath;
+    }
+    const base = getBackendApiUrl();
+    if (cleanPath.startsWith("/")) {
+        return `${base}${cleanPath}`;
+    }
+    if (cleanPath.startsWith("proofs/")) {
+        return `${base}/${cleanPath}`;
+    }
+    return `${base}/proofs/${cleanPath}`;
+}
+
+// =============================================================================
 // SAFE JSON PARSER: Catches HTML 404/500s from Vercel & proxies gracefully
 // =============================================================================
 async function safeParseJson(res) {
@@ -613,9 +645,15 @@ async function directApplyRow(idx) {
             if (statusCell) statusCell.innerHTML = appliedStatusHtml;
             if (statusCard) statusCard.innerHTML = appliedStatusHtml;
 
-            const proofBtnHtml = `
-                <a href="${data.proof_image || job.job_url}" target="_blank" class="text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1.5 sm:py-1 rounded-lg font-bold hover:underline inline-flex items-center justify-center gap-1 w-full sm:w-auto">
-                    ${data.proof_image ? '📸 Proof' : '🔗 View Job'}
+            const proofUrl = getProofUrl(data.proof_image);
+            const safeJobTitle = (job.title || "").replace(/['"\\]/g, " ");
+            const proofBtnHtml = proofUrl ? `
+                <a href="${proofUrl}" onclick="openProofModal('${proofUrl}', '${safeJobTitle}'); return false;" class="text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1.5 sm:py-1 rounded-lg font-bold hover:underline inline-flex items-center justify-center gap-1 w-full sm:w-auto cursor-pointer">
+                    📸 Proof
+                </a>
+            ` : `
+                <a href="${escapeHtml(job.job_url)}" target="_blank" rel="noopener noreferrer" class="text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1.5 sm:py-1 rounded-lg font-bold hover:underline inline-flex items-center justify-center gap-1 w-full sm:w-auto cursor-pointer">
+                    🔗 View Job
                 </a>
             `;
             if (actionCell) actionCell.innerHTML = proofBtnHtml;
@@ -632,9 +670,15 @@ async function directApplyRow(idx) {
             if (statusCell) statusCell.innerHTML = alreadyHtml;
             if (statusCard) statusCard.innerHTML = alreadyHtml;
 
-            const alreadyProofHtml = `
-                <a href="${data.proof_image || '#'}" target="_blank" class="text-[11px] text-slate-400 bg-slate-800 border border-slate-700 px-2.5 py-1.5 sm:py-1 rounded-lg font-medium hover:underline inline-flex items-center justify-center w-full sm:w-auto">
+            const alreadyProofUrl = getProofUrl(data.proof_image);
+            const safeJobTitle = (job.title || "").replace(/['"\\]/g, " ");
+            const alreadyProofHtml = alreadyProofUrl ? `
+                <a href="${alreadyProofUrl}" onclick="openProofModal('${alreadyProofUrl}', '${safeJobTitle}'); return false;" class="text-[11px] text-slate-400 bg-slate-800 border border-slate-700 px-2.5 py-1.5 sm:py-1 rounded-lg font-medium hover:underline inline-flex items-center justify-center w-full sm:w-auto cursor-pointer">
                     📸 Proof
+                </a>
+            ` : `
+                <a href="${escapeHtml(job.job_url)}" target="_blank" rel="noopener noreferrer" class="text-[11px] text-slate-400 bg-slate-800 border border-slate-700 px-2.5 py-1.5 sm:py-1 rounded-lg font-medium hover:underline inline-flex items-center justify-center w-full sm:w-auto cursor-pointer">
+                    🔗 View Job
                 </a>
             `;
             if (actionCell) actionCell.innerHTML = alreadyProofHtml;
@@ -645,10 +689,16 @@ async function directApplyRow(idx) {
             if (statusCell) statusCell.innerHTML = reviewHtml;
             if (statusCard) statusCard.innerHTML = reviewHtml;
 
-            const reviewBtnHtml = `
-                <a href="${data.proof_image || '#'}" target="_blank" class="text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1.5 sm:py-1 rounded-lg font-medium hover:underline inline-flex items-center justify-center w-full sm:w-auto">
-                    ⚠️ Telegram Alert
+            const reviewProofUrl = getProofUrl(data.proof_image);
+            const safeJobTitle = (job.title || "").replace(/['"\\]/g, " ");
+            const reviewBtnHtml = reviewProofUrl ? `
+                <a href="${reviewProofUrl}" onclick="openProofModal('${reviewProofUrl}', '${safeJobTitle}'); return false;" class="text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1.5 sm:py-1 rounded-lg font-medium hover:underline inline-flex items-center justify-center w-full sm:w-auto cursor-pointer">
+                    ⚠️ View Alert / Proof
                 </a>
+            ` : `
+                <span class="text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1.5 sm:py-1 rounded-lg font-medium inline-flex items-center justify-center w-full sm:w-auto">
+                    ⚠️ Alert Sent
+                </span>
             `;
             if (actionCell) actionCell.innerHTML = reviewBtnHtml;
             if (actionCard) actionCard.innerHTML = reviewBtnHtml;
@@ -711,27 +761,30 @@ async function executeCurrentPlatformLiveBot() {
         let htmlLog = `<div class="mt-3 space-y-2 border-t border-slate-800 pt-2">`;
 
         apps.forEach((app, idx) => {
+            const appProofUrl = getProofUrl(app.proof_image);
+            const safeAppTitle = (app.job_title || "Application").replace(/['"\\]/g, " ");
             if (app.status === "applied_successfully") {
                 successCount++;
                 htmlLog += `
                     <div class="flex items-center justify-between bg-slate-900/80 p-2.5 rounded-lg border border-emerald-500/30">
-                        <span class="text-emerald-400 font-medium">✅ Applied: <strong>${app.job_title}</strong></span>
-                        <a href="${app.proof_image}" target="_blank" class="text-xs text-emerald-300 bg-emerald-500/20 px-2.5 py-1 rounded font-bold hover:underline">
+                        <span class="text-emerald-400 font-medium">✅ Applied: <strong>${escapeHtml(app.job_title)}</strong></span>
+                        ${appProofUrl ? `
+                        <a href="${appProofUrl}" onclick="openProofModal('${appProofUrl}', '${safeAppTitle}'); return false;" class="text-xs text-emerald-300 bg-emerald-500/20 px-2.5 py-1 rounded font-bold hover:underline inline-flex items-center gap-1 cursor-pointer">
                             📸 View Submission Proof
-                        </a>
+                        </a>` : ''}
                     </div>
                 `;
             } else if (app.status === "already_applied") {
                 htmlLog += `
                     <div class="flex items-center justify-between bg-slate-900/80 p-2.5 rounded-lg border border-slate-700/50">
-                        <span class="text-slate-400">ℹ️ ${app.job_title} (Already applied earlier)</span>
-                        ${app.proof_image ? `<a href="${app.proof_image}" target="_blank" class="text-xs text-slate-400 underline">Proof</a>` : ''}
+                        <span class="text-slate-400">ℹ️ ${escapeHtml(app.job_title)} (Already applied earlier)</span>
+                        ${appProofUrl ? `<a href="${appProofUrl}" onclick="openProofModal('${appProofUrl}', '${safeAppTitle}'); return false;" class="text-xs text-slate-400 underline cursor-pointer">📸 Proof</a>` : ''}
                     </div>
                 `;
             } else {
                 htmlLog += `
                     <div class="bg-slate-900/80 p-2.5 rounded-lg border border-amber-500/30 text-amber-300">
-                        ⚠️ <strong>${app.job_title}:</strong> External portal / screening question sent to your Telegram bot.
+                        ⚠️ <strong>${escapeHtml(app.job_title)}:</strong> External portal / screening question sent to your Telegram bot.
                     </div>
                 `;
             }
@@ -2423,6 +2476,105 @@ function assistantGeneratePitchAndOpen() {
 // =============================================================================
 // Keyboard Escape & Backdrop Click Modal Dismissal
 // =============================================================================
+// =============================================================================
+// IN-APP PROOF LIGHTBOX PREVIEW CONTROLLER
+// =============================================================================
+let currentProofUrl = "";
+
+function openProofModal(rawUrl, jobTitle = "") {
+    const modal = document.getElementById("proofModal");
+    const img = document.getElementById("proofModalImg");
+    const loading = document.getElementById("proofModalLoading");
+    const errorBox = document.getElementById("proofModalError");
+    const titleEl = document.getElementById("proofModalJobTitle");
+    const newTabLink = document.getElementById("proofModalOpenNewTab");
+    const errorDirectLink = document.getElementById("proofModalErrorDirectLink");
+    const urlHint = document.getElementById("proofModalUrlHint");
+
+    const fullUrl = getProofUrl(rawUrl);
+    if (!fullUrl) {
+        alert("No valid proof screenshot URL is available for this application.");
+        return;
+    }
+
+    currentProofUrl = fullUrl;
+
+    if (titleEl) {
+        titleEl.textContent = jobTitle ? `Proof: ${jobTitle}` : "Playwright Autonomous Screen Proof";
+    }
+    if (newTabLink) {
+        newTabLink.href = fullUrl;
+    }
+    if (errorDirectLink) {
+        errorDirectLink.href = fullUrl;
+    }
+    if (urlHint) {
+        try {
+            const parsed = new URL(fullUrl);
+            urlHint.textContent = `${parsed.hostname}${parsed.pathname}`;
+        } catch (_) {
+            urlHint.textContent = fullUrl;
+        }
+    }
+
+    if (loading) loading.classList.remove("hidden");
+    if (errorBox) errorBox.classList.add("hidden");
+    if (img) {
+        img.classList.remove("opacity-100");
+        img.classList.add("opacity-0");
+        img.src = fullUrl;
+    }
+
+    if (modal) modal.classList.remove("hidden");
+    if (window.lucide) lucide.createIcons();
+}
+
+function closeProofModal() {
+    const modal = document.getElementById("proofModal");
+    const img = document.getElementById("proofModalImg");
+    if (modal) modal.classList.add("hidden");
+    if (img) {
+        img.src = "";
+        img.classList.remove("opacity-100");
+        img.classList.add("opacity-0");
+    }
+}
+
+function handleProofImageLoad() {
+    const img = document.getElementById("proofModalImg");
+    const loading = document.getElementById("proofModalLoading");
+    const errorBox = document.getElementById("proofModalError");
+    if (loading) loading.classList.add("hidden");
+    if (errorBox) errorBox.classList.add("hidden");
+    if (img) {
+        img.classList.remove("opacity-0");
+        img.classList.add("opacity-100");
+    }
+}
+
+function handleProofImageError() {
+    const loading = document.getElementById("proofModalLoading");
+    const errorBox = document.getElementById("proofModalError");
+    if (loading) loading.classList.add("hidden");
+    if (errorBox) errorBox.classList.remove("hidden");
+    if (window.lucide) lucide.createIcons();
+}
+
+function retryProofLoad() {
+    if (!currentProofUrl) return;
+    const img = document.getElementById("proofModalImg");
+    const loading = document.getElementById("proofModalLoading");
+    const errorBox = document.getElementById("proofModalError");
+    if (loading) loading.classList.remove("hidden");
+    if (errorBox) errorBox.classList.add("hidden");
+    if (img) {
+        img.classList.remove("opacity-100");
+        img.classList.add("opacity-0");
+        const sep = currentProofUrl.includes("?") ? "&" : "?";
+        img.src = `${currentProofUrl}${sep}t=${Date.now()}`;
+    }
+}
+
 document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
         closeModal();
@@ -2433,10 +2585,11 @@ document.addEventListener("keydown", (e) => {
         toggleVaultModal(false);
         closeUserDropdown();
         toggleMobileNavMenu(false);
+        closeProofModal();
     }
 });
 
-["applyModal", "platformSelectorModal", "authModal", "cloudConfigModal", "quickApplyAssistantModal", "memoryVaultModal"].forEach(modalId => {
+["applyModal", "platformSelectorModal", "authModal", "cloudConfigModal", "quickApplyAssistantModal", "memoryVaultModal", "proofModal"].forEach(modalId => {
     const el = document.getElementById(modalId);
     if (el) {
         el.addEventListener("click", (e) => {
@@ -2447,6 +2600,7 @@ document.addEventListener("keydown", (e) => {
                 else if (modalId === "cloudConfigModal") toggleCloudConfigModal(false);
                 else if (modalId === "quickApplyAssistantModal") closeQuickApplyModal();
                 else if (modalId === "memoryVaultModal") toggleVaultModal(false);
+                else if (modalId === "proofModal") closeProofModal();
             }
         });
     }
