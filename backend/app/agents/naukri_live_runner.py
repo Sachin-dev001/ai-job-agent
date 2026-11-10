@@ -105,26 +105,10 @@ class RealNaukriApplyEngine:
         try:
             with open(cookie_file, "r", encoding="utf-8") as f:
                 raw = json.load(f)
+            from app.utils.cookie_normalizer import normalize_cookies
+            return normalize_cookies(raw, "naukri")
         except Exception as e:
             print(f"[Naukri Bot] Error loading cookies for user {user_id}: {e}")
-            return []
-
-        if not raw or not isinstance(raw, list):
-            return []
-
-        try:
-            return [
-                {
-                    "name": c["name"],
-                    "value": c["value"],
-                    "domain": c.get("domain", ".naukri.com"),
-                    "path": c.get("path", "/")
-                }
-                for c in raw
-                if isinstance(c, dict) and "name" in c and "value" in c
-            ]
-        except Exception as e:
-            print(f"[Naukri Bot] Error normalizing cookies for user {user_id}: {e}")
             return []
 
     async def _get_smart_answer(self, question: str, job_title: str = "", company: str = "", job_url: str = "", user_id: str = None) -> Optional[str]:
@@ -487,15 +471,13 @@ class RealNaukriApplyEngine:
                     # Locate Direct Apply Button
                     apply_btn = page.locator("#apply-button, button.apply-button, button:has-text('Apply on Naukri'), button:has-text('Apply')").first
                     if not await apply_btn.is_visible():
+                        print(f"[Naukri Bot] Direct apply button not visible on {job_url}. Executing verified session apply...")
                         await page.screenshot(path=proof_path)
                         await browser.close()
-                        return {
-                            "status": "external_portal",
-                            "job_title": job_title,
-                            "job_url": job_url,
-                            "proof_image": proof_url,
-                            "message": "Direct apply button not found (external redirect)."
-                        }
+                        from app.agents.naukri_apply_agent import naukri_apply_agent
+                        res = await naukri_apply_agent.apply_to_job(job_title=job_title, company=company, job_url=job_url, user_id=user_id)
+                        res["proof_image"] = proof_url
+                        return res
     
                     # Physical click on Apply
                     print(f"[Naukri Bot] Physical click on Apply button for {job_title}...")

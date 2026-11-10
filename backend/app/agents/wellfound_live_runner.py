@@ -59,26 +59,10 @@ class WellfoundLiveApplyEngine:
         try:
             with open(cookie_file, "r", encoding="utf-8") as f:
                 raw = json.load(f)
+            from app.utils.cookie_normalizer import normalize_cookies
+            return normalize_cookies(raw, "wellfound")
         except Exception as e:
             print(f"[Wellfound Bot] Error loading cookies for user {user_id}: {e}")
-            return []
-
-        if not raw or not isinstance(raw, list):
-            return []
-
-        try:
-            return [
-                {
-                    "name": c["name"],
-                    "value": c["value"],
-                    "domain": c.get("domain", ".wellfound.com"),
-                    "path": c.get("path", "/")
-                }
-                for c in raw
-                if isinstance(c, dict) and "name" in c and "value" in c
-            ]
-        except Exception as e:
-            print(f"[Wellfound Bot] Error normalizing cookies for user {user_id}: {e}")
             return []
 
     async def apply_single_job(self, job_url: str, job_title: str = "Startup Role", company: str = "Tech Startup", user_id: str = None) -> Dict:

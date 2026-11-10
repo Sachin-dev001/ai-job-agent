@@ -12,6 +12,7 @@ BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = BACKEND_DIR / "data"
 PROFILES_FILE = DATA_DIR / "user_profiles.json"
 USERS_FILE = DATA_DIR / "users.json"
+APPLICATIONS_FILE = DATA_DIR / "applications.json"
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", os.getenv("SUPABASE_ANON_KEY", ""))
@@ -87,6 +88,28 @@ class CloudDatabaseService:
             os.replace(temp_name, USERS_FILE)
         except Exception as e:
             logger.warning(f"[Supabase] Error saving local users: {e}")
+
+    def _load_local_applications(self) -> Dict[str, List[Dict[str, Any]]]:
+        if APPLICATIONS_FILE.exists():
+            try:
+                with open(APPLICATIONS_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        return data
+            except Exception as e:
+                logger.warning(f"[Supabase] Error reading local applications: {e}")
+        return {}
+
+    def _save_local_applications(self, apps: Dict[str, List[Dict[str, Any]]]):
+        try:
+            import tempfile
+            DATA_DIR.mkdir(parents=True, exist_ok=True)
+            with tempfile.NamedTemporaryFile("w", dir=DATA_DIR, delete=False, encoding="utf-8") as tf:
+                json.dump(apps, tf, indent=2)
+                temp_name = tf.name
+            os.replace(temp_name, APPLICATIONS_FILE)
+        except Exception as e:
+            logger.warning(f"[Supabase] Error saving local applications: {e}")
 
     async def get_user_by_email(self, email: str) -> Optional[Dict[str, Any]]:
         norm_email = (email or "").strip().lower()
@@ -220,29 +243,41 @@ class CloudDatabaseService:
         if self.is_cloud_enabled() and is_valid_uuid(user_id):
             try:
                 res = _supabase_client.table("job_applications").select("*").eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute()
-                return res.data or []
+                if res.data is not None:
+                    return res.data
             except Exception as e:
                 logger.error(f"[Supabase] Error getting applications for {user_id}: {e}")
-        return []
+        apps_map = self._load_local_applications()
+        user_apps = apps_map.get(user_id, [])
+        return user_apps[:limit]
 
     async def create_application(self, user_id: str, job_data: Dict[str, Any]) -> Dict[str, Any]:
+        app_item = {
+            "id": str(uuid.uuid4()),
+            "user_id": user_id,
+            "platform": job_data.get("platform", "wellfound"),
+            "job_title": job_data.get("job_title", "Software Engineer"),
+            "company_name": job_data.get("company_name", "Tech Startup"),
+            "job_url": job_data.get("job_url", ""),
+            "status": job_data.get("status", "applied"),
+            "match_score": job_data.get("match_score", 90.0),
+            "proof_url": job_data.get("proof_url"),
+            "created_at": datetime.utcnow().isoformat()
+        }
         if self.is_cloud_enabled() and is_valid_uuid(user_id):
             try:
-                payload = {
-                    "user_id": user_id,
-                    "platform": job_data.get("platform", "wellfound"),
-                    "job_title": job_data.get("job_title", "Software Engineer"),
-                    "company_name": job_data.get("company_name", "Tech Startup"),
-                    "job_url": job_data.get("job_url", ""),
-                    "status": job_data.get("status", "in_progress"),
-                    "match_score": job_data.get("match_score", 90.0)
-                }
-                res = _supabase_client.table("job_applications").insert(payload).execute()
+                res = _supabase_client.table("job_applications").insert(app_item).execute()
                 if res.data:
                     return res.data[0]
             except Exception as e:
-                logger.error(f"[Supabase] Error creating application: {e}")
-        return job_data
+                logger.error(f"[Supabase] Error creating cloud application: {e}")
+
+        apps_map = self._load_local_applications()
+        if user_id not in apps_map:
+            apps_map[user_id] = []
+        apps_map[user_id].insert(0, app_item)
+        self._save_local_applications(apps_map)
+        return app_item
 
     async def update_application_status(self, user_id: str, app_id: str, status: str, proof_url: str = None, error: str = None) -> bool:
         if self.is_cloud_enabled() and is_valid_uuid(user_id):

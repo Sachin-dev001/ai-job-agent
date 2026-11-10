@@ -2140,7 +2140,10 @@ async function checkPortalSessionStatus() {
     const badgeN = document.getElementById("badgeNaukriStatus");
     const badgeW = document.getElementById("badgeWellfoundStatus");
     try {
-        const res = await fetch("/api/session/status");
+        const token = getAuthToken();
+        const headers = {};
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+        const res = await fetch("/api/session/status", { headers: headers });
         if (res.ok) {
             const data = await res.json();
             if (badgeN) {
@@ -2174,7 +2177,7 @@ async function saveConnectedCookies(platform, cookieData, fromAssistant = false)
         });
         const data = await res.json();
         if (res.ok && data.status === "success") {
-            alert(`🎉 ${data.message}`);
+            alert(`🎉 ${data.message}\nYou can now click Auto-Apply!`);
             checkPortalSessionStatus();
             if (fromAssistant) {
                 closeQuickApplyModal();
@@ -2192,24 +2195,79 @@ function handleCookieFileUpload(event, platform, fromAssistant = false) {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = async (e) => {
+        const text = (e.target.result || "").trim();
+        if (!text) {
+            alert("⚠️ The selected file is empty. Please choose a file containing cookies.");
+            return;
+        }
         try {
-            const json = JSON.parse(e.target.result);
+            const json = JSON.parse(text);
+            if (Array.isArray(json) && json.length === 0) {
+                alert(`⚠️ The file contains 0 cookies. Please export active session cookies while logged into ${platform}, or click '⚡ Use Test Session' to test instantly.`);
+                return;
+            }
+            if (typeof json === "object" && json !== null && Object.keys(json).length === 0) {
+                alert("⚠️ The file contains an empty JSON object. Please provide valid cookies.");
+                return;
+            }
             await saveConnectedCookies(platform, json, fromAssistant);
         } catch (err) {
-            alert("Invalid JSON file: " + err.message);
+            if (text.includes("=") || text.includes("\t")) {
+                await saveConnectedCookies(platform, text, fromAssistant);
+            } else {
+                alert("Invalid cookie file: " + err.message + "\nPlease select a valid JSON cookie export or Netscape cookie file.");
+            }
         }
     };
     reader.readAsText(file);
 }
 
 function promptPasteCookies(platform, fromAssistant = false) {
-    const raw = prompt(`Paste your ${platform} cookies JSON here:`);
+    const raw = prompt(`Paste your ${platform} session cookies here:\n\nSupports: JSON array, key-value JSON, or browser cookie header string (e.g. name=val; name2=val2)`);
     if (!raw) return;
+    const trimmed = raw.trim();
+    if (!trimmed) return;
+
     try {
-        const json = JSON.parse(raw);
+        const json = JSON.parse(trimmed);
+        if (Array.isArray(json) && json.length === 0) {
+            alert("⚠️ Empty cookie list. Please paste valid session cookies, or click '⚡ Use Test Session' to test instantly.");
+            return;
+        }
         saveConnectedCookies(platform, json, fromAssistant);
     } catch (err) {
-        alert("Invalid JSON format. Please paste valid JSON: " + err.message);
+        if (trimmed.includes("=") || trimmed.includes("\t")) {
+            saveConnectedCookies(platform, trimmed, fromAssistant);
+        } else {
+            alert("Invalid cookie format. Please paste either JSON cookies or an HTTP cookie string (name=value; name2=value2).");
+        }
+    }
+}
+
+async function connectDemoCookies(platform, fromAssistant = false) {
+    if (!requireAuth("connect test portal session")) return;
+    try {
+        const token = getAuthToken();
+        const headers = { "Content-Type": "application/json" };
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+
+        const res = await fetch("/api/session/generate-demo-cookies", {
+            method: "POST",
+            headers: headers,
+            body: JSON.stringify({ platform: platform })
+        });
+        const data = await res.json();
+        if (res.ok && data.status === "success") {
+            alert(`🎉 ${data.message}\nYour session is verified! You can now click Auto-Apply.`);
+            checkPortalSessionStatus();
+            if (fromAssistant) {
+                closeQuickApplyModal();
+            }
+        } else {
+            alert(`⚠️ Error generating test session: ${data.detail || data.message || 'Unknown error'}`);
+        }
+    } catch (e) {
+        alert("Network error generating test session: " + e.message);
     }
 }
 
@@ -2238,7 +2296,8 @@ function openQuickApplyModal(idx, reason) {
     if (titleEl) titleEl.textContent = job.title;
     if (companyEl) companyEl.textContent = `${job.company} • ${platformDisplay}`;
     if (alertEl) {
-        alertEl.innerHTML = `<span class="font-semibold">${platformDisplay} session not synced or cloud browser unavailable.</span> Choose an option below to apply right now:`;
+        const reasonText = (reason && reason.trim()) ? reason : `${platformDisplay} session not synced or cloud browser unavailable.`;
+        alertEl.innerHTML = `<span class="font-semibold">${reasonText}</span> Choose an option below to apply right now:`;
     }
     if (sessionTitle) {
         sessionTitle.textContent = `Connect ${platformDisplay} Session for Background Auto-Apply`;

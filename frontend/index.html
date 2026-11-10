@@ -1278,11 +1278,14 @@
                             </div>
                             <div class="flex items-center gap-1.5 w-full sm:w-auto">
                                 <label class="flex-1 sm:flex-initial text-center cursor-pointer px-2 py-1.5 sm:py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[10px] font-medium border border-zinc-700 transition">
-                                    <span>Upload naukri_cookies.json</span>
-                                    <input type="file" accept=".json" class="hidden" onchange="handleCookieFileUpload(event, 'naukri')">
+                                    <span>Upload JSON</span>
+                                    <input type="file" accept=".json,.txt" class="hidden" onchange="handleCookieFileUpload(event, 'naukri')">
                                 </label>
-                                <button type="button" onclick="promptPasteCookies('naukri')" class="px-2.5 py-1.5 sm:py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[10px] font-medium border border-zinc-700 transition">
+                                <button type="button" onclick="promptPasteCookies('naukri')" class="px-2.5 py-1.5 sm:py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[10px] font-medium border border-zinc-700 transition cursor-pointer">
                                     Paste
+                                </button>
+                                <button type="button" onclick="connectDemoCookies('naukri')" class="px-2.5 py-1.5 sm:py-1 rounded bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 text-[10px] font-semibold border border-emerald-500/40 transition cursor-pointer">
+                                    ⚡ Test Session
                                 </button>
                             </div>
                         </div>
@@ -1294,11 +1297,14 @@
                             </div>
                             <div class="flex items-center gap-1.5 w-full sm:w-auto">
                                 <label class="flex-1 sm:flex-initial text-center cursor-pointer px-2 py-1.5 sm:py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[10px] font-medium border border-zinc-700 transition">
-                                    <span>Upload wellfound_cookies.json</span>
-                                    <input type="file" accept=".json" class="hidden" onchange="handleCookieFileUpload(event, 'wellfound')">
+                                    <span>Upload JSON</span>
+                                    <input type="file" accept=".json,.txt" class="hidden" onchange="handleCookieFileUpload(event, 'wellfound')">
                                 </label>
-                                <button type="button" onclick="promptPasteCookies('wellfound')" class="px-2.5 py-1.5 sm:py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[10px] font-medium border border-zinc-700 transition">
+                                <button type="button" onclick="promptPasteCookies('wellfound')" class="px-2.5 py-1.5 sm:py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[10px] font-medium border border-zinc-700 transition cursor-pointer">
                                     Paste
+                                </button>
+                                <button type="button" onclick="connectDemoCookies('wellfound')" class="px-2.5 py-1.5 sm:py-1 rounded bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 text-[10px] font-semibold border border-emerald-500/40 transition cursor-pointer">
+                                    ⚡ Test Session
                                 </button>
                             </div>
                         </div>
@@ -1381,10 +1387,13 @@
                     <div class="mt-2 flex flex-col sm:flex-row gap-2">
                         <label class="w-full sm:flex-1 cursor-pointer py-1.5 px-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-center text-xs transition border border-zinc-700">
                             <span id="assistantUploadLabel" class="truncate block">Upload cookies.json</span>
-                            <input id="assistantFileInput" type="file" accept=".json" class="hidden" onchange="handleAssistantFileSelect(event)">
+                            <input id="assistantFileInput" type="file" accept=".json,.txt" class="hidden" onchange="handleAssistantFileSelect(event)">
                         </label>
-                        <button type="button" onclick="handleAssistantPasteClick()" class="w-full sm:w-auto px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs transition border border-zinc-700">
-                            Paste JSON
+                        <button type="button" onclick="handleAssistantPasteClick()" class="w-full sm:w-auto px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs transition border border-zinc-700 cursor-pointer">
+                            Paste Cookies
+                        </button>
+                        <button type="button" onclick="connectDemoCookies(currentAssistantPlatform, true)" class="w-full sm:w-auto px-3 py-1.5 rounded-lg bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 text-xs font-semibold transition border border-emerald-500/40 flex items-center justify-center gap-1 cursor-pointer">
+                            ⚡ Use Test Session
                         </button>
                     </div>
                 </div>
