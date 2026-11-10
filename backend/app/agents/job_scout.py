@@ -26,10 +26,12 @@ class JobScoutAgent:
         elif plat == "wellfound":
             return await wellfound_scraper.search_jobs(query=query, location=location, max_days_old=max_days_old, limit=limit)
         else:
-            # Query both
+            # Query both concurrently with fault tolerance
             n_task = naukri_scraper.search_jobs(query=query, location=location, max_days_old=max_days_old, limit=limit // 2)
             w_task = wellfound_scraper.search_jobs(query=query, location=location, max_days_old=max_days_old, limit=limit // 2)
-            n_res, w_res = await asyncio.gather(n_task, w_task)
+            results = await asyncio.gather(n_task, w_task, return_exceptions=True)
+            n_res = results[0] if len(results) > 0 and not isinstance(results[0], Exception) else []
+            w_res = results[1] if len(results) > 1 and not isinstance(results[1], Exception) else []
             combined = []
             max_len = max(len(n_res), len(w_res))
             for i in range(max_len):

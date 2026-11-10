@@ -10,9 +10,9 @@ FROM mcr.microsoft.com/playwright/python:v1.49.0-noble
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PORT=7860 \
-    PYTHONPATH=/app/backend
+    PYTHONPATH="/app:/app/backend"
 
-WORKDIR /app
+WORKDIR /app/backend
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -42,4 +42,4 @@ USER appuser
 EXPOSE 7860
 
 # Launch FastAPI ASGI server
-CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-7860}"]
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-7860}"]

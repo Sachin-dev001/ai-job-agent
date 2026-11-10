@@ -56,9 +56,12 @@ class CloudDatabaseService:
 
     def _save_local_profiles(self, profiles: Dict[str, Any]):
         try:
+            import tempfile
             DATA_DIR.mkdir(parents=True, exist_ok=True)
-            with open(PROFILES_FILE, "w", encoding="utf-8") as f:
-                json.dump(profiles, f, indent=2)
+            with tempfile.NamedTemporaryFile("w", dir=DATA_DIR, delete=False, encoding="utf-8") as tf:
+                json.dump(profiles, tf, indent=2)
+                temp_name = tf.name
+            os.replace(temp_name, PROFILES_FILE)
         except Exception as e:
             logger.warning(f"[Supabase] Error saving local profiles: {e}")
 

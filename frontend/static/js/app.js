@@ -2,32 +2,25 @@
 // GLOBAL FETCH WRAPPER: Automatically injects JWT Bearer token on all API calls
 // =============================================================================
 const DEFAULT_REMOTE_BACKEND = "https://autoapply-backend-hvdm.onrender.com";
-const originalFetch = window.fetch;
-window.fetch = async function(url, options = {}) {
-    options = options || {};
-    options.headers = options.headers || {};
-    
-    // Auto-resolve relative API paths when running on external Vercel domain
-    if (typeof url === 'string' && url.startsWith('/api/')) {
-        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        if (!isLocal) {
-            const remoteBackend = localStorage.getItem('backend_api_url') || DEFAULT_REMOTE_BACKEND;
-            if (remoteBackend) {
-                url = remoteBackend.replace(/\/$/, '') + url;
-            }
+const originalFetch = window.fetch.bind(window);
+window.fetch = async function(input, init = {}) {
+    init = { ...init };
+    let targetUrl = typeof input === "string" ? input : (input?.url || "");
+    const isLocal = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+    if (targetUrl.startsWith("/api/") && !isLocal) {
+        const remoteBackend = localStorage.getItem("backend_api_url") || DEFAULT_REMOTE_BACKEND;
+        if (remoteBackend && typeof remoteBackend === "string") {
+            targetUrl = `${remoteBackend.replace(/\/$/, "")}${targetUrl}`;
+            input = typeof input === "string" ? targetUrl : new Request(targetUrl, input);
         }
     }
-    const token = (typeof getAuthToken === 'function') ? getAuthToken() : localStorage.getItem("autoapply_auth_token");
-    if (token) {
-        if (options.headers instanceof Headers) {
-            options.headers.set('Authorization', 'Bearer ' + token);
-        } else if (Array.isArray(options.headers)) {
-            options.headers.push(['Authorization', 'Bearer ' + token]);
-        } else {
-            options.headers['Authorization'] = 'Bearer ' + token;
-        }
+    const headers = new Headers(init.headers || (input instanceof Request ? input.headers : undefined));
+    const token = localStorage.getItem("autoapply_auth_token") || localStorage.getItem("supabase_jwt_token");
+    if (token && !headers.has("Authorization")) {
+        headers.set("Authorization", `Bearer ${token}`);
     }
-    return originalFetch(url, options);
+    init.headers = headers;
+    return originalFetch(input, init);
 };
 
 // =============================================================================
@@ -89,16 +82,6 @@ let authMode = "signin"; // "signin" or "signup"
 function getAuthToken() {
     return currentAuthToken || localStorage.getItem("autoapply_auth_token") || null;
 }
-
-function requireAuth(actionDescription = "access this feature") {
-    if (!currentAuthUser || !currentAuthUser.id || currentAuthUser.id === "guest-candidate") {
-        toggleAuthModal(true);
-        showAuthError(`Authentication Required: Please sign in or create an account to ${actionDescription}.`);
-        return false;
-    }
-    return true;
-}
-
 
 function requireAuth(actionDescription = "access this feature") {
     if (!currentAuthUser || !currentAuthUser.id || currentAuthUser.id === "guest-candidate") {
@@ -347,15 +330,15 @@ function renderJobsEmptyState() {
 
     const emptyHtmlDesktop = `
         <tr>
-            <td colspan="5" class="py-12 px-4 text-center">
-                <div class="flex flex-col items-center justify-center max-w-md mx-auto space-y-3">
+            <td colspan="5" class="py-12 px-6 text-center whitespace-normal">
+                <div class="flex flex-col items-center justify-center w-full max-w-md mx-auto space-y-3 whitespace-normal">
                     <div class="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
                         <i data-lucide="file-search" class="w-6 h-6"></i>
                     </div>
-                    <div class="space-y-1">
-                        <h4 class="text-sm font-semibold text-zinc-100">Upload and analyze your resume first</h4>
-                        <p class="text-xs text-zinc-400 leading-relaxed">
-                            Upload and analyze your resume first. The AI agent will extract your skills DNA and automatically scout 100% matched openings for your domain.
+                    <div class="space-y-1 w-full whitespace-normal break-words">
+                        <h4 class="text-sm font-semibold text-zinc-100 whitespace-normal break-words">Upload and analyze your resume first</h4>
+                        <p class="text-xs text-zinc-400 leading-relaxed whitespace-normal break-words">
+                            The AI agent will extract your skills DNA and automatically scout 100% matched openings for your domain.
                         </p>
                     </div>
                     <button type="button" onclick="document.getElementById('resumeFileInput')?.click()" class="mt-2 px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-xs transition shadow-md flex items-center gap-1.5 cursor-pointer">
@@ -1602,22 +1585,31 @@ function initSupabase() {
     setInterval(checkBackendHealth, 15000);
 }
 
+function base64UrlEncode(str) {
+    return btoa(unescape(encodeURIComponent(str)))
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, "");
+}
+
 function createLocalAuthToken(user) {
-    const b64 = (str) => btoa(unescape(encodeURIComponent(str))).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
-    const header = b64(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-    const payload = b64(JSON.stringify({
+    const header = base64UrlEncode(JSON.stringify({ alg: "HS256", typ: "JWT" }));
+    const payload = base64UrlEncode(JSON.stringify({
         sub: user.id,
         id: user.id,
         email: user.email,
+        role: "authenticated",
+        aud: "authenticated",
         user_metadata: {
-            full_name: user.name,
-            name: user.name,
-            avatar_url: user.avatar || ""
+            full_name: user.name || user.email?.split("@")[0] || "Candidate",
+            name: user.name || user.email?.split("@")[0] || "Candidate",
+            provider: user.provider || "email"
         },
-        exp: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60)
+        iat: Math.floor(Date.now() / 1000),
+        exp: Math.floor(Date.now() / 1000) + (60 * 60 * 24 * 7)
     }));
-    const sig = b64("autoapply_client_sig");
-    return `${header}.${payload}.${sig}`;
+    const signature = base64UrlEncode("local_session_sig_" + (user.id || "guest"));
+    return `${header}.${payload}.${signature}`;
 }
 
 function setLoggedInUser(user, token) {

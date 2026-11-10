@@ -14,7 +14,7 @@ class GeminiService:
     """
 
     def __init__(self):
-        self.model_endpoint = "gemini-flash-lite-latest"
+        self.model_endpoint = "gemini-2.0-flash"
 
     def get_api_key(self) -> str:
         key = os.getenv("GEMINI_API_KEY", "") or getattr(settings, "GEMINI_API_KEY", "") or ""
@@ -56,8 +56,10 @@ class GeminiService:
             res = urllib.request.urlopen(req, timeout=20)
             data = json.loads(res.read().decode())
             candidates = data.get("candidates", [])
-            if candidates and candidates[0].get("content", {}).get("parts"):
-                return candidates[0]["content"]["parts"][0]["text"].strip()
+            if candidates and isinstance(candidates, list) and len(candidates) > 0:
+                parts = candidates[0].get("content", {}).get("parts", [])
+                if parts and isinstance(parts, list) and isinstance(parts[0], dict) and "text" in parts[0]:
+                    return parts[0]["text"].strip()
         except Exception as e:
             print(f"[Gemini Service] API call notice: {e}")
             logger.warning(f"[Gemini Service] API call failed: {e}")

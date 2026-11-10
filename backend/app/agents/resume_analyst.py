@@ -95,14 +95,8 @@ class ResumeAnalyst:
         if not content:
             raise ValueError("Failed to analyze resume with LLM. Please verify your GEMINI_API_KEY or GROQ_API_KEY.")
 
-        # Clean codeblock fences if present
-        cleaned_content = content.strip()
-        if cleaned_content.startswith("```"):
-            cleaned_content = cleaned_content.split("\n", 1)[-1]
-            if cleaned_content.endswith("```"):
-                cleaned_content = cleaned_content.rsplit("```", 1)[0]
-        cleaned_content = cleaned_content.strip()
-
+        # Clean codeblock fences cleanly using regex
+        cleaned_content = re.sub(r"^```(?:json)?\s*|\s*```$", "", content.strip(), flags=re.MULTILINE).strip()
         data = json.loads(cleaned_content)
 
         # Robust field normalization

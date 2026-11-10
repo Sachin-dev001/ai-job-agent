@@ -16,8 +16,6 @@ from app.notifications.telegram_listener import telegram_listener
 BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
 DATA_COOKIES_DIR = BACKEND_DIR / "data" / "cookies"
 DATA_COOKIES_DIR.mkdir(parents=True, exist_ok=True)
-if "PLAYWRIGHT_BROWSERS_PATH" not in os.environ:
-    os.environ["PLAYWRIGHT_BROWSERS_PATH"] = "0"
 PROOF_DIR = str(BACKEND_DIR / "proofs")
 os.makedirs(PROOF_DIR, exist_ok=True)
 

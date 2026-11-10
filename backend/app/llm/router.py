@@ -26,7 +26,7 @@ class LLMRouter:
             try:
                 from langchain_google_genai import ChatGoogleGenerativeAI
                 self._llms["gemini"] = ChatGoogleGenerativeAI(
-                    model="gemini-3.8-flash",
+                    model="gemini-2.0-flash",
                     google_api_key=settings.GEMINI_API_KEY,
                     temperature=0.2
                 )
@@ -38,12 +38,12 @@ class LLMRouter:
             try:
                 from langchain_groq import ChatGroq
                 self._llms["groq_70b"] = ChatGroq(
-                    model="qwen/qwen3.8-27b",
+                    model="llama-3.3-70b-versatile",
                     api_key=settings.GROQ_API_KEY,
                     temperature=0.1
                 )
                 self._llms["groq_8b"] = ChatGroq(
-                    model="qwen/qwen3.8-27b",
+                    model="llama-3.1-8b-instant",
                     api_key=settings.GROQ_API_KEY,
                     temperature=0.1
                 )
