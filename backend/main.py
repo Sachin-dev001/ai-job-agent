@@ -37,7 +37,7 @@ from app.scrapers.base_scraper import ScrapedJob
 from app.notifications.notifier import notifier
 from app.memory.qa_vault import qa_vault
 from app.notifications.telegram_listener import telegram_listener
-from app.auth.auth_handler import get_current_user, CurrentUser
+from app.auth.auth_handler import get_current_user, require_authenticated_user, CurrentUser
 from app.database.supabase_client import cloud_db
 
 app = FastAPI(title=settings.PROJECT_NAME, version=settings.VERSION)
@@ -105,19 +105,19 @@ async def get_auth_me(user: CurrentUser = Depends(get_current_user)):
     }
 
 @app.get("/api/user/profile")
-async def get_user_profile(user: CurrentUser = Depends(get_current_user)):
+async def get_user_profile(user: CurrentUser = Depends(require_authenticated_user)):
     """Fetches user candidate profile."""
     profile = await cloud_db.get_profile(user.id)
     return profile
 
 @app.post("/api/user/profile")
-async def update_user_profile(updates: dict, user: CurrentUser = Depends(get_current_user)):
+async def update_user_profile(updates: dict, user: CurrentUser = Depends(require_authenticated_user)):
     """Updates candidate profile in Supabase/local DB."""
     success = await cloud_db.update_profile(user.id, updates)
     return {"success": success}
 
 @app.get("/api/user/applications")
-async def get_user_applications(limit: int = 50, user: CurrentUser = Depends(get_current_user)):
+async def get_user_applications(limit: int = 50, user: CurrentUser = Depends(require_authenticated_user)):
     """Retrieves tracked job applications for the authenticated tenant."""
     apps = await cloud_db.get_applications(user.id, limit=limit)
     return {"applications": apps}
@@ -126,7 +126,7 @@ async def get_user_applications(limit: int = 50, user: CurrentUser = Depends(get
 # Resume Analysis & Processing
 # ==============================================================================
 @app.post("/api/resume/analyze", response_model=ResumeAnalysisResult)
-async def analyze_resume(file: UploadFile = File(...), user: CurrentUser = Depends(get_current_user)):
+async def analyze_resume(file: UploadFile = File(...), user: CurrentUser = Depends(require_authenticated_user)):
 
     file_ext = os.path.splitext(file.filename)[1].lower()
     if file_ext not in [".pdf", ".docx", ".txt"]:
@@ -181,11 +181,26 @@ async def analyze_resume(file: UploadFile = File(...), user: CurrentUser = Depen
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+class JobScoutRequest(BaseModel):
+    query: str = "Software Engineer"
+    platform: Optional[str] = "all"
+    limit: Optional[int] = 25
+
+@app.post("/api/jobs/scout", response_model=List[ScrapedJob])
+async def scout_jobs(req: JobScoutRequest, user: CurrentUser = Depends(require_authenticated_user)):
+    """AI Job Scout endpoint - searches and matches jobs for authenticated candidate."""
+    try:
+        jobs = await job_scout.find_jobs(query=req.query, platform=req.platform or "all", limit=req.limit or 25)
+        return jobs
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/jobs/search", response_model=List[ScrapedJob])
 async def search_jobs(
     query: str = Query(..., description="Role or skill keywords"),
     platform: str = Query("all", description="naukri, wellfound, or all"),
-    limit: int = Query(25, description="Max jobs to return")
+    limit: int = Query(25, description="Max jobs to return"),
+    user: CurrentUser = Depends(require_authenticated_user)
 ):
     try:
         jobs = await job_scout.find_jobs(query=query, platform=platform, limit=limit)
@@ -201,7 +216,7 @@ class ApplicationPrepRequest(BaseModel):
     description: Optional[str] = ""
 
 @app.post("/api/jobs/prepare-application")
-async def prepare_application(req: ApplicationPrepRequest, user: CurrentUser = Depends(get_current_user)):
+async def prepare_application(req: ApplicationPrepRequest, user: CurrentUser = Depends(require_authenticated_user)):
     user_profile = await cloud_db.get_profile(user.id) or {}
 
     cand_name = user_profile.get("full_name") or user.name or "Candidate"
@@ -265,7 +280,7 @@ class LiveApplyRequest(BaseModel):
     limit: int = 3
 
 @app.post("/api/naukri/auto-apply-live")
-async def execute_live_naukri_apply(req: LiveApplyRequest, user: CurrentUser = Depends(get_current_user)):
+async def execute_live_naukri_apply(req: LiveApplyRequest, user: CurrentUser = Depends(require_authenticated_user)):
     """
     Launches autonomous Playwright browser, clicks real 'Apply on Naukri' buttons,
     submits real applications, and returns proof screenshots.
@@ -295,7 +310,7 @@ class SingleJobApplyRequest(BaseModel):
 
 @app.post("/api/naukri/apply-single")
 @app.post("/api/apply/single")
-async def apply_single_job(req: SingleJobApplyRequest, user: CurrentUser = Depends(get_current_user)):
+async def apply_single_job(req: SingleJobApplyRequest, user: CurrentUser = Depends(require_authenticated_user)):
     """
     Directly navigates to the specified job URL, clicks Apply,
     navigates questionnaires, and saves screenshot proof.
@@ -320,7 +335,7 @@ class WellfoundSingleApplyRequest(BaseModel):
     company: str = "Tech Startup"
 
 @app.post("/api/wellfound/apply-single")
-async def apply_single_wellfound_job(req: WellfoundSingleApplyRequest, user: CurrentUser = Depends(get_current_user)):
+async def apply_single_wellfound_job(req: WellfoundSingleApplyRequest, user: CurrentUser = Depends(require_authenticated_user)):
     """
     Directly navigates to the specified Wellfound startup job,
     submits application with user profile & pitch, and takes screenshot proof.
@@ -345,7 +360,7 @@ async def apply_single_wellfound_job(req: WellfoundSingleApplyRequest, user: Cur
         }
 
 @app.post("/api/wellfound/auto-apply-live")
-async def execute_live_wellfound_apply(req: LiveApplyRequest, user: CurrentUser = Depends(get_current_user)):
+async def execute_live_wellfound_apply(req: LiveApplyRequest, user: CurrentUser = Depends(require_authenticated_user)):
     """
     Batch auto-apply on Wellfound startup jobs matching query.
     """
@@ -363,7 +378,7 @@ class ConnectCookiesRequest(BaseModel):
     cookies: Any
 
 @app.get("/api/session/status")
-async def get_session_status(user: CurrentUser = Depends(get_current_user)):
+async def get_session_status(user: CurrentUser = Depends(require_authenticated_user)):
     naukri_cookies = naukri_live_runner._load_cookies(user_id=user.id)
     wellfound_cookies = wellfound_live_runner._load_cookies(user_id=user.id)
     return {
@@ -374,7 +389,7 @@ async def get_session_status(user: CurrentUser = Depends(get_current_user)):
     }
 
 @app.post("/api/session/connect-cookies")
-async def connect_portal_cookies(req: ConnectCookiesRequest, user: CurrentUser = Depends(get_current_user)):
+async def connect_portal_cookies(req: ConnectCookiesRequest, user: CurrentUser = Depends(require_authenticated_user)):
     platform = req.platform.lower().strip()
     if platform not in ["naukri", "wellfound"]:
         raise HTTPException(status_code=400, detail="Platform must be 'naukri' or 'wellfound'")
@@ -421,7 +436,8 @@ class SkipPendingRequest(BaseModel):
     question_id: str
 
 @app.get("/api/memory/qa")
-async def get_qa_memory(user: CurrentUser = Depends(get_current_user)):
+@app.get("/api/memory/vault")
+async def get_qa_memory(user: CurrentUser = Depends(require_authenticated_user)):
     """Returns all stored candidate memory facts for this user and any pending unanswered recruiter questions."""
     memories = await cloud_db.get_memories(user.id)
     return {
@@ -430,7 +446,8 @@ async def get_qa_memory(user: CurrentUser = Depends(get_current_user)):
     }
 
 @app.post("/api/memory/qa")
-async def save_qa_memory(req: QAPairRequest, user: CurrentUser = Depends(get_current_user)):
+@app.post("/api/memory/vault/add")
+async def save_qa_memory(req: QAPairRequest, user: CurrentUser = Depends(require_authenticated_user)):
     """Saves or updates a permanent question-answer pair into candidate memory."""
     entry = await cloud_db.save_memory(
         user_id=user.id,
@@ -441,7 +458,8 @@ async def save_qa_memory(req: QAPairRequest, user: CurrentUser = Depends(get_cur
     return {"status": "saved", "entry": entry}
 
 @app.delete("/api/memory/qa/{memory_id}")
-async def delete_qa_memory(memory_id: str, user: CurrentUser = Depends(get_current_user)):
+@app.delete("/api/memory/vault/{memory_id}")
+async def delete_qa_memory(memory_id: str, user: CurrentUser = Depends(require_authenticated_user)):
     """Deletes an entry from memory."""
     success = await cloud_db.delete_memory(user_id=user.id, memory_id=memory_id)
     if not success:
@@ -449,7 +467,7 @@ async def delete_qa_memory(memory_id: str, user: CurrentUser = Depends(get_curre
     return {"status": "deleted", "id": memory_id}
 
 @app.post("/api/memory/answer-pending")
-async def answer_pending_question(req: AnswerPendingRequest, user: CurrentUser = Depends(get_current_user)):
+async def answer_pending_question(req: AnswerPendingRequest, user: CurrentUser = Depends(require_authenticated_user)):
     """Answers a pending question from the dashboard and permanently saves it to user memory."""
     pending_items = qa_vault.get_pending_questions()
     matched = None
@@ -471,7 +489,7 @@ async def answer_pending_question(req: AnswerPendingRequest, user: CurrentUser =
     return {"status": "answered_and_remembered", "question": matched["question"], "answer": req.answer}
 
 @app.post("/api/memory/skip-pending")
-async def skip_pending_question(req: SkipPendingRequest):
+async def skip_pending_question(req: SkipPendingRequest, user: CurrentUser = Depends(require_authenticated_user)):
     """Skips or dismisses a pending question so it stops blocking the UI and applicant flow."""
     success = qa_vault.skip_pending_question(req.question_id)
     if not success:

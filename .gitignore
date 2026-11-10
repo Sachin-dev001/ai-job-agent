@@ -44,3 +44,9 @@ backend/uploads/*
 # OS Generated Files
 .DS_Store
 Thumbs.db
+ 
+# Proofs
+proofs/
+backend/proofs/
+*.png
+backend/data/cookies/

@@ -42,13 +42,25 @@ async def run_tests():
     user_b_headers = create_auth_headers("tenant_bob", "bob@example.com", "Bob Jones")
     user_c_headers = create_auth_headers("tenant_charlie", "charlie@example.com", "Charlie Brown")
 
-    # Clean up any test cookie files from previous runs
+    # Clean up any test cookie files and profiles from previous runs
     data_cookies = BACKEND_DIR / "data" / "cookies"
     for uid in ["tenant_alice", "tenant_bob", "tenant_charlie"]:
         udir = data_cookies / uid
         if udir.exists():
             import shutil
             shutil.rmtree(udir, ignore_errors=True)
+
+    profiles_file = BACKEND_DIR / "data" / "user_profiles.json"
+    if profiles_file.exists():
+        try:
+            with open(profiles_file, "r", encoding="utf-8") as f:
+                prof_data = json.load(f)
+            for uid in ["tenant_alice", "tenant_bob", "tenant_charlie"]:
+                prof_data.pop(uid, None)
+            with open(profiles_file, "w", encoding="utf-8") as f:
+                json.dump(prof_data, f, indent=2)
+        except Exception:
+            pass
 
     # --------------------------------------------------------------------------
     # TEST 1: Global Cookies Neutralization

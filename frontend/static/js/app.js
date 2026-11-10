@@ -78,6 +78,37 @@ async function safeParseJson(res) {
 }
 
 
+// =============================================================================
+// GLOBAL AUTHENTICATION & MULTI-TENANT IDENTITY STATE
+// =============================================================================
+let currentAuthUser = null;
+let currentAuthToken = null;
+let supabaseClient = null;
+let authMode = "signin"; // "signin" or "signup"
+
+function getAuthToken() {
+    return currentAuthToken || localStorage.getItem("autoapply_auth_token") || null;
+}
+
+function requireAuth(actionDescription = "access this feature") {
+    if (!currentAuthUser || !currentAuthUser.id || currentAuthUser.id === "guest-candidate") {
+        toggleAuthModal(true);
+        showAuthError(`Authentication Required: Please sign in or create an account to ${actionDescription}.`);
+        return false;
+    }
+    return true;
+}
+
+
+function requireAuth(actionDescription = "access this feature") {
+    if (!currentAuthUser || !currentAuthUser.id || currentAuthUser.id === "guest-candidate") {
+        toggleAuthModal(true);
+        showAuthError(`Authentication Required: Please sign in or create an account to ${actionDescription}.`);
+        return false;
+    }
+    return true;
+}
+
 let currentAnalysis = null;
 let foundJobs = [];
 let activeApplyingJobIndex = null;
@@ -97,11 +128,53 @@ document.addEventListener("DOMContentLoaded", () => {
     const searchJobsBtn = document.getElementById("searchJobsBtn");
 
     if (dropzone && resumeFileInput) {
-        dropzone.addEventListener("click", () => resumeFileInput.click());
+        dropzone.addEventListener("click", () => {
+            if (!requireAuth("upload and analyze your resume")) return;
+            resumeFileInput.click();
+        });
+
+        ["dragenter", "dragover"].forEach(name => {
+            dropzone.addEventListener(name, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropzone.classList.add("border-indigo-500", "bg-zinc-900/60");
+            });
+        });
+        ["dragleave", "drop"].forEach(name => {
+            dropzone.addEventListener(name, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropzone.classList.remove("border-indigo-500", "bg-zinc-900/60");
+            });
+        });
+        dropzone.addEventListener("drop", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!requireAuth("upload and analyze your resume")) return;
+            const files = e.dataTransfer?.files;
+            if (files && files.length > 0) {
+                resumeFileInput.files = files;
+                const file = files[0];
+                if (fileName) fileName.textContent = file.name;
+                if (fileStatus) fileStatus.classList.remove("hidden");
+                const placeholder = document.getElementById("resumePlaceholderText");
+                if (placeholder) placeholder.textContent = file.name;
+            }
+        });
     }
 
     if (resumeFileInput) {
+        resumeFileInput.addEventListener("click", (e) => {
+            if (!requireAuth("upload and analyze your resume")) {
+                e.preventDefault();
+                return false;
+            }
+        });
         resumeFileInput.addEventListener("change", (e) => {
+            if (!requireAuth("upload and analyze your resume")) {
+                e.target.value = "";
+                return;
+            }
             if (e.target.files.length > 0) {
                 const file = e.target.files[0];
                 if (fileName) fileName.textContent = file.name;
@@ -114,6 +187,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (analyzeBtn) {
         analyzeBtn.addEventListener("click", async () => {
+            if (!requireAuth("analyze your resume with LLM")) return;
             const file = resumeFileInput?.files[0];
             if (!file) {
                 alert("Please select a resume file (PDF, DOCX, TXT) first.");
@@ -164,6 +238,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (searchJobsBtn) {
         searchJobsBtn.addEventListener("click", () => {
+            if (!requireAuth("search and scout matched jobs")) return;
             if (!currentAnalysis) {
                 renderJobsEmptyState();
                 alert("Please upload and analyze your resume first so the agent knows which jobs match your skills!");
@@ -320,6 +395,7 @@ function renderJobsEmptyState() {
 // Job Scouting & Dynamic Search
 // ==========================================
 async function triggerJobSearch(query) {
+    if (!requireAuth("scout and match live jobs")) return;
     if (!currentAnalysis) {
         renderJobsEmptyState();
         return;
@@ -445,12 +521,12 @@ function renderJobsTable(jobs) {
                     </span>
                 </td>
                 <td class="py-2.5 px-3.5 text-right space-x-1" id="action-cell-${idx}">
-                    <a href="${job.job_url}" target="_blank" class="text-zinc-400 hover:text-zinc-200 text-xs px-2 py-1 transition mr-0.5">View</a>
-                    <button onclick="directApplyRow(${idx})" class="bg-zinc-100 hover:bg-white text-zinc-900 text-[11px] px-2.5 py-1 rounded-md font-semibold transition shadow-sm">
+                    <button type="button" onclick="handleExternalJobClick(event, '${escapeHtml(job.job_url)}')" class="text-zinc-400 hover:text-zinc-200 text-xs px-2 py-1 transition mr-0.5 cursor-pointer">View</button>
+                    <button onclick="directApplyRow(${idx})" class="bg-zinc-100 hover:bg-white text-zinc-900 text-[11px] px-2.5 py-1 rounded-md font-semibold transition shadow-sm cursor-pointer">
                         Auto-Apply
                     </button>
-                    <button onclick="triggerApply(${idx})" class="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700/60 text-[11px] px-2 py-1 rounded-md font-medium transition">
-                        Pitch
+                    <button onclick="openQuickApplyModal(${idx})" class="quick-apply-btn bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700/60 text-[11px] px-2 py-1 rounded-md font-medium transition cursor-pointer">
+                        Quick Apply
                     </button>
                 </td>
             </tr>
@@ -487,12 +563,12 @@ function renderJobsTable(jobs) {
                     <button onclick="directApplyRow(${idx})" class="flex-1 bg-zinc-100 hover:bg-white active:bg-zinc-200 text-zinc-900 text-xs py-2 rounded-lg font-semibold transition shadow-sm flex items-center justify-center gap-1.5">
                         <i data-lucide="zap" class="w-3.5 h-3.5 text-zinc-900"></i> Auto-Apply
                     </button>
-                    <button onclick="triggerApply(${idx})" class="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs px-3 py-2 rounded-lg font-medium transition border border-zinc-700/60">
-                        Pitch
+                    <button onclick="openQuickApplyModal(${idx})" class="quick-apply-btn bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs px-3 py-2 rounded-lg font-medium transition border border-zinc-700/60">
+                        Quick Apply
                     </button>
-                    <a href="${job.job_url}" target="_blank" class="bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 text-xs px-2.5 py-2 rounded-lg transition border border-zinc-800 flex items-center justify-center">
+                    <button type="button" onclick="handleExternalJobClick(event, '${escapeHtml(job.job_url)}')" class="bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 text-xs px-2.5 py-2 rounded-lg transition border border-zinc-800 flex items-center justify-center cursor-pointer">
                         <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
-                    </a>
+                    </button>
                 </div>
             </div>
         `).join("");
@@ -503,7 +579,10 @@ function renderJobsTable(jobs) {
 // ==========================================
 // 1-Click Autonomous Apply (Naukri & Wellfound)
 // ==========================================
+async function applySingleJob(idx) { return directApplyRow(idx); }
+
 async function directApplyRow(idx) {
+    if (!requireAuth("apply for jobs")) return;
     const job = foundJobs[idx];
     if (!job) return;
 
@@ -609,6 +688,7 @@ async function directApplyRow(idx) {
 // Batch Autonomous Apply on Active Platform
 // ==========================================
 async function executeCurrentPlatformLiveBot() {
+    if (!requireAuth("launch autonomous live auto-apply")) return;
     if (!currentAnalysis) {
         alert("Please upload and analyze your resume first! The AI agent needs your candidate DNA to tailor applications and match relevant openings.");
         document.getElementById("resumeFileInput")?.click();
@@ -793,6 +873,7 @@ function selectRoleAndOpenModal(roleTitle, idx) {
 // Pitch Modal & Submissions
 // ==========================================
 async function triggerApply(jobIndex) {
+    if (!requireAuth("generate AI pitches and apply")) return;
     const job = foundJobs[jobIndex];
     if (!job) return;
 
@@ -904,7 +985,13 @@ async function runSingleJobLiveSubmit() {
 let allMemories = [];
 
 async function loadQAMemory() {
-    const uid = currentAuthUser ? currentAuthUser.id : "guest-candidate";
+    if (!currentAuthUser || !currentAuthUser.id || currentAuthUser.id === "guest-candidate") {
+        allMemories = [];
+        renderPendingQuestions([]);
+        renderMemoryVault([]);
+        return;
+    }
+    const uid = currentAuthUser.id;
     const token = getAuthToken();
     try {
         const res = await fetch("/api/memory/qa", {
@@ -1036,6 +1123,9 @@ async function submitPendingAnswer(qId) {
 }
 
 function toggleVaultModal(show) {
+    if (show && !requireAuth("access your private Memory Vault")) {
+        return;
+    }
     const modal = document.getElementById("memoryVaultModal");
     if (!modal) return;
     if (show) {
@@ -1392,6 +1482,7 @@ document.addEventListener("DOMContentLoaded", () => {
 // ==========================================
 let isSimulating = false;
 function triggerScenarioSimulation() {
+    if (!requireAuth("run AI scenario simulations")) return;
     if (isSimulating) return;
     isSimulating = true;
 
@@ -1455,14 +1546,8 @@ function triggerScenarioSimulation() {
 // =============================================================================
 // AUTOAPPLY AUTHENTICATION & MULTI-TENANT CLOUD SYSTEM (Supabase 100% Free)
 // =============================================================================
-let currentAuthUser = null;
-let currentAuthToken = null;
-let supabaseClient = null;
-let authMode = "signin"; // "signin" or "signup"
+// (Authentication state declared at top of file)
 
-function getAuthToken() {
-    return currentAuthToken || localStorage.getItem("autoapply_auth_token") || null;
-}
 
 function initSupabase() {
     const savedUrl = localStorage.getItem("supabase_url") || "";
@@ -1599,10 +1684,12 @@ function setLoggedOutUser() {
 
     renderJobsEmptyState();
     loadQAMemory();
-    loadUserApplications();
+    const statApplied = document.getElementById("statApplied");
+    if (statApplied) statApplied.textContent = "0";
 }
 
 async function loadUserProfile() {
+    if (!currentAuthUser || !currentAuthUser.id || currentAuthUser.id === "guest-candidate") return;
     const token = getAuthToken();
     if (!token) return;
     try {
@@ -1625,6 +1712,11 @@ async function loadUserProfile() {
 }
 
 async function loadUserApplications() {
+    if (!currentAuthUser || !currentAuthUser.id || currentAuthUser.id === "guest-candidate") {
+        const statApplied = document.getElementById("statApplied");
+        if (statApplied) statApplied.textContent = "0";
+        return;
+    }
     const token = getAuthToken();
     try {
         const res = await fetch("/api/user/applications", {
@@ -2051,12 +2143,16 @@ function toggleMobileNavMenu(forceState) {
     if (window.lucide) lucide.createIcons();
 }
 
-function toggleAuthModal(show) {
+function toggleAuthModal(show, errorMsg = null) {
     const modal = document.getElementById("authModal");
     if (!modal) return;
     if (show) {
         modal.classList.remove("hidden");
-        hideAuthError();
+        if (errorMsg) {
+            showAuthError(errorMsg);
+        } else {
+            hideAuthError();
+        }
         backToMainAuthView();
         renderDetectedAccounts();
         const emailInput = document.getElementById("authEmailInput");
@@ -2066,6 +2162,7 @@ function toggleAuthModal(show) {
         triggerGooglePrompt();
     } else {
         modal.classList.add("hidden");
+        hideAuthError();
         backToMainAuthView();
     }
     closeUserDropdown();
@@ -2474,6 +2571,7 @@ let activeAssistantJobIdx = null;
 let currentAssistantPlatform = "naukri";
 
 function openQuickApplyModal(idx, reason) {
+    if (!requireAuth("use Quick Apply Assistant")) return;
     const job = foundJobs[idx];
     if (!job) return;
     activeAssistantJobIdx = idx;
@@ -2503,7 +2601,11 @@ function openQuickApplyModal(idx, reason) {
         uploadLabel.textContent = `Upload ${currentAssistantPlatform}_cookies.json`;
     }
     if (pitchBox) pitchBox.classList.add("hidden");
-    if (btnText) btnText.textContent = "Copy Tailored Pitch & Open Job";
+    if (btnText) btnText.textContent = "📋 Generate & Copy AI Pitch";
+    const btnGen = document.getElementById("btnAssistantGeneratePitch");
+    if (btnGen) btnGen.disabled = false;
+    const toast = document.getElementById("assistantCopyToast");
+    if (toast) toast.classList.add("hidden");
 
     if (modal) modal.classList.remove("hidden");
     if (typeof lucide !== "undefined") lucide.createIcons();
@@ -2523,13 +2625,15 @@ function closeQuickApplyModal() {
     activeAssistantJobIdx = null;
 }
 
-async function assistantGeneratePitchAndOpen() {
+async function assistantGeneratePitch() {
     if (activeAssistantJobIdx === null || !foundJobs[activeAssistantJobIdx]) return;
+    if (!requireAuth("generate tailored application pitches")) return;
     const job = foundJobs[activeAssistantJobIdx];
     const btn = document.getElementById("btnAssistantGeneratePitch");
     const btnText = document.getElementById("btnAssistantGenerateText");
     const pitchBox = document.getElementById("assistantPitchPreviewBox");
     const pitchText = document.getElementById("assistantPitchText");
+    const toast = document.getElementById("assistantCopyToast");
 
     if (btn) btn.disabled = true;
     if (btnText) btnText.innerHTML = "Generating AI Pitch with Gemini/Groq...";
@@ -2552,28 +2656,29 @@ async function assistantGeneratePitchAndOpen() {
                 candidate_name: candidateName
             })
         });
-        const data = await res.json();
+        const data = await safeParseJson(res);
         const pitch = data.cover_letter || `Dear Hiring Team at ${job.company},\n\nI am writing to express my strong interest in the ${job.title} position at ${job.company}.\n\nBest regards,\n${candidateName}`;
-
-        // Copy to clipboard
-        try {
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                await navigator.clipboard.writeText(pitch);
-            }
-        } catch (clipErr) {
-            console.warn("Clipboard copy error:", clipErr);
-        }
 
         if (pitchText) pitchText.value = pitch;
         if (pitchBox) pitchBox.classList.remove("hidden");
-        if (btnText) btnText.innerHTML = "✅ Pitch Copied! Opening Job...";
 
-        // Open job URL in new tab with security rel attributes
-        setTimeout(() => {
-            if (job.job_url) {
-                window.open(job.job_url, "_blank", "noopener,noreferrer");
+        // Copy to clipboard safely - NEVER OPEN ANY BROWSER TAB
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(pitch);
+            } else if (pitchText) {
+                pitchText.select();
+                document.execCommand("copy");
             }
-        }, 600);
+            if (toast) {
+                toast.classList.remove("hidden");
+                setTimeout(() => toast.classList.add("hidden"), 3500);
+            }
+        } catch (clipErr) {
+            console.warn("Clipboard copy notice:", clipErr);
+        }
+
+        if (btnText) btnText.innerHTML = "✅ Pitch Copied to Clipboard!";
 
         // Update status in table
         const statusCell = document.getElementById(`status-cell-${activeAssistantJobIdx}`);
@@ -2586,13 +2691,27 @@ async function assistantGeneratePitchAndOpen() {
         }
 
     } catch (e) {
-        if (job.job_url) {
-            window.open(job.job_url, "_blank", "noopener,noreferrer");
-        }
-        if (btnText) btnText.innerHTML = "Opening Job...";
+        if (btnText) btnText.innerHTML = "📋 Generate & Copy AI Pitch";
+        alert("AI Pitch Generation Notice: " + e.message);
     } finally {
         if (btn) btn.disabled = false;
     }
+}
+
+function assistantOpenJob() {
+    if (activeAssistantJobIdx === null || !foundJobs[activeAssistantJobIdx]) return;
+    if (!requireAuth("open external job listings")) return;
+    const job = foundJobs[activeAssistantJobIdx];
+    if (job && job.job_url) {
+        window.open(job.job_url, "_blank", "noopener,noreferrer");
+    } else {
+        alert("No valid job URL available for this opening.");
+    }
+}
+
+// Backward compatibility alias that strictly executes safe pitch generation without opening tabs
+function assistantGeneratePitchAndOpen() {
+    return assistantGeneratePitch();
 }
 
 
@@ -2627,3 +2746,27 @@ document.addEventListener("keydown", (e) => {
         });
     }
 });
+
+
+function openSessionConnectModal() {
+    if (!requireAuth("connect portal session cookies")) return;
+    toggleCloudConfigModal(true);
+}
+
+function startSimulation() {
+    return triggerScenarioSimulation();
+}
+
+
+function handleExternalJobClick(event, url) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    if (!requireAuth("open external job listings")) return false;
+    if (url) {
+        window.open(url, "_blank", "noopener,noreferrer");
+    }
+    return false;
+}
+

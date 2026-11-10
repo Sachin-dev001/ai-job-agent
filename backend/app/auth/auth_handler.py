@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from fastapi import Header, HTTPException, Depends
 
 SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
-REQUIRE_AUTH = os.getenv("REQUIRE_AUTH", "false").lower() == "true"
+REQUIRE_AUTH = os.getenv("REQUIRE_AUTH", "true").lower() == "true"
 
 class CurrentUser(BaseModel):
     id: str
@@ -53,3 +53,15 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> Curre
         name="Guest",
         is_authenticated=False
     )
+
+async def require_authenticated_user(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
+    """
+    Strict security dependency that rejects unauthenticated guest visitors.
+    Ensures every candidate operation is bound to a verified user account.
+    """
+    if not user.is_authenticated:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required. Please sign in or create an account to access candidate features."
+        )
+    return user
