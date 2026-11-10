@@ -3,7 +3,7 @@ import sys
 import time
 from playwright.sync_api import sync_playwright
 
-PROOF_DIR = r"C:\Users\t\.gemini\antigravity\brain\b7d99792-53e9-42d3-bcfa-08b775d98d37\proofs_production_auth"
+PROOF_DIR = r"C:\Users\t\.gemini\antigravity\brain\b7d99792-53e9-42d3-bcfa-08b775d98d37\proofs_production_email_auth"
 os.makedirs(PROOF_DIR, exist_ok=True)
 PROD_URL = "https://ai-job-agent-frontend-mauve.vercel.app"
 
@@ -14,7 +14,7 @@ def sign_out(page):
     page.wait_for_selector("#authSignInBtn", state="visible")
 
 def run():
-    print(f"[TEST] Verifying production deployment at {PROD_URL}...")
+    print(f"[TEST] Verifying production strict email auth at {PROD_URL}...")
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(viewport={"width": 1280, "height": 900})
@@ -29,55 +29,62 @@ def run():
         # 2. Open Auth Modal
         page.click("#authSignInBtn")
         page.wait_for_selector("#authModal", state="visible")
-        det_sec = page.query_selector("#detectedAccountsSection")
-        assert "hidden" in det_sec.get_attribute("class"), "Detected accounts leaked in production!"
-        print("[PASS] 2. Production auth modal opened; zero data leak.")
+        
+        # Verify zero Google or GitHub buttons
+        assert page.query_selector("#googleFallbackBtn") is None, "Google button found in production!"
+        assert page.query_selector("#googleAuthView") is None, "Google view found in production!"
+        assert page.query_selector("#githubAuthView") is None, "GitHub view found in production!"
+        assert page.query_selector("#detectedAccountsSection") is None, "Detected accounts found in production!"
+        
+        page.screenshot(path=os.path.join(PROOF_DIR, "02_prod_clean_auth_modal.png"))
+        print("[PASS] 2. Production auth modal opened; 100% email-only with zero Google/GitHub leaks.")
 
-        # 3. Google 1-Click Fast Track
-        page.click("#googleFallbackBtn")
-        page.wait_for_selector("#googleAuthView", state="visible")
-        page.click("button:has-text('1-Click Sign In')")
+        # 3. Try to sign in as new user without registering
+        page.fill("#authEmailInput", "new.candidate.2026@gmail.com")
+        page.fill("#authPasswordInput", "SecurePass123!")
+        page.click("#authSubmitBtn")
+        page.wait_for_selector("#authErrorMsg", state="visible")
+        err_msg = page.text_content("#authErrorText")
+        assert "No account found" in err_msg, f"Expected 'No account found', got: {err_msg}"
+        print(f"[PASS] 3. Unregistered user blocked from sign in: '{err_msg}'")
+
+        # 4. Switch to Create Account tab and register
+        page.click("#tabSignUpBtn")
+        page.wait_for_selector("#signUpNameField", state="visible")
+        page.fill("#authNameInput", "Ananya Sharma")
+        page.fill("#authEmailInput", "ananya.sharma@gmail.com")
+        page.fill("#authPasswordInput", "SecurePass123!")
+        page.click("#authSubmitBtn")
+
         page.wait_for_selector("#authModal", state="hidden")
         page.wait_for_selector("#authUserMenu", state="visible")
         user_name = page.text_content("#userNameDisplay").strip()
-        assert "Sachin" in user_name, f"Expected Sachin in user name, got {user_name}"
-        page.screenshot(path=os.path.join(PROOF_DIR, "02_prod_google_1click.png"))
-        print(f"[PASS] 3. Production Google 1-Click sign-in verified: {user_name}")
+        assert "Ananya" in user_name, f"Expected Ananya in user name, got {user_name}"
+        page.screenshot(path=os.path.join(PROOF_DIR, "03_prod_user_registered.png"))
+        print(f"[PASS] 4. User registered and signed into private session: {user_name}")
 
-        # 4. Sign Out
+        # 5. Sign out
         sign_out(page)
-        print("[PASS] 4. Production signed out cleanly.")
+        print("[PASS] 5. Signed out cleanly.")
 
-        # 5. GitHub 1-Click Fast Track
+        # 6. Re-open modal and verify fields are cleared
         page.click("#authSignInBtn")
         page.wait_for_selector("#authModal", state="visible")
-        page.click("button:has-text('Continue with GitHub')")
-        page.wait_for_selector("#githubAuthView", state="visible")
-        page.click("#githubAuthView button:has-text('1-Click Sign In')")
-        page.wait_for_selector("#authModal", state="hidden")
-        page.wait_for_selector("#authUserMenu", state="visible")
-        user_name = page.text_content("#userNameDisplay").strip()
-        assert "Sachin-dev001" in user_name or "sachin" in user_name.lower(), f"Expected Sachin-dev001, got {user_name}"
-        page.screenshot(path=os.path.join(PROOF_DIR, "03_prod_github_1click.png"))
-        print(f"[PASS] 5. Production GitHub 1-Click sign-in verified: {user_name}")
-
-        # 6. Sign Out
-        sign_out(page)
-
-        # 7. Production Email Seamless Auto-Registration
-        page.click("#authSignInBtn")
-        page.wait_for_selector("#authModal", state="visible")
-        page.fill("#authEmailInput", "sachin.testprod@gmail.com")
-        page.fill("#authPasswordInput", "ProductionPass123!")
+        email_val = page.input_value("#authEmailInput")
+        assert email_val == "", f"Email leaked on logout: {email_val}"
+        
+        # 7. Sign in with registered credentials
+        page.fill("#authEmailInput", "ananya.sharma@gmail.com")
+        page.fill("#authPasswordInput", "SecurePass123!")
         page.click("#authSubmitBtn")
         page.wait_for_selector("#authModal", state="hidden")
         page.wait_for_selector("#authUserMenu", state="visible")
         user_name = page.text_content("#userNameDisplay").strip()
-        page.screenshot(path=os.path.join(PROOF_DIR, "04_prod_email_signed_in.png"))
-        print(f"[PASS] 6. Production email registration & sign-in verified: {user_name}")
+        assert "Ananya" in user_name, f"Expected Ananya, got {user_name}"
+        print(f"[PASS] 6. Registered user logged back in successfully: {user_name}")
 
         browser.close()
-        print("\n[SUCCESS] PRODUCTION DEPLOYMENT FULLY VERIFIED AND PASSING 100%!")
+        print("\n[SUCCESS] ALL PRODUCTION STRICT EMAIL/PASSWORD TESTS PASSED!")
 
 if __name__ == "__main__":
     run()

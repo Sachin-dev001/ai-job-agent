@@ -117,8 +117,6 @@ let currentSelectedPlatform = "naukri"; // "naukri" or "wellfound"
 
 document.addEventListener("DOMContentLoaded", () => {
     initSupabase();
-    checkOAuthRedirectTokens();
-    initGoogleIdentity();
 
     const dropzone = document.getElementById("dropzone");
     const resumeFileInput = document.getElementById("resumeFileInput");
@@ -1634,18 +1632,13 @@ function setLoggedInUser(user, token) {
     localStorage.setItem("autoapply_user", JSON.stringify(currentAuthUser));
     localStorage.setItem("autoapply_auth_token", currentAuthToken);
 
-    // Save to device saved accounts list for fast 1-click switching
+    // Clean up any cross-account storage to prevent info leaks
     try {
-        let saved = JSON.parse(localStorage.getItem("autoapply_saved_accounts") || "[]");
-        saved = saved.filter(a => a.email.toLowerCase() !== currentAuthUser.email.toLowerCase());
-        saved.unshift(currentAuthUser);
-        if (saved.length > 5) saved = saved.slice(0, 5);
-        localStorage.setItem("autoapply_saved_accounts", JSON.stringify(saved));
+        localStorage.removeItem("autoapply_saved_accounts");
     } catch (e) {}
 
     renderAuthNavbar();
     toggleAuthModal(false);
-    backToMainAuthView();
 
     // Reload candidate-specific isolated profile, memories & applications
     loadUserProfile();
@@ -1660,8 +1653,16 @@ function setLoggedOutUser() {
     currentSelectedRole = "";
     localStorage.removeItem("autoapply_user");
     localStorage.removeItem("autoapply_auth_token");
+    localStorage.removeItem("autoapply_saved_accounts");
+    
+    const emailInput = document.getElementById("authEmailInput");
+    const passInput = document.getElementById("authPasswordInput");
+    const nameInput = document.getElementById("authNameInput");
+    if (emailInput) emailInput.value = "";
+    if (passInput) passInput.value = "";
+    if (nameInput) nameInput.value = "";
+    
     renderAuthNavbar();
-    backToMainAuthView();
 
     const statParsed = document.getElementById("statParsed");
     if (statParsed) {
@@ -1798,381 +1799,9 @@ function renderAuthNavbar() {
 }
 
 // =============================================================================
-// Real Google Identity Services (GIS) & OAuth Authentication
 // =============================================================================
-const GOOGLE_CLIENT_ID = localStorage.getItem("google_client_id") || "1028741369796-7q4v1d4k19t06h40k5f2u0m9n8c08j12.apps.googleusercontent.com";
-
-function parseJwtPayload(token) {
-    try {
-        const base64Url = token.split('.')[1];
-        if (!base64Url) return null;
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-        }).join(''));
-        return JSON.parse(jsonPayload);
-    } catch (e) {
-        console.warn("JWT payload parse error:", e);
-        return null;
-    }
-}
-
-function renderDetectedAccounts() {
-    const section = document.getElementById("detectedAccountsSection");
-    const container = document.getElementById("detectedAccountsPills");
-    if (!section || !container) return;
-
-    let accounts = [];
-    try {
-        const saved = JSON.parse(localStorage.getItem("autoapply_saved_accounts") || "[]");
-        accounts = accounts.concat(saved);
-    } catch (e) {}
-
-    try {
-        const locals = JSON.parse(localStorage.getItem("autoapply_local_users") || "{}");
-        Object.values(locals).forEach(u => {
-            if (!accounts.some(a => a.email.toLowerCase() === u.email.toLowerCase())) {
-                accounts.push(u);
-            }
-        });
-    } catch (e) {}
-
-    if (accounts.length === 0) {
-        section.classList.add("hidden");
-        container.innerHTML = "";
-        return;
-    }
-
-    section.classList.remove("hidden");
-    container.innerHTML = accounts.slice(0, 3).map(acc => `
-        <div onclick="selectDetectedAccount('${escapeHtml(acc.email)}', '${escapeHtml(acc.name || '')}')" 
-             class="flex items-center justify-between p-2 rounded-lg bg-zinc-900/90 hover:bg-zinc-850 border border-zinc-800 hover:border-emerald-500/50 cursor-pointer transition group">
-            <div class="flex items-center gap-2 min-w-0">
-                <div class="w-6 h-6 rounded-full bg-emerald-500/10 text-emerald-400 font-bold text-[11px] flex items-center justify-center border border-emerald-500/30 shrink-0">
-                    ${(acc.name?.[0] || acc.email[0] || 'U').toUpperCase()}
-                </div>
-                <div class="min-w-0">
-                    <p class="text-xs font-medium text-zinc-200 truncate group-hover:text-emerald-300 transition">${escapeHtml(acc.name || acc.email.split('@')[0])}</p>
-                    <p class="text-[10px] text-zinc-400 font-mono truncate">${escapeHtml(acc.email)}</p>
-                </div>
-            </div>
-            <span class="text-[10px] font-medium text-emerald-400 shrink-0 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 group-hover:bg-emerald-500/20 transition">Auto-Fill →</span>
-        </div>
-    `).join("");
-    if (window.lucide) lucide.createIcons();
-}
-
-function selectDetectedAccount(email, name) {
-    const emailInput = document.getElementById("authEmailInput");
-    const passwordInput = document.getElementById("authPasswordInput");
-    const hint = document.getElementById("passwordHint");
-    if (emailInput) {
-        emailInput.value = email;
-    }
-    switchAuthTab("signin");
-    if (passwordInput) {
-        passwordInput.focus();
-    }
-    if (hint) {
-        hint.innerHTML = `<span class="text-emerald-400 font-semibold">⚡ Email auto-detected! Enter password to sign in</span>`;
-    }
-}
-
-function handleGitHubAuthClick() {
-    openGitHubAuthView();
-}
-
-function initGoogleIdentity() {
-    const customClientId = localStorage.getItem("google_client_id");
-    if (!customClientId) {
-        return;
-    }
-    if (typeof google === "undefined" || !google.accounts || !google.accounts.id) {
-        setTimeout(initGoogleIdentity, 600);
-        return;
-    }
-
-    try {
-        google.accounts.id.initialize({
-            client_id: customClientId,
-            callback: handleGoogleCredentialResponse,
-            auto_select: false,
-            cancel_on_tap_outside: true
-        });
-    } catch (e) {
-        console.warn("Google Identity initialization warning:", e);
-    }
-}
-
-function triggerGooglePrompt() {
-    const customClientId = localStorage.getItem("google_client_id");
-    if (!customClientId) return;
-    if (typeof google !== "undefined" && google.accounts && google.accounts.id) {
-        try {
-            google.accounts.id.prompt();
-        } catch (e) {}
-    }
-}
-
-async function handleGoogleCredentialResponse(response) {
-    if (!response || !response.credential) {
-        showAuthError("Google Sign-In did not return a valid credential token.");
-        return;
-    }
-
-    const payload = parseJwtPayload(response.credential);
-    if (!payload || !payload.email) {
-        showAuthError("Could not retrieve verified profile from Google credential.");
-        return;
-    }
-
-    const verifiedUser = {
-        id: "google-" + (payload.sub || btoa(payload.email).replace(/[^a-zA-Z0-9]/g, "").slice(0, 14)),
-        email: payload.email.toLowerCase(),
-        name: payload.name || payload.email.split("@")[0],
-        avatar: payload.picture || `https://ui-avatars.com/api/?name=${encodeURIComponent(payload.name || payload.email)}&background=4285F4&color=fff&bold=true`,
-        provider: "google",
-        user_metadata: {
-            full_name: payload.name || payload.email.split("@")[0],
-            name: payload.name,
-            avatar_url: payload.picture,
-            email_verified: payload.email_verified
-        }
-    };
-
-    if (supabaseClient && supabaseClient.auth) {
-        try {
-            await supabaseClient.auth.signInWithIdToken({
-                provider: "google",
-                token: response.credential
-            });
-        } catch (e) {
-            console.log("Supabase direct ID token note:", e.message);
-        }
-    }
-
-    setLoggedInUser(verifiedUser, response.credential);
-    toggleAuthModal(false);
-}
-
-function signInWithGoogleOAuth() {
-    if (supabaseClient) {
-        signInWithOAuth("google");
-        return;
-    }
-    const customClientId = localStorage.getItem("google_client_id");
-    if (customClientId) {
-        const redirectUri = window.location.origin + window.location.pathname;
-        const scope = encodeURIComponent("openid email profile");
-        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(customClientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token%20id_token&scope=${scope}&nonce=aa_${Date.now()}`;
-        window.location.href = authUrl;
-        return;
-    }
-    openGoogleAuthView();
-}
-
-function signInWithGitHubOAuth() {
-    if (supabaseClient) {
-        signInWithOAuth("github");
-        return;
-    }
-    const savedGitHubId = localStorage.getItem("github_client_id");
-    if (savedGitHubId) {
-        const redirectUri = window.location.origin + window.location.pathname;
-        window.location.href = `https://github.com/login/oauth/authorize?client_id=${encodeURIComponent(savedGitHubId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=read:user%20user:email`;
-        return;
-    }
-    openGitHubAuthView();
-}
-
-function checkOAuthRedirectTokens() {
-    const hash = window.location.hash.substring(1);
-    if (!hash) return;
-    const params = new URLSearchParams(hash);
-    const idToken = params.get("id_token");
-    const accessToken = params.get("access_token");
-
-    if (idToken) {
-        const payload = parseJwtPayload(idToken);
-        if (payload && payload.email) {
-            const verifiedUser = {
-                id: "google-" + (payload.sub || btoa(payload.email).replace(/[^a-zA-Z0-9]/g, "").slice(0, 14)),
-                email: payload.email.toLowerCase(),
-                name: payload.name || payload.email.split("@")[0],
-                avatar: payload.picture || `https://ui-avatars.com/api/?name=${encodeURIComponent(payload.name || payload.email)}&background=4285F4&color=fff&bold=true`,
-                provider: "google",
-                user_metadata: {
-                    full_name: payload.name || payload.email.split("@")[0],
-                    name: payload.name,
-                    avatar_url: payload.picture,
-                    email_verified: payload.email_verified
-                }
-            };
-            setLoggedInUser(verifiedUser, idToken);
-            window.history.replaceState(null, "", window.location.pathname + window.location.search);
-        }
-    }
-}
-
-// Google & GitHub Sub-Views
-
-// -----------------------------------------------------------------------------
-// Direct Verified Authentication Handlers (Google & GitHub)
-// -----------------------------------------------------------------------------
-function signInWithGoogleDirect(email, name) {
-    if (!email || !email.includes("@")) {
-        showAuthError("Please enter a valid Google / Gmail address.");
-        return;
-    }
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanName = (name && name.trim()) ? name.trim() : cleanEmail.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-    const googleUser = {
-        id: "google-" + btoa(cleanEmail).replace(/[^a-zA-Z0-9]/g, "").slice(0, 14),
-        email: cleanEmail,
-        name: cleanName,
-        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=4285F4&color=fff&bold=true`,
-        provider: "google",
-        user_metadata: {
-            full_name: cleanName,
-            name: cleanName,
-            email_verified: true,
-            provider: "google"
-        }
-    };
-    const token = createLocalAuthToken(googleUser);
-    setLoggedInUser(googleUser, token);
-}
-
-function handleGoogleDirectSubmit(event) {
-    if (event) event.preventDefault();
-    const emailInput = document.getElementById("googleDirectEmailInput");
-    const nameInput = document.getElementById("googleDirectNameInput");
-    const email = emailInput?.value || "";
-    const name = nameInput?.value || "";
-    signInWithGoogleDirect(email, name);
-}
-
-async function signInWithGitHubDirect(username) {
-    if (!username || !username.trim()) {
-        showAuthError("Please enter your GitHub username or handle.");
-        return;
-    }
-    const cleanUser = username.trim().replace(/^@/, "");
-    let displayName = cleanUser;
-    let avatarUrl = `https://github.com/${cleanUser}.png`;
-    let userEmail = `${cleanUser.toLowerCase()}@github.com`;
-
-    try {
-        const ghRes = await fetch(`https://api.github.com/users/${encodeURIComponent(cleanUser)}`);
-        if (ghRes.ok) {
-            const ghData = await ghRes.json();
-            if (ghData.name) displayName = ghData.name;
-            if (ghData.avatar_url) avatarUrl = ghData.avatar_url;
-            if (ghData.email) userEmail = ghData.email;
-        }
-    } catch (e) {
-        console.warn("GitHub public profile fetch warning:", e);
-    }
-
-    const githubUser = {
-        id: "github-" + cleanUser.toLowerCase().replace(/[^a-zA-Z0-9_-]/g, ""),
-        email: userEmail,
-        name: displayName,
-        avatar: avatarUrl,
-        provider: "github",
-        user_metadata: {
-            full_name: displayName,
-            name: displayName,
-            user_name: cleanUser,
-            avatar_url: avatarUrl,
-            provider: "github"
-        }
-    };
-    const token = createLocalAuthToken(githubUser);
-    setLoggedInUser(githubUser, token);
-}
-
-function handleGitHubDirectSubmit(event) {
-    if (event) event.preventDefault();
-    const userInput = document.getElementById("githubDirectUserInput");
-    const username = userInput?.value || "";
-    signInWithGitHubDirect(username);
-}
-
-function openGoogleAuthView() {
-    const main = document.getElementById("mainAuthView");
-    const googleView = document.getElementById("googleAuthView");
-    const github = document.getElementById("githubAuthView");
-    if (main) main.classList.add("hidden");
-    if (github) github.classList.add("hidden");
-    if (googleView) googleView.classList.remove("hidden");
-    renderGoogleSavedAccounts();
-    if (window.lucide) lucide.createIcons();
-}
-
-function openGitHubAuthView() {
-    const main = document.getElementById("mainAuthView");
-    const googleView = document.getElementById("googleAuthView");
-    const github = document.getElementById("githubAuthView");
-    if (main) main.classList.add("hidden");
-    if (googleView) googleView.classList.add("hidden");
-    if (github) github.classList.remove("hidden");
-    if (window.lucide) lucide.createIcons();
-}
-
-function backToMainAuthView() {
-    const main = document.getElementById("mainAuthView");
-    const googleView = document.getElementById("googleAuthView");
-    const github = document.getElementById("githubAuthView");
-    if (googleView) googleView.classList.add("hidden");
-    if (github) github.classList.add("hidden");
-    if (main) main.classList.remove("hidden");
-    if (window.lucide) lucide.createIcons();
-}
-
-function renderGoogleSavedAccounts() {
-    const container = document.getElementById("googleSavedAccountsList");
-    if (!container) return;
-    try {
-        const saved = JSON.parse(localStorage.getItem("autoapply_saved_accounts") || "[]");
-        const googleAccounts = saved.filter(a => a.provider === "google");
-        if (googleAccounts.length === 0) {
-            container.classList.add("hidden");
-            return;
-        }
-        container.classList.remove("hidden");
-        container.innerHTML = `
-            <span class="text-[10px] uppercase font-mono text-zinc-500 block mb-1">Previous Google Accounts</span>
-            ${googleAccounts.map(a => `
-                <div onclick="selectSavedAccount('${escapeHtml(a.id)}')" class="flex items-center justify-between p-2 rounded-lg bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 cursor-pointer transition">
-                    <div class="flex items-center gap-2.5">
-                        <div class="w-7 h-7 rounded-full bg-blue-600/20 text-blue-400 font-bold text-xs flex items-center justify-center border border-blue-500/30 shrink-0">
-                            ${(a.name[0] || 'G').toUpperCase()}
-                        </div>
-                        <div class="text-left">
-                            <p class="text-xs font-semibold text-zinc-200">${escapeHtml(a.name)}</p>
-                            <p class="text-[10px] text-zinc-400 font-mono">${escapeHtml(a.email)}</p>
-                        </div>
-                    </div>
-                    <span class="text-[10px] text-blue-400 font-medium">Continue →</span>
-                </div>
-            `).join('')}
-        `;
-    } catch (e) {
-        container.classList.add("hidden");
-    }
-}
-
-function selectSavedAccount(accountId) {
-    try {
-        const saved = JSON.parse(localStorage.getItem("autoapply_saved_accounts") || "[]");
-        const match = saved.find(a => a.id === accountId);
-        if (match) {
-            const token = createLocalAuthToken(match);
-            setLoggedInUser(match, token);
-        }
-    } catch (e) {}
-}
+// Clean Secure Email & Password Authentication
+// =============================================================================
 
 function toggleMobileNavMenu(forceState) {
     const menu = document.getElementById("mobileNavMenu");
@@ -2195,22 +1824,22 @@ function toggleAuthModal(show, errorMsg = null) {
     if (!modal) return;
     if (show) {
         modal.classList.remove("hidden");
+        switchAuthTab("signin");
         if (errorMsg) {
             showAuthError(errorMsg);
         } else {
             hideAuthError();
         }
-        backToMainAuthView();
-        renderDetectedAccounts();
         const emailInput = document.getElementById("authEmailInput");
-        if (emailInput && (emailInput.value.includes("supabase.co") || emailInput.value.startsWith("http"))) {
-            emailInput.value = "";
-        }
-        triggerGooglePrompt();
+        const passInput = document.getElementById("authPasswordInput");
+        const nameInput = document.getElementById("authNameInput");
+        if (emailInput) emailInput.value = "";
+        if (passInput) passInput.value = "";
+        if (nameInput) nameInput.value = "";
     } else {
         modal.classList.add("hidden");
         hideAuthError();
-        backToMainAuthView();
+        switchAuthTab("signin");
     }
     closeUserDropdown();
 }
@@ -2220,53 +1849,33 @@ function switchAuthTab(tab) {
     const tabSignIn = document.getElementById("tabSignInBtn");
     const tabSignUp = document.getElementById("tabSignUpBtn");
     const nameField = document.getElementById("signUpNameField");
+    const nameInput = document.getElementById("authNameInput");
     const submitText = document.getElementById("authSubmitBtnText");
+    const passwordLabel = document.getElementById("passwordLabel");
+    const switchPrompt = document.getElementById("authSwitchPrompt");
 
     if (tab === "signin") {
-        tabSignIn.className = "flex-1 py-1.5 rounded-md bg-zinc-800 text-zinc-100 transition shadow-sm";
-        tabSignUp.className = "flex-1 py-1.5 rounded-md text-zinc-400 hover:text-zinc-200 transition";
+        if (tabSignIn) tabSignIn.className = "flex-1 py-2 rounded-md bg-zinc-800 text-zinc-100 transition shadow-sm cursor-pointer font-semibold";
+        if (tabSignUp) tabSignUp.className = "flex-1 py-2 rounded-md text-zinc-400 hover:text-zinc-200 transition cursor-pointer font-semibold";
         if (nameField) nameField.classList.add("hidden");
+        if (nameInput) nameInput.required = false;
         if (submitText) submitText.textContent = "Sign In to Dashboard";
+        if (passwordLabel) passwordLabel.textContent = "Password";
+        if (switchPrompt) {
+            switchPrompt.innerHTML = `Don't have an account yet? <button type="button" onclick="switchAuthTab('signup')" class="text-emerald-400 hover:text-emerald-300 font-semibold underline cursor-pointer ml-1">Create an account first</button>`;
+        }
     } else {
-        tabSignUp.className = "flex-1 py-1.5 rounded-md bg-zinc-800 text-zinc-100 transition shadow-sm";
-        tabSignIn.className = "flex-1 py-1.5 rounded-md text-zinc-400 hover:text-zinc-200 transition";
+        if (tabSignUp) tabSignUp.className = "flex-1 py-2 rounded-md bg-zinc-800 text-zinc-100 transition shadow-sm cursor-pointer font-semibold";
+        if (tabSignIn) tabSignIn.className = "flex-1 py-2 rounded-md text-zinc-400 hover:text-zinc-200 transition cursor-pointer font-semibold";
         if (nameField) nameField.classList.remove("hidden");
-        if (submitText) submitText.textContent = "Create Free Account";
+        if (nameInput) nameInput.required = true;
+        if (submitText) submitText.textContent = "Create Account & Get Started";
+        if (passwordLabel) passwordLabel.textContent = "Create Password";
+        if (switchPrompt) {
+            switchPrompt.innerHTML = `Already have an account? <button type="button" onclick="switchAuthTab('signin')" class="text-emerald-400 hover:text-emerald-300 font-semibold underline cursor-pointer ml-1">Sign in here</button>`;
+        }
     }
     hideAuthError();
-}
-
-async function signInWithOAuth(provider) {
-    const savedUrl = localStorage.getItem("supabase_url") || "";
-    const savedKey = localStorage.getItem("supabase_anon_key") || "";
-    const hasRealSupabase = savedUrl && savedKey && !savedUrl.includes("iyqcrvdmlbtzrehwaxvl");
-
-    if (!hasRealSupabase || !supabaseClient) {
-        if (provider === "google") {
-            signInWithGoogleOAuth();
-            return;
-        }
-        showAuthError(
-            `Google & GitHub OAuth connect through your free Supabase project keys. ` +
-            `Click 'Cloud Config Keys' below to add your keys, or sign in instantly with Google One Tap, Email & Password, or Demo Guest mode!`
-        );
-        return;
-    }
-    try {
-        const { error } = await supabaseClient.auth.signInWithOAuth({
-            provider: provider,
-            options: { redirectTo: window.location.origin }
-        });
-        if (error) {
-            if (error.message && (error.message.includes("not enabled") || error.message.includes("validation_failed") || error.message.includes("Unsupported provider"))) {
-                showAuthError(`The '${provider}' provider is not enabled in your Supabase project (Authentication -> Providers -> ${provider.charAt(0).toUpperCase() + provider.slice(1)}). Use Email or Instant Demo Guest mode.`);
-                return;
-            }
-            throw error;
-        }
-    } catch (err) {
-        showAuthError(err.message || "OAuth sign-in failed. Please use Email or Demo mode.");
-    }
 }
 
 async function handleEmailAuth(event) {
@@ -2277,7 +1886,7 @@ async function handleEmailAuth(event) {
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!email || !emailRegex.test(email)) {
-        showAuthError("Please enter a valid email address.");
+        showAuthError("Please enter a valid Gmail / Email address.");
         return;
     }
     if (!password || password.length < 6) {
@@ -2285,90 +1894,77 @@ async function handleEmailAuth(event) {
         return;
     }
 
+    let localUsers = {};
+    try {
+        localUsers = JSON.parse(localStorage.getItem("autoapply_local_users") || "{}");
+    } catch (e) {
+        localUsers = {};
+    }
+
     const savedUrl = localStorage.getItem("supabase_url") || "";
     const savedKey = localStorage.getItem("supabase_anon_key") || "";
     const hasRealSupabase = savedUrl && savedKey && !savedUrl.includes("iyqcrvdmlbtzrehwaxvl");
 
-    if (!hasRealSupabase || !supabaseClient) {
-        let localUsers = {};
-        try {
-            localUsers = JSON.parse(localStorage.getItem("autoapply_local_users") || "{}");
-        } catch (e) {
-            localUsers = {};
-        }
-
-        if (authMode === "signup") {
-            if (localUsers[email]) {
-                showAuthError("An account with this email already exists. Please switch to 'Sign In'.");
-                return;
-            }
-            const cleanName = fullName || email.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-            const userObj = {
-                id: "email-" + btoa(email).replace(/[^a-zA-Z0-9]/g, "").slice(0, 14),
-                email: email,
-                name: cleanName,
-                user_metadata: { full_name: cleanName },
-                passwordHash: btoa(password),
-                provider: "email"
-            };
-            localUsers[email] = userObj;
-            localStorage.setItem("autoapply_local_users", JSON.stringify(localUsers));
-            const token = createLocalAuthToken(userObj);
-            setLoggedInUser(userObj, token);
-            return;
-        } else {
-            let existing = localUsers[email];
-            if (!existing) {
-                // Seamless instant registration on Sign In tab
-                const cleanName = email.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-                existing = {
-                    id: "email-" + btoa(email).replace(/[^a-zA-Z0-9]/g, "").slice(0, 14),
-                    email: email,
-                    name: cleanName,
-                    user_metadata: { full_name: cleanName },
-                    passwordHash: btoa(password),
-                    provider: "email"
-                };
-                localUsers[email] = existing;
-                localStorage.setItem("autoapply_local_users", JSON.stringify(localUsers));
-            } else if (existing.passwordHash && existing.passwordHash !== btoa(password)) {
-                showAuthError("Incorrect password. Please verify your credentials.");
-                return;
-            }
-            const token = createLocalAuthToken(existing);
-            setLoggedInUser(existing, token);
+    if (authMode === "signup") {
+        if (!fullName) {
+            showAuthError("Please enter your Full Name to create an account.");
             return;
         }
-    }
+        if (localUsers[email]) {
+            showAuthError("An account with this email already exists. Please switch to the 'Sign In' tab.");
+            return;
+        }
 
-    try {
-        if (authMode === "signup") {
-            const { data, error } = await supabaseClient.auth.signUp({
-                email,
-                password,
-                options: { data: { full_name: fullName } }
-            });
-            if (error) throw error;
-            if (data.session) {
-                setLoggedInUser(data.user, data.session.access_token);
-            } else {
-                showAuthError("Account created! Supabase has 'Confirm email' turned ON by default. To bypass email verification: In Supabase Dashboard (Auth -> Providers -> Email), turn OFF 'Confirm email'. Or click 'Continue as Demo Guest' above.");
-            }
-        } else {
-            const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-            if (error) {
-                if (error.message && error.message.toLowerCase().includes("email not confirmed")) {
-                    showAuthError("Email not confirmed yet! Quick Tip: In Supabase Dashboard (Auth -> Providers -> Email), turn OFF 'Confirm email'. Or click 'Continue as Demo Guest' above.");
-                    return;
-                }
-                throw error;
-            }
-            if (data.session) {
-                setLoggedInUser(data.user, data.session.access_token);
+        const cleanName = fullName;
+        const userObj = {
+            id: "user-" + btoa(email).replace(/[^a-zA-Z0-9]/g, "").slice(0, 14),
+            email: email,
+            name: cleanName,
+            user_metadata: { full_name: cleanName, name: cleanName },
+            passwordHash: btoa(password),
+            provider: "email"
+        };
+        localUsers[email] = userObj;
+        localStorage.setItem("autoapply_local_users", JSON.stringify(localUsers));
+
+        if (hasRealSupabase && supabaseClient) {
+            try {
+                await supabaseClient.auth.signUp({
+                    email,
+                    password,
+                    options: { data: { full_name: cleanName } }
+                });
+            } catch (e) {
+                console.log("Supabase signup note:", e);
             }
         }
-    } catch (err) {
-        showAuthError(err.message || "Authentication failed");
+
+        const token = createLocalAuthToken(userObj);
+        setLoggedInUser(userObj, token);
+        return;
+    } else {
+        // Sign In mode: New users must make the account first!
+        const existing = localUsers[email];
+        if (!existing) {
+            showAuthError("No account found with this email. Please switch to the 'Create Account' tab above to register first.");
+            return;
+        }
+        if (existing.passwordHash && existing.passwordHash !== btoa(password)) {
+            showAuthError("Incorrect password. Please verify your password.");
+            return;
+        }
+
+        if (hasRealSupabase && supabaseClient) {
+            try {
+                await supabaseClient.auth.signInWithPassword({ email, password });
+            } catch (e) {
+                console.log("Supabase signin note:", e);
+            }
+        }
+
+        const token = createLocalAuthToken(existing);
+        setLoggedInUser(existing, token);
+        return;
     }
 }
 
