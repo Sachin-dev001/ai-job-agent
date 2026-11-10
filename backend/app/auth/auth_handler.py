@@ -46,10 +46,10 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> Curre
     if REQUIRE_AUTH:
         raise HTTPException(status_code=401, detail="Authentication required. Please sign in.")
 
-    # Local development / Demo mode fallback
+    # Local development / Guest mode fallback
     return CurrentUser(
-        id="local-dev-user-001",
-        email="sachin.sharma.coder@gmail.com",
-        name="Sachin Sharma",
+        id="guest-candidate",
+        email="guest@autoapply.ai",
+        name="Guest",
         is_authenticated=False
     )

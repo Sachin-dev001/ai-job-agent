@@ -1207,12 +1207,11 @@ function getAuthToken() {
 }
 
 function initSupabase() {
-    const defaultUrl = "https://iyqcrvdmlbtzrehwaxvl.supabase.co";
-    const defaultAnonKey = "sb_publishable_NAnZqKhLVDso23lHeRV_HA_BpJ0fJn9";
-    const savedUrl = localStorage.getItem("supabase_url") || defaultUrl;
-    const savedKey = localStorage.getItem("supabase_anon_key") || defaultAnonKey;
+    const savedUrl = localStorage.getItem("supabase_url") || "";
+    const savedKey = localStorage.getItem("supabase_anon_key") || "";
+    const isRealSupabase = savedUrl && savedKey && !savedUrl.includes("iyqcrvdmlbtzrehwaxvl");
 
-    if (window.supabase && window.supabase.createClient && savedUrl) {
+    if (isRealSupabase && window.supabase && window.supabase.createClient) {
         try {
             supabaseClient = window.supabase.createClient(savedUrl, savedKey);
             supabaseClient.auth.onAuthStateChange((event, session) => {
@@ -1224,9 +1223,13 @@ function initSupabase() {
             });
         } catch (e) {
             console.warn("Could not init Supabase client:", e);
+            supabaseClient = null;
         }
+    } else {
+        supabaseClient = null;
     }
 
+    // Restore existing session or default to logged-out Guest state (NO auto-login as Sachin!)
     const storedUser = localStorage.getItem("autoapply_user");
     const storedToken = localStorage.getItem("autoapply_auth_token");
     if (storedUser) {
@@ -1235,10 +1238,10 @@ function initSupabase() {
             currentAuthToken = storedToken;
             renderAuthNavbar();
         } catch (e) {
-            loginAsDemoUser();
+            setLoggedOutUser();
         }
     } else {
-        loginAsDemoUser();
+        setLoggedOutUser();
     }
 
     // Check for redirect OAuth errors in URL
@@ -1281,11 +1284,11 @@ function setLoggedOutUser() {
 
 function loginAsDemoUser() {
     currentAuthUser = {
-        id: "local-dev-user-001",
-        email: "sachin.sharma.coder@gmail.com",
-        name: "Sachin Sharma"
+        id: "demo-guest-" + Date.now().toString(36),
+        email: "demo.candidate@autoapply.ai",
+        name: "Demo Candidate"
     };
-    currentAuthToken = "local_demo_token";
+    currentAuthToken = "demo_guest_token";
     localStorage.setItem("autoapply_user", JSON.stringify(currentAuthUser));
     localStorage.setItem("autoapply_auth_token", currentAuthToken);
     renderAuthNavbar();
@@ -1349,6 +1352,10 @@ function toggleAuthModal(show) {
     if (show) {
         modal.classList.remove("hidden");
         hideAuthError();
+        const emailInput = document.getElementById("authEmailInput");
+        if (emailInput && (emailInput.value.includes("supabase.co") || emailInput.value.startsWith("http"))) {
+            emailInput.value = "";
+        }
     } else {
         modal.classList.add("hidden");
     }
@@ -1377,8 +1384,15 @@ function switchAuthTab(tab) {
 }
 
 async function signInWithOAuth(provider) {
-    if (!supabaseClient) {
-        showAuthError("Please connect your Supabase Project keys first, or use Instant Demo Guest mode.");
+    const savedUrl = localStorage.getItem("supabase_url") || "";
+    const savedKey = localStorage.getItem("supabase_anon_key") || "";
+    const hasRealSupabase = savedUrl && savedKey && !savedUrl.includes("iyqcrvdmlbtzrehwaxvl");
+
+    if (!hasRealSupabase || !supabaseClient) {
+        showAuthError(
+            `Google & GitHub OAuth require connecting your free Supabase project keys. ` +
+            `Click 'Cloud Config Keys' below to add your keys, or sign in instantly with Email & Password or Demo Guest mode!`
+        );
         return;
     }
     try {
@@ -1404,12 +1418,17 @@ async function handleEmailAuth(event) {
     const password = document.getElementById("authPasswordInput").value;
     const fullName = document.getElementById("authNameInput")?.value?.trim() || "";
 
-    if (!supabaseClient) {
+    const savedUrl = localStorage.getItem("supabase_url") || "";
+    const savedKey = localStorage.getItem("supabase_anon_key") || "";
+    const hasRealSupabase = savedUrl && savedKey && !savedUrl.includes("iyqcrvdmlbtzrehwaxvl");
+
+    if (!hasRealSupabase || !supabaseClient) {
+        const cleanName = fullName || email.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
         setLoggedInUser({
-            id: "user-" + btoa(email).slice(0, 12),
+            id: "user-" + btoa(email).replace(/[^a-zA-Z0-9]/g, "").slice(0, 12),
             email: email,
-            user_metadata: { full_name: fullName || email.split("@")[0] }
-        }, "local_token_" + Date.now());
+            user_metadata: { full_name: cleanName }
+        }, "local_auth_token_" + Date.now());
         return;
     }
 

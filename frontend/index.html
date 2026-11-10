@@ -244,20 +244,8 @@
                     <span id="backendStatusText" class="text-[10px] sm:text-[11px] truncate max-w-[65px] sm:max-w-none">Backend</span>
                 </button>
 
-                <!-- Platform Status Pills (Desktop only) -->
-                <div class="hidden lg:flex items-center gap-2 text-xs">
-                    <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-900/90 border border-zinc-800 text-zinc-300">
-                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                        <span class="font-medium text-[11px]">Naukri</span>
-                    </div>
-                    <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-900/90 border border-zinc-800 text-zinc-300">
-                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                        <span class="font-medium text-[11px]">Wellfound</span>
-                    </div>
-                </div>
-
                 <!-- Memory Vault Trigger -->
-                <button id="openVaultBtn" onclick="toggleVaultModal(true)" class="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 hover:border-zinc-700 text-xs font-medium text-zinc-200 transition shadow-sm" title="Memory Vault">
+                <button id="openVaultBtn" onclick="toggleVaultModal(true)" class="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 hover:border-zinc-700 text-xs font-medium text-zinc-200 transition shadow-sm" title="Memory Vault">
                     <i data-lucide="brain" class="w-3.5 h-3.5 text-zinc-400 shrink-0"></i>
                     <span class="hidden md:inline">Memory Vault</span>
                     <span id="vaultCountBadge" class="text-[10px] font-mono px-1.5 py-0.2 rounded bg-zinc-800 text-emerald-400 border border-zinc-700/60">21</span>
@@ -266,7 +254,7 @@
                 <!-- Auth / User Profile Controls (Desktop) -->
                 <div id="authNavContainer" class="hidden sm:flex items-center">
                     <!-- Unauthenticated Button -->
-                    <button id="authSignInBtn" onclick="toggleAuthModal(true)" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-zinc-900 to-zinc-800 hover:from-zinc-800 hover:to-zinc-700 border border-zinc-700/80 hover:border-zinc-500 text-xs font-semibold text-zinc-100 transition shadow-sm">
+                    <button id="authSignInBtn" onclick="toggleAuthModal(true)" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 hover:border-emerald-500/50 text-xs font-semibold text-emerald-300 transition shadow-sm">
                         <i data-lucide="user" class="w-3.5 h-3.5 text-emerald-400"></i>
                         <span>Sign In</span>
                     </button>
@@ -274,15 +262,15 @@
                     <!-- Authenticated User Dropdown -->
                     <div id="authUserMenu" class="hidden relative">
                         <button onclick="toggleUserDropdown()" class="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs text-zinc-200 transition">
-                            <div id="userAvatar" class="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-[10px] flex items-center justify-center border border-emerald-500/30">S</div>
-                            <span id="userNameDisplay" class="max-w-[70px] md:max-w-[100px] truncate font-medium">Sachin</span>
+                            <div id="userAvatar" class="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-[10px] flex items-center justify-center border border-emerald-500/30">U</div>
+                            <span id="userNameDisplay" class="max-w-[70px] md:max-w-[110px] truncate font-medium">Account</span>
                             <i data-lucide="chevron-down" class="w-3 h-3 text-zinc-500"></i>
                         </button>
                         <div id="userDropdownPanel" class="hidden absolute right-0 mt-2 w-56 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl py-1.5 text-xs z-50">
                             <div class="px-3.5 py-2 border-b border-zinc-800 text-zinc-400">
                                 <p id="userEmailDisplay" class="font-medium truncate text-zinc-200">user@example.com</p>
                                 <span class="inline-flex items-center gap-1 mt-1 text-[10px] text-emerald-400">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Supabase RLS Active
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Active Session
                                 </span>
                             </div>
                             <button onclick="openCloudConfigModal()" class="w-full text-left px-3.5 py-2 hover:bg-zinc-800/80 text-zinc-300 flex items-center gap-2 transition">
@@ -294,12 +282,6 @@
                         </div>
                     </div>
                 </div>
-
-                <!-- Jump to Console Button (Desktop) -->
-                <a href="#console" class="hidden sm:flex bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs px-3 py-1.5 rounded-lg transition shadow-sm items-center gap-1.5">
-                    <span>Console</span>
-                    <i data-lucide="arrow-down-right" class="w-3.5 h-3.5"></i>
-                </a>
 
                 <!-- Mobile Menu Hamburger Button (Mobile Only) -->
                 <button id="mobileMenuToggleBtn" onclick="toggleMobileNavMenu()" class="sm:hidden p-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white transition" aria-label="Toggle Mobile Navigation">
@@ -381,7 +363,7 @@
         <!-- Hero Headline -->
         <h1 class="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight text-white max-w-5xl mx-auto leading-[1.12] sm:leading-[1.08] px-1">
             The Autonomous Job Search System for 
-            <span class="bg-gradient-to-r from-zinc-100 via-zinc-200 to-zinc-500 bg-clip-text text-transparent">Top Engineers</span>
+            <span class="bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-200 bg-clip-text text-transparent">Top Engineers</span>
         </h1>
 
         <!-- Hero Subheadline -->
@@ -1220,7 +1202,7 @@
                 </div>
                 <div class="space-y-1">
                     <label class="text-[11px] font-medium text-zinc-400">Email Address</label>
-                    <input id="authEmailInput" type="email" required placeholder="you@domain.com" class="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-zinc-200 focus:border-zinc-600 outline-none transition">
+                    <input id="authEmailInput" name="email" type="email" autocomplete="username" required placeholder="you@domain.com" class="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-zinc-200 focus:border-zinc-600 outline-none transition">
                 </div>
                 <div class="space-y-1">
                     <div class="flex items-center justify-between">
@@ -1461,7 +1443,7 @@
     </div>
 
     <!-- Application Controller Script -->
-    <script src="/static/js/app.js?v=14.0"></script>
+    <script src="/static/js/app.js?v=15.0"></script>
     <script>
         lucide.createIcons();
     </script>
