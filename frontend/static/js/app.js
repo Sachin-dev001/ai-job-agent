@@ -1616,12 +1616,14 @@ function toggleAuthModal(show) {
     if (show) {
         modal.classList.remove("hidden");
         hideAuthError();
+        backToMainAuthView();
         const emailInput = document.getElementById("authEmailInput");
         if (emailInput && (emailInput.value.includes("supabase.co") || emailInput.value.startsWith("http"))) {
             emailInput.value = "";
         }
     } else {
         modal.classList.add("hidden");
+        backToMainAuthView();
     }
     closeUserDropdown();
 }
