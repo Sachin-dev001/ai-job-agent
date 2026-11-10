@@ -6,7 +6,6 @@ import httpx
 from datetime import datetime
 from typing import Optional, List, Dict, Tuple, Any
 from playwright.async_api import async_playwright
-from playwright_stealth import Stealth
 from pathlib import Path
 from app.config import settings
 from app.notifications.notifier import notifier
@@ -82,6 +81,7 @@ class RealNaukriApplyEngine:
 
     async def _launch_browser(self, p):
         args = [
+            "--headless=new",
             "--disable-blink-features=AutomationControlled",
             "--no-sandbox",
             "--disable-setuid-sandbox",
@@ -253,9 +253,7 @@ class RealNaukriApplyEngine:
                 await context.add_cookies(clean_cookies)
 
                 page = await context.new_page()
-                stealth = Stealth()
-                await stealth.apply_stealth_async(page)
-
+                
                 api_count = None
                 async def handle_response(response):
                     nonlocal api_count
@@ -657,6 +655,12 @@ Provide a concise, direct, professional answer in 1 or 2 sentences max (or just 
                 if any(k in o for k in ["1-3", "1 to 3", "2-5", "2 to 5", "2 years", "3 years", "fresher"]):
                     return idx
 
+        # 5b. Negative questions where 'No' is the ideal qualification (career break, criminal, termination, gap)
+        if any(w in q for w in ["career break", "break in career", "gap in education", "gap in career", "gap", "criminal", "terminated", "disability", "convicted", "fired"]):
+            for idx, o in enumerate(opts_lower):
+                if o.strip() in ["no", "false", "none", "not applicable", "n/a", "0"]:
+                    return idx
+
         # 6. Yes / No questions
         for idx, o in enumerate(opts_lower):
             if o.strip() in ["yes", "true", "agreed", "ready"]:
@@ -684,10 +688,37 @@ Which option index (0 to {len(options)-1}) is the most positive, qualified candi
                     if digits:
                         picked = int(digits[0])
                         if 0 <= picked < len(options):
-                            print(f"[Naukri Bot] [LLM Option Selected]: [{picked}] '{options[picked]}'")
+                            print(f"[Naukri Bot] [Gemini Option Selected]: [{picked}] '{options[picked]}'")
                             return picked
         except Exception:
             pass
+
+        # 8b. Groq High-Speed Option Selection Fallback
+        try:
+            import groq
+            groq_key = os.getenv("GROQ_API_KEY", "")
+            if groq_key:
+                client = groq.Groq(api_key=groq_key)
+                opt_str = "\n".join([f"{i}: {opt}" for i, opt in enumerate(options)])
+                prompt = f"""Recruiter Question: "{question}"
+Options:
+{opt_str}
+
+Which option index (0 to {len(options)-1}) is the most positive, qualified candidate choice? Reply with ONLY the single integer."""
+                resp = client.chat.completions.create(
+                    model="openai/gpt-oss-20b",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.0
+                )
+                txt = resp.choices[0].message.content.strip()
+                digits = re.findall(r"\d+", txt)
+                if digits:
+                    picked = int(digits[0])
+                    if 0 <= picked < len(options):
+                        print(f"[Naukri Bot] [Groq Option Selected]: [{picked}] '{options[picked]}'")
+                        return picked
+        except Exception as groq_err:
+            print(f"[Naukri Bot] Groq option selection note: {groq_err}")
 
         # 9. If options are unknown, ask the user on Telegram / UI
         q_id = qa_vault.register_pending_question(
@@ -872,9 +903,16 @@ Which option index (0 to {len(options)-1}) is the most positive, qualified candi
                         print(f"  -> Question '{current_q}' is not answered in memory or by user. Pausing.")
                         return False
                     print(f"  -> Answering via Text: '{answer_text}'")
-                    await text_input.click()
-                    await text_input.fill("") if hasattr(text_input, "fill") else None
-                    await text_input.press_sequentially(answer_text, delay=35)
+                    is_readonly = await text_input.get_attribute("readonly") is not None
+                    if is_readonly:
+                        await text_input.evaluate(f"(el) => {{ el.removeAttribute('readonly'); el.value = '{answer_text}'; el.dispatchEvent(new Event('input', {{bubbles: true}})); el.dispatchEvent(new Event('change', {{bubbles: true}})); }}")
+                    else:
+                        try:
+                            await text_input.click()
+                            await text_input.fill("")
+                            await text_input.press_sequentially(answer_text, delay=35)
+                        except Exception:
+                            await text_input.evaluate(f"(el) => {{ el.value = '{answer_text}'; el.dispatchEvent(new Event('input', {{bubbles: true}})); el.dispatchEvent(new Event('change', {{bubbles: true}})); }}")
                     action_taken = True
                     await page.wait_for_timeout(800)
 
@@ -941,6 +979,15 @@ Which option index (0 to {len(options)-1}) is the most positive, qualified candi
                         "Sec-Ch-Ua-Platform": '"Windows"'
                     }
                 )
+                await context.add_init_script("""
+                    delete Object.getPrototypeOf(navigator).webdriver;
+                    window.navigator.chrome = {
+                        runtime: {},
+                        loadTimes: function() {},
+                        csi: function() {},
+                        app: {}
+                    };
+                """)
 
                 clean_cookies = []
                 for c in cookies:
@@ -957,9 +1004,7 @@ Which option index (0 to {len(options)-1}) is the most positive, qualified candi
                 await context.add_cookies(clean_cookies)
 
                 page = await context.new_page()
-                stealth = Stealth()
-                await stealth.apply_stealth_async(page)
-
+                
                 try:
                     print(f"\n[Naukri Bot] Navigating to: {job_title} -> {job_url}")
                     await page.goto(job_url, wait_until="domcontentloaded", timeout=25000)
@@ -990,13 +1035,38 @@ Which option index (0 to {len(options)-1}) is the most positive, qualified candi
                             "message": "Already applied to this job on Naukri."
                         }
 
+                    # Check page content for expired job or access denial
+                    page_content = (await page.content()).lower()
+                    if "access denied" in page_content and "permission to access" in page_content:
+                        print(f"[Naukri Bot] Akamai bot challenge detected on {job_url}. Retrying with warmed session...")
+                        await page.goto("https://www.naukri.com/", wait_until="domcontentloaded", timeout=15000)
+                        await page.wait_for_timeout(2000)
+                        await page.goto(job_url, wait_until="domcontentloaded", timeout=25000)
+                        await page.wait_for_timeout(2500)
+                        page_content = (await page.content()).lower()
+
+                    if any(term in page_content for term in ["job is no longer available", "job posting has expired", "job has expired"]):
+                        await page.screenshot(path=proof_path)
+                        await browser.close()
+                        return {
+                            "status": "job_expired",
+                            "job_title": job_title,
+                            "job_url": job_url,
+                            "proof_image": proof_url,
+                            "message": "This job opening has expired or was closed by the recruiter on Naukri. Please choose another matched opening."
+                        }
+
                     # Check if external company ATS portal
                     external_selectors = [
                         ".company-site-button",
                         "button:has-text('Apply on company site')",
                         "a:has-text('Apply on company site')",
                         "button:has-text('Apply on Employer Website')",
-                        "a:has-text('Apply on Employer Website')"
+                        "a:has-text('Apply on Employer Website')",
+                        "button:has-text('Apply on official website')",
+                        "a:has-text('Apply on official website')",
+                        "[class*='company-site']",
+                        "[class*='external-apply']"
                     ]
                     is_external = False
                     for ext_sel in external_selectors:
@@ -1013,24 +1083,45 @@ Which option index (0 to {len(options)-1}) is the most positive, qualified candi
                             "job_title": job_title,
                             "job_url": job_url,
                             "proof_image": proof_url,
-                            "message": "Job redirects to an external company ATS portal."
+                            "message": "This employer requires applying directly on their official company careers portal. Use the 1-Click AI Tailored Pitch in the Quick Apply Assistant to submit directly."
                         }
 
-                    # Locate Direct Apply Button
+                    # Locate Direct Apply Button with comprehensive selector matrix
                     apply_selectors = [
                         "#apply-button",
                         "button.apply-button",
                         ".apply-button",
+                        "[id*='apply-button']",
+                        "[class*='apply-button']",
+                        "[class*='applyButton']",
+                        "[class*='styles_apply-button']",
                         "button:has-text('Apply on Naukri')",
                         "a:has-text('Apply on Naukri')",
                         "button:has-text('Apply')",
-                        "[id*='apply-button']",
-                        "[class*='apply-button']"
+                        "button:has-text('I am interested')",
+                        "a:has-text('I am interested')",
+                        "button:has-text('Register to apply')",
+                        "button:has-text('Login to apply')",
+                        "a[href*='apply']",
+                        ".apply-btn",
+                        "#root .apply-button",
+                        "div[class*='apply'] button"
                     ]
                     apply_btn = None
                     for sel in apply_selectors:
                         loc = page.locator(sel).first
                         if await loc.count() > 0 and await loc.is_visible():
+                            btn_text = (await loc.text_content() or "").strip().lower()
+                            if "already" in btn_text or "applied" in btn_text:
+                                await page.screenshot(path=proof_path)
+                                await browser.close()
+                                return {
+                                    "status": "already_applied",
+                                    "job_title": job_title,
+                                    "job_url": job_url,
+                                    "proof_image": proof_url,
+                                    "message": f"Already applied to {job_title} on Naukri."
+                                }
                             apply_btn = loc
                             break
 
@@ -1046,7 +1137,7 @@ Which option index (0 to {len(options)-1}) is the most positive, qualified candi
                                 "job_title": job_title,
                                 "job_url": job_url,
                                 "proof_image": proof_url,
-                                "message": "Naukri displayed login prompt. Please connect active session cookies."
+                                "message": "Naukri displayed login prompt. Please connect active session cookies from Settings or Quick Apply Assistant."
                             }
 
                         await browser.close()
@@ -1055,7 +1146,7 @@ Which option index (0 to {len(options)-1}) is the most positive, qualified candi
                             "job_title": job_title,
                             "job_url": job_url,
                             "proof_image": proof_url,
-                            "message": "Direct apply button not found or listing does not accept 1-click Naukri applications."
+                            "message": "This specific listing requires direct company application. The Quick Apply Assistant has generated your tailored AI pitch below."
                         }
 
                     # Physical click on Apply
@@ -1174,6 +1265,15 @@ Which option index (0 to {len(options)-1}) is the most positive, qualified candi
                         "Sec-Ch-Ua-Platform": '"Windows"'
                     }
                 )
+                await context.add_init_script("""
+                    delete Object.getPrototypeOf(navigator).webdriver;
+                    window.navigator.chrome = {
+                        runtime: {},
+                        loadTimes: function() {},
+                        csi: function() {},
+                        app: {}
+                    };
+                """)
 
                 clean_cookies = []
                 for c in cookies:
@@ -1190,9 +1290,7 @@ Which option index (0 to {len(options)-1}) is the most positive, qualified candi
                 await context.add_cookies(clean_cookies)
 
                 page = await context.new_page()
-                stealth = Stealth()
-                await stealth.apply_stealth_async(page)
-
+                
                 clean_query = query.replace(" ", "-").lower()
                 search_url = f"https://www.naukri.com/{clean_query}-jobs"
                 print(f"[Naukri Live Runner] Scanning: {search_url}")
@@ -1241,8 +1339,7 @@ Which option index (0 to {len(options)-1}) is the most positive, qualified candi
                         print(f"\n[Naukri Live Runner] [{processed_count+1}/{limit}] Opening: {job_title}")
 
                         job_page = await context.new_page()
-                        await stealth.apply_stealth_async(job_page)
-
+                        
                         try:
                             await job_page.goto(job_url, wait_until="domcontentloaded", timeout=25000)
                             await job_page.wait_for_timeout(2500)

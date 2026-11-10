@@ -15,10 +15,10 @@ class GeminiService:
 
     def __init__(self):
         self.candidate_models = [
-            "gemini-3.8-flash",
-            "gemini-3.5-flash",
+            "gemini-2.5-flash",
+            "gemini-2.5-flash-lite",
             "gemini-flash-latest",
-            "gemini-flash-lite-latest"
+            "gemini-2.5-pro"
         ]
 
     def get_api_key(self) -> str:
@@ -71,8 +71,8 @@ class GeminiService:
                         return parts[0]["text"].strip()
             except urllib.error.HTTPError as http_err:
                 logger.warning(f"[Gemini Service] Model {model_name} HTTP {http_err.code}: {http_err.reason}")
-                if http_err.code in (400, 401, 403):
-                    logger.warning(f"[Gemini Service] Fatal authentication or client error ({http_err.code}). Aborting model attempts.")
+                if http_err.code in (400, 401, 403, 429):
+                    logger.warning(f"[Gemini Service] Fatal authentication, client error, or rate limit ({http_err.code}). Aborting model attempts.")
                     break
                 continue
             except Exception as e:

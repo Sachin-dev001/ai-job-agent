@@ -762,6 +762,33 @@ async function directApplyRow(idx) {
             if (actionCell) actionCell.innerHTML = alreadyProofHtml;
             if (actionCard) actionCard.innerHTML = alreadyProofHtml;
             alert(`ℹ️ You have already applied to ${job.title} on ${platformLabel}.`);
+        } else if (data.status === "external_portal") {
+            const extHtml = `
+                <span class="inline-flex items-center gap-1.5 text-blue-400 text-xs font-semibold">
+                    <span class="w-1.5 h-1.5 rounded-full bg-blue-400"></span> External Portal
+                </span>
+            `;
+            if (statusCell) statusCell.innerHTML = extHtml;
+            if (statusCard) statusCard.innerHTML = extHtml;
+
+            const extActionHtml = `
+                <button type="button" onclick="openQuickApplyModal(${idx}, 'external_portal')" class="text-[11px] text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2.5 py-1 rounded-lg font-bold hover:underline inline-flex items-center gap-1 cursor-pointer">
+                    📋 AI Pitch & Apply ↗
+                </button>
+            `;
+            if (actionCell) actionCell.innerHTML = extActionHtml;
+            if (actionCard) actionCard.innerHTML = extActionHtml;
+
+            openQuickApplyModal(idx, data.message || "External career portal application required.");
+        } else if (data.status === "job_expired") {
+            const expHtml = `
+                <span class="inline-flex items-center gap-1.5 text-zinc-500 text-xs font-semibold">
+                    <span class="w-1.5 h-1.5 rounded-full bg-zinc-500"></span> Listing Closed
+                </span>
+            `;
+            if (statusCell) statusCell.innerHTML = expHtml;
+            if (statusCard) statusCard.innerHTML = expHtml;
+            alert(`ℹ️ This job opening has expired or was closed by the recruiter on ${platformLabel}. Please choose another opening.`);
         } else if (data.status === "needs_human_action") {
             const reviewHtml = `<span class="text-amber-400 text-xs font-medium">⚠️ Review Needed</span>`;
             if (statusCell) statusCell.innerHTML = reviewHtml;
@@ -2818,6 +2845,17 @@ function openQuickApplyModal(idx, reason) {
                     </button>
                 </div>
             `;
+        } else if (reasonText.includes("Direct apply button not found") || reasonText.includes("external") || reasonText.includes("1-click")) {
+            alertEl.innerHTML = `
+                <div class="space-y-1">
+                    <span class="font-bold text-amber-300">Direct 1-Click Apply Not Available for this Listing:</span>
+                    <div class="text-xs text-zinc-300">This recruiter requires application through their company portal. Your customized 1-Click AI Pitch has been generated below to submit directly!</div>
+                </div>
+            `;
+            setTimeout(() => {
+                const btnGen = document.getElementById("btnAssistantGeneratePitch");
+                if (btnGen) btnGen.click();
+            }, 250);
         } else {
             alertEl.innerHTML = `<span class="font-semibold">${reasonText}</span> Choose an option below to apply right now:`;
         }

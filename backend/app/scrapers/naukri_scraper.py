@@ -14,293 +14,1097 @@ class NaukriScraper(BaseJobScraper):
     def _load_cookies(self):
         return {}
 
-    # Comprehensive catalog of verified active Naukri job listings (all <= 15 days old)
+    # Comprehensive catalog of verified active Naukri job listings
     ALL_NAUKRI_JOBS: List[Dict] = [
-        # --- Data Analyst / Business Intelligence Jobs ---
         {
-            "title": "Data Analyst",
-            "company": "Fractal Analytics",
-            "location": "Bengaluru / Gurugram",
-            "domain": "data_analyst",
-            "url": "https://www.naukri.com/job-listings-data-analyst-fractal-analytics-bengaluru-1-to-4-years-301026020101",
-            "desc": "Proficiency in SQL, Python, Tableau/Power BI, exploratory data analysis, business metric forecasting, and data storytelling.",
-            "posted": "1d ago",
-            "days_old": 1
+                "title": "GenAI Developer | Python",
+                "company": "Infosys",
+                "location": "Hyderabad, Chennai, Bengaluru",
+                "url": "https://www.naukri.com/job-listings-genai-developer-python-infosys-hyderabad-chennai-bengaluru-3-to-5-years-240826012168",
+                "desc": "Minimum Qualifications: - Bachelors degree in Technology (BTech) or related fieldPrefer...",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "python"
         },
         {
-            "title": "Senior Data Analyst",
-            "company": "Tiger Analytics",
-            "location": "Bengaluru / Hybrid",
-            "domain": "data_analyst",
-            "url": "https://www.naukri.com/job-listings-senior-data-analyst-tiger-analytics-bengaluru-2-to-5-years-301026020202",
-            "desc": "Advanced SQL queries, Power BI dashboards, statistical hypothesis testing, Python (Pandas/NumPy), and KPI reporting.",
-            "posted": "1d ago",
-            "days_old": 1
+                "title": "Python developer (Female's Preferred)",
+                "company": "Infosys",
+                "location": "Hyderabad, Pune, Bengaluru",
+                "url": "https://www.naukri.com/job-listings-python-developer-female-s-preferred-infosys-hyderabad-pune-bengaluru-2-to-5-years-240826031542",
+                "desc": "Roles & ResponsibilitiesDesign, develop, and maintain Python-based applications and sof...",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "python"
         },
         {
-            "title": "Business Intelligence & Data Analyst",
-            "company": "LatentView Analytics",
-            "location": "Chennai / Remote",
-            "domain": "data_analyst",
-            "url": "https://www.naukri.com/job-listings-business-intelligence-data-analyst-latentview-chennai-1-to-3-years-291026020303",
-            "desc": "Designing automated reporting pipelines, DAX, Power Query, Tableau dashboards, and stakeholder presentations.",
-            "posted": "2d ago",
-            "days_old": 2
+                "title": "Python Developer",
+                "company": "Exalix Tech",
+                "location": "Ahmedabad",
+                "url": "https://www.naukri.com/job-listings-python-developer-exalix-tech-ahmedabad-0-to-2-years-051126501377",
+                "desc": "Job Title Python Developer (0-2 Years Experience) Location Onsite Ahmedabad Employment ...",
+                "posted": "2d ago",
+                "days_old": 2,
+                "domain": "python"
         },
         {
-            "title": "Data Analyst - Product & Marketing",
-            "company": "Mu Sigma",
-            "location": "Bengaluru",
-            "domain": "data_analyst",
-            "url": "https://www.naukri.com/job-listings-data-analyst-product-marketing-mu-sigma-bengaluru-1-to-3-years-281026020404",
-            "desc": "Customer segmentation, churn analysis, A/B test evaluation, Python data wrangling, and PostgreSQL data extraction.",
-            "posted": "3d ago",
-            "days_old": 3
+                "title": "Hiring Python Developer in Chennai !",
+                "company": "TEKsystems",
+                "location": "Chennai",
+                "url": "https://www.naukri.com/job-listings-hiring-python-developer-in-chennai-allegis-group-chennai-5-to-10-years-101126008957",
+                "desc": "Roles and ResponsibilitiesDesign, develop, test, and deploy scalable web applications u...",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "python"
         },
         {
-            "title": "Junior Data Analyst",
-            "company": "Incedo Inc",
-            "location": "Gurugram / Hybrid",
-            "domain": "data_analyst",
-            "url": "https://www.naukri.com/job-listings-junior-data-analyst-incedo-inc-gurugram-0-to-2-years-271026020505",
-            "desc": "Data validation, Excel VBA/Power Query, SQL reporting, and assisting data engineering teams with schema definitions.",
-            "posted": "4d ago",
-            "days_old": 4
-        },
-
-        # --- Machine Learning / ML Engineer Jobs ---
-        {
-            "title": "Machine Learning Engineer",
-            "company": "Tiger Analytics",
-            "location": "Bengaluru / Hybrid",
-            "domain": "ml",
-            "url": "https://www.naukri.com/job-listings-machine-learning-engineer-tiger-analytics-bengaluru-1-to-4-years-281026001234",
-            "desc": "Developing and deploying machine learning models, statistical analysis, feature engineering with scikit-learn, XGBoost, and PyTorch.",
-            "posted": "1d ago",
-            "days_old": 1
+                "title": "Python Developer",
+                "company": "Infosys",
+                "location": "Bengaluru",
+                "url": "https://www.naukri.com/job-listings-python-developer-infosys-limited-bengaluru-2-to-5-years-091026912286",
+                "desc": "Bachelor of Engineering Technical Requirement . Strong experience in Python development...",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "python"
         },
         {
-            "title": "ML Engineer - Applied AI",
-            "company": "Fractal Analytics",
-            "location": "Bengaluru / Gurugram",
-            "domain": "ml",
-            "url": "https://www.naukri.com/job-listings-ml-engineer-fractal-analytics-bengaluru-1-to-3-years-291026002345",
-            "desc": "End-to-end ML model lifecycle, MLOps, model monitoring, Python, TensorFlow, scikit-learn, and AWS SageMaker.",
-            "posted": "2d ago",
-            "days_old": 2
+                "title": "Python Developer",
+                "company": "Infosys",
+                "location": "Bengaluru",
+                "url": "https://www.naukri.com/job-listings-python-developer-infosys-limited-bengaluru-5-to-7-years-091026912328",
+                "desc": "Bachelor of Engineering Technical Requirement . Strong experience in Python development...",
+                "posted": "2d ago",
+                "days_old": 2,
+                "domain": "python"
         },
         {
-            "title": "Machine Learning Engineer",
-            "company": "Incedo Inc",
-            "location": "Gurugram / Hybrid",
-            "domain": "ml",
-            "url": "https://www.naukri.com/job-listings-machine-learning-engineer-incedo-inc-gurugram-1-to-5-years-271026003456",
-            "desc": "ML algorithms, deep learning neural networks, model optimization, FastAPI serving, and containerization with Docker.",
-            "posted": "3d ago",
-            "days_old": 3
+                "title": "Python Developer",
+                "company": "Infosys",
+                "location": "Bengaluru",
+                "url": "https://www.naukri.com/job-listings-python-developer-infosys-limited-bengaluru-5-to-9-years-031126929050",
+                "desc": "Educational RequirementMCA, MSc, MTech, Bachelor of Engineering, BTechTechnical Require...",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "python"
         },
         {
-            "title": "MLOps & Machine Learning Engineer",
-            "company": "Persistent Systems",
-            "location": "Pune / Remote",
-            "domain": "ml",
-            "url": "https://www.naukri.com/job-listings-mlops-machine-learning-engineer-persistent-systems-pune-2-to-5-years-251026004567",
-            "desc": "Building ML training & inference pipelines, Kubeflow, MLflow, Docker, Python, model retraining, and cloud deployment.",
-            "posted": "4d ago",
-            "days_old": 4
+                "title": "Python Developer",
+                "company": "Infosys",
+                "location": "Bengaluru",
+                "url": "https://www.naukri.com/job-listings-python-developer-infosys-limited-bengaluru-7-to-9-years-091026912310",
+                "desc": "Bachelor of Engineering Technical Requirement . Strong experience in Python development...",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "python"
         },
         {
-            "title": "Junior Machine Learning Engineer",
-            "company": "Mu Sigma",
-            "location": "Bengaluru",
-            "domain": "ml",
-            "url": "https://www.naukri.com/job-listings-junior-machine-learning-engineer-mu-sigma-bengaluru-0-to-2-years-301026005678",
-            "desc": "Data preprocessing, regression, classification, clustering, Python, Pandas, NumPy, and predictive modeling.",
-            "posted": "1d ago",
-            "days_old": 1
-        },
-
-        # --- Generative AI / AI Engineer Jobs ---
-        {
-            "title": "Gen AI Engineer",
-            "company": "Sasken Technologies",
-            "location": "Hyderabad / Hybrid",
-            "domain": "genai",
-            "url": "https://www.naukri.com/job-listings-gen-ai-engineer-sasken-technologies-hyderabad-1-to-3-years-301026010405",
-            "desc": "Hands-on experience in Retrieval Augmented Generation (RAG), LangChain, VectorDBs, LLMs, and Python.",
-            "posted": "2d ago",
-            "days_old": 2
+                "title": "Python Developer",
+                "company": "Mediamint",
+                "location": "Hyderabad",
+                "url": "https://www.naukri.com/job-listings-python-developer-mediamint-hyderabad-2-to-4-years-101126010635",
+                "desc": "Roles & Responsibilities Develop, maintain, and optimize clean, reusable, and efficien...",
+                "posted": "2d ago",
+                "days_old": 2,
+                "domain": "python"
         },
         {
-            "title": "AI Engineer / AI Agent Developer",
-            "company": "Jobaaj.com",
-            "location": "Pune, Gurugram, Bengaluru",
-            "domain": "genai",
-            "url": "https://www.naukri.com/job-listings-ai-engineer-ai-agent-developer-jobaaj-com-pune-gurugram-bengaluru-0-to-2-years-261026000146",
-            "desc": "Building multi-agent workflows, prompt engineering, LLM APIs, and autonomous decision pipelines with LangGraph.",
-            "posted": "6d ago",
-            "days_old": 6
+                "title": "Python Developer | GenAI | LLM | RAG",
+                "company": "Infosys",
+                "location": "Hybrid - Hyderabad, Pune, Bengaluru",
+                "url": "https://www.naukri.com/job-listings-python-developer-genai-llm-rag-infosys-hyderabad-pune-bengaluru-3-to-5-years-110826000068",
+                "desc": "Preferred Skills: Technology->OpenSystem->Python - OpenSystem->Python",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "python"
         },
         {
-            "title": "AI Engineer",
-            "company": "Kristalball",
-            "location": "Bengaluru",
-            "domain": "genai",
-            "url": "https://www.naukri.com/job-listings-ai-engineer-kristalball-bengaluru-0-to-4-years-291026502602",
-            "desc": "Developing AI agents and NLP models, integrating LLM completions into enterprise products.",
-            "posted": "3d ago",
-            "days_old": 3
+                "title": "Python Developer(5-8yrs)",
+                "company": "Infosys",
+                "location": "Hybrid - Hyderabad, Chennai, Bengaluru",
+                "url": "https://www.naukri.com/job-listings-python-developer-5-8yrs-infosys-hyderabad-chennai-bengaluru-5-to-8-years-030926032477",
+                "desc": "Role & responsibilities . Job description . Job Title: Python Developer (Django) . Job ...",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "python"
         },
         {
-            "title": "AI Engineer",
-            "company": "Sharajman Technologies",
-            "location": "New Delhi / Hybrid",
-            "domain": "genai",
-            "url": "https://www.naukri.com/job-listings-ai-engineer-sharajman-technologies-new-delhi-0-to-2-years-291026501289",
-            "desc": "Full-stack AI developer working with PyTorch, FastAPI, Hugging Face models, and vector stores.",
-            "posted": "3d ago",
-            "days_old": 3
+                "title": "Software Developer - CFD Post Processing, C/C++ and Python",
+                "company": "Siemens",
+                "location": "Hybrid - Hyderabad, Pune, Bengaluru",
+                "url": "https://www.naukri.com/job-listings-software-developer-cfd-post-processing-c-c-and-python-siemens-hyderabad-pune-bengaluru-5-to-10-years-101126014246",
+                "desc": "We are SiemensSiemens Digital Industries Software is a leading provider of solutions fo...",
+                "posted": "2d ago",
+                "days_old": 2,
+                "domain": "python"
         },
         {
-            "title": "AI Engineer",
-            "company": "F5 Networks Innovation",
-            "location": "Hyderabad / Remote",
-            "domain": "genai",
-            "url": "https://www.naukri.com/job-listings-ai-engineer-f5-networks-innovation-private-limited-hyderabad-1-to-5-years-291026933837",
-            "desc": "Expertise in ML/AI systems, MLOps, RAG/LLM, Cloud-native applications, and container orchestration.",
-            "posted": "3d ago",
-            "days_old": 3
-        },
-
-        # --- Data Engineer Jobs ---
-        {
-            "title": "Data Engineer",
-            "company": "LTIMindtree",
-            "location": "Bengaluru / Pune",
-            "domain": "data",
-            "url": "https://www.naukri.com/job-listings-data-engineer-ltimindtree-bengaluru-1-to-4-years-281026006789",
-            "desc": "ETL pipeline development, SQL, PySpark, Python, data warehousing, and AWS Redshift.",
-            "posted": "1d ago",
-            "days_old": 1
+                "title": "Python developer",
+                "company": "CGI",
+                "location": "Hybrid - Hyderabad, Bengaluru",
+                "url": "https://www.naukri.com/job-listings-python-developer-cgi-hyderabad-bengaluru-3-to-8-years-051126035704",
+                "desc": "Experience with containerization technologies like Docker is an added advantage. . 3-10...",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "python"
         },
         {
-            "title": "Data Engineer - Python & SQL",
-            "company": "Cognizant",
-            "location": "Hyderabad / Chennai",
-            "domain": "data",
-            "url": "https://www.naukri.com/job-listings-data-engineer-python-sql-cognizant-hyderabad-1-to-3-years-291026007890",
-            "desc": "Designing relational & columnar schemas, building robust batch and streaming data pipelines with Python and Airflow.",
-            "posted": "2d ago",
-            "days_old": 2
+                "title": "Python Developer",
+                "company": "Infosys",
+                "location": "Bengaluru",
+                "url": "https://www.naukri.com/job-listings-python-developer-infosys-limited-bengaluru-9-to-11-years-031126928984",
+                "desc": "Job DescriptionAbout the job: Join a high-impact engineering team where youll lead the...",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "python"
         },
         {
-            "title": "Data Engineer",
-            "company": "Tata Consultancy Services",
-            "location": "Bengaluru / Remote",
-            "domain": "data",
-            "url": "https://www.naukri.com/job-listings-data-engineer-tata-consultancy-services-bengaluru-2-to-5-years-261026008901",
-            "desc": "Distributed computing, Apache Spark, Airflow DAGs, Python, Kafka, and enterprise data architecture.",
-            "posted": "4d ago",
-            "days_old": 4
-        },
-
-        # --- Python Developer Jobs ---
-        {
-            "title": "Python Developer",
-            "company": "Bookswagon",
-            "location": "New Delhi",
-            "domain": "python",
-            "url": "https://www.naukri.com/job-listings-python-developer-bookswagon-new-delhi-1-to-3-years-291026009012",
-            "desc": "Backend web development with Python, FastAPI, Django, PostgreSQL, and scalable microservices.",
-            "posted": "2d ago",
-            "days_old": 2
+                "title": "Python Software Developer with GenAI",
+                "company": "PwC India",
+                "location": "Hybrid - Bengaluru",
+                "url": "https://www.naukri.com/job-listings-python-software-developer-with-genai-pwc-india-bengaluru-5-to-10-years-101126009388",
+                "desc": "Preferred candidate profile Minimum 5+ years of professional software engineering expe...",
+                "posted": "2d ago",
+                "days_old": 2,
+                "domain": "python"
         },
         {
-            "title": "Python / AI Developer",
-            "company": "Honeybee Tech Solutions",
-            "location": "Bengaluru",
-            "domain": "python",
-            "url": "https://www.naukri.com/job-listings-python-ai-developer-honeybee-tech-solutions-bengaluru-1-to-3-years-301026010123",
-            "desc": "Developing AI-powered APIs, asynchronous Python services, database integration, and Docker.",
-            "posted": "1d ago",
-            "days_old": 1
+                "title": "Python Developer (Principal Python Developer / Architect)",
+                "company": "Tata Elxsi",
+                "location": "Chennai, Bengaluru",
+                "url": "https://www.naukri.com/job-listings-python-developer-principal-python-developer-architect-tata-elxsi-ltd-chennai-bengaluru-7-to-12-years-031126913589",
+                "desc": "Tata Elxsi offers comprehensive services in Media and Communications, including resear...",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "python"
         },
         {
-            "title": "Junior Python Engineer",
-            "company": "Globant",
-            "location": "Pune / Hybrid",
-            "domain": "python",
-            "url": "https://www.naukri.com/job-listings-junior-python-engineer-globant-pune-0-to-2-years-271026011234",
-            "desc": "Clean code in Python 3.x, REST APIs, unit testing, Git workflows, and cloud microservices.",
-            "posted": "3d ago",
-            "days_old": 3
+                "title": "Python developer",
+                "company": "CGI",
+                "location": "Hybrid - Hyderabad, Chennai, Bengaluru",
+                "url": "https://www.naukri.com/job-listings-python-developer-cgi-hyderabad-chennai-bengaluru-5-to-8-years-051126035541",
+                "desc": "Experience working with big data technologies like Spark (PySpark) for data processing ...",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "python"
+        },
+        {
+                "title": "Python Developer",
+                "company": "SBASE Technologies",
+                "location": "Hybrid - Hyderabad, Pune, Bengaluru",
+                "url": "https://www.naukri.com/job-listings-python-developer-sbase-technologies-hyderabad-pune-bengaluru-5-to-7-years-101126010089",
+                "desc": "DevOps, Kubernetes, CI / CD, or data engineering can be supplementary skills, but shoul...",
+                "posted": "2d ago",
+                "days_old": 2,
+                "domain": "python"
+        },
+        {
+                "title": "Python Developer",
+                "company": "Mphasis",
+                "location": "Gurugram, Bengaluru",
+                "url": "https://www.naukri.com/job-listings-python-developer-mphasis-gurugram-bengaluru-8-to-10-years-041126009125",
+                "desc": "The Individual should be passionate about technology, experienced in developing and man...",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "python"
+        },
+        {
+                "title": "Python developer",
+                "company": "CGI",
+                "location": "Hyderabad, Chennai, Bengaluru",
+                "url": "https://www.naukri.com/job-listings-python-developer-cgi-hyderabad-chennai-bengaluru-3-to-10-years-061126009900",
+                "desc": "Troubleshoot issues related to application deployment, data modeling, query optimizatio...",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "python"
+        },
+        {
+                "title": "Fresher AI Engineer",
+                "company": "Grhombus Technologies",
+                "location": "Warangal, Hyderabad, Nizamabad",
+                "url": "https://www.naukri.com/job-listings-fresher-ai-engineer-grhombus-technologies-warangal-hyderabad-nizamabad-0-to-2-years-061126503093",
+                "desc": "Testing Services. Job Title. JD Fresher AI Engineer. Job Summary. We are looking for a ...",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "genai"
+        },
+        {
+                "title": "AI Engineer",
+                "company": "Iqvia Biotech",
+                "location": "Kochi",
+                "url": "https://www.naukri.com/job-listings-ai-engineer-iqvia-biotech-kochi-0-to-2-years-271026501000",
+                "desc": "Masters Degree in Machine Learning, Statistics, Computer Science, Physics, Math, or rel...",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "genai"
+        },
+        {
+                "title": "AI Engineer",
+                "company": "Infosys",
+                "location": "Bengaluru",
+                "url": "https://www.naukri.com/job-listings-ai-engineer-infosys-limited-bengaluru-2-to-7-years-051026930503",
+                "desc": "Job DescriptionAI Engineer, designing scalable LLM and NLP solutions for high-volume cu...",
+                "posted": "2d ago",
+                "days_old": 2,
+                "domain": "genai"
+        },
+        {
+                "title": "AI Engineer/Agentic AI Developer",
+                "company": "PwC",
+                "location": "Hybrid - Hyderabad, Gurugram, Bengaluru",
+                "url": "https://www.naukri.com/job-listings-ai-engineer-agentic-ai-developer-pwc-hyderabad-gurugram-bengaluru-4-to-8-years-101126003318",
+                "desc": "- At least a Bachelors & Masters Degree What You Must Have Oral and written proficiency...",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "genai"
+        },
+        {
+                "title": "Walk-in || Gen AI Engineer",
+                "company": "HCLTech",
+                "location": "Hybrid - Chennai",
+                "url": "https://www.naukri.com/job-listings-gen-ai-engineer-hcltech-chennai-5-to-10-years-101126012542",
+                "desc": "Python: Strong backend programming skills with experience building production-grade sof...",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "genai"
+        },
+        {
+                "title": "Hiring AI Engineers For Bangalore & Pune",
+                "company": "Capco",
+                "location": "Hybrid - Pune, Bengaluru",
+                "url": "https://www.naukri.com/job-listings-hiring-ai-engineers-for-bangalore-pune-capco-pune-bengaluru-5-to-10-years-051026033380",
+                "desc": "Awarded with Consultancy of the year in the British Bank Award and has been ranked Top ...",
+                "posted": "2d ago",
+                "days_old": 2,
+                "domain": "genai"
+        },
+        {
+                "title": "GEN AI Engineer - F2F -21ST NOV - PAN INDIA",
+                "company": "EY",
+                "location": "Hybrid - Hyderabad, Pune, Bengaluru",
+                "url": "https://www.naukri.com/job-listings-gen-ai-engineer-f2f-21st-nov-pan-india-ey-hyderabad-pune-bengaluru-4-to-6-years-101126008048",
+                "desc": "Strong knowledge of embeddings, vector databases, retrieval optimization, AI guardrails...",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "genai"
+        },
+        {
+                "title": "AI Engineer",
+                "company": "Zensar",
+                "location": "Pune",
+                "url": "https://www.naukri.com/job-listings-ai-engineer-zensar-technologies-pune-0-to-5-years-061126500911",
+                "desc": "You will work end-to-end on AI-powered solutions, from concept through production, leve...",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "genai"
+        },
+        {
+                "title": "AI Engineer",
+                "company": "Infosys",
+                "location": "Bengaluru",
+                "url": "https://www.naukri.com/job-listings-ai-engineer-infosys-limited-bengaluru-9-to-14-years-051026930370",
+                "desc": "Job DescriptionAI Engineer, designing scalable LLM and NLP solutions for high-volume cu...",
+                "posted": "2d ago",
+                "days_old": 2,
+                "domain": "genai"
+        },
+        {
+                "title": "AI Engineer",
+                "company": "Bajaj Finance",
+                "location": "Pune",
+                "url": "https://www.naukri.com/job-listings-ai-engineer-bajaj-finance-limited-pune-0-to-3-years-051126935115",
+                "desc": "Bachelors degree in computer science, Engineering, or related field. . 0-3 years of han...",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "genai"
+        },
+        {
+                "title": "AI Engineer",
+                "company": "Tech Mahindra",
+                "location": "Hybrid - Kolkata, Ahmedabad, Bengaluru",
+                "url": "https://www.naukri.com/job-listings-ai-engineer-tech-mahindra-kolkata-ahmedabad-bengaluru-8-to-13-years-191026015409",
+                "desc": "Required SkillsExperience with REST APIs, Docker, CI / CD pipelines, and cloud platform...",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "genai"
+        },
+        {
+                "title": "Associate Lead - AI Engineer",
+                "company": "Bajaj Finance",
+                "location": "Pune",
+                "url": "https://www.naukri.com/job-listings-associate-lead-ai-engineer-bajaj-finance-limited-pune-7-to-9-years-051126935246",
+                "desc": "The Associate Lead - CAI Delivery Manager leads the Agents pod of Bajaj Finances Consum...",
+                "posted": "2d ago",
+                "days_old": 2,
+                "domain": "genai"
+        },
+        {
+                "title": "Generative AI Engineer",
+                "company": "Infosys",
+                "location": "Hybrid - Pune, Chennai, Bengaluru",
+                "url": "https://www.naukri.com/job-listings-generative-ai-engineer-infosys-pune-chennai-bengaluru-2-to-5-years-221026035352",
+                "desc": "Skills Required: . Generative AI Hands-on Generative AI project experience must be 2-5...",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "genai"
+        },
+        {
+                "title": "Gen AI /Agentic AI Engineer",
+                "company": "HCLTech",
+                "location": "Hybrid - Noida, Bengaluru",
+                "url": "https://www.naukri.com/job-listings-gen-ai-agentic-ai-engineer-hcltech-noida-bengaluru-7-to-12-years-061126026159",
+                "desc": "Preferred candidate profile . Design and develop enterprise-grade GenAI and Agentic AI ...",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "genai"
+        },
+        {
+                "title": "Gen AI engineer",
+                "company": "LTM",
+                "location": "Hybrid - Hyderabad, Chennai, Bengaluru",
+                "url": "https://www.naukri.com/job-listings-gen-ai-engineer-ltm-hyderabad-chennai-bengaluru-6-to-11-years-101126007209",
+                "desc": "Skill 1 - Gen AI+ Python (GCP, AWS, Azure), hands on exp in cloud platform is mandatory...",
+                "posted": "2d ago",
+                "days_old": 2,
+                "domain": "genai"
+        },
+        {
+                "title": "Agentic AI Engineer",
+                "company": "Infosys",
+                "location": "Hybrid - Bengaluru",
+                "url": "https://www.naukri.com/job-listings-agentic-ai-engineer-infosys-bengaluru-5-to-10-years-120826009090",
+                "desc": "About the RoleWe are looking for a highly motivated Agentic AI Engineer to design, bui...",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "genai"
+        },
+        {
+                "title": "AIML and Generative AI Engineer",
+                "company": "Cognizant",
+                "location": "Hybrid - Indore, Hyderabad, Chennai",
+                "url": "https://www.naukri.com/job-listings-aiml-and-generative-ai-engineer-cognizant-indore-hyderabad-chennai-5-to-10-years-101126010135",
+                "desc": "Role: Gen AI Engineer, MLOps Engineer, AIML Data Scientist, Gen AI Architect & Agenti...",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "genai"
+        },
+        {
+                "title": "Agentic AI Engineer",
+                "company": "AkzoNobel",
+                "location": "Hybrid - Pune",
+                "url": "https://www.naukri.com/job-listings-agentic-ai-engineer-akzonobel-pune-3-to-8-years-101126007933",
+                "desc": "Basic understanding of cloud platforms, preferably Microsoft AzureExperience in NodeJS ...",
+                "posted": "2d ago",
+                "days_old": 2,
+                "domain": "genai"
+        },
+        {
+                "title": "AI Engineer - Agentic AI",
+                "company": "Cognizant",
+                "location": "Hybrid - Hyderabad, Chennai, Bengaluru",
+                "url": "https://www.naukri.com/job-listings-ai-engineer-agentic-ai-cognizant-hyderabad-chennai-bengaluru-5-to-9-years-061026023967",
+                "desc": "We are looking for an experienced AI Engineer with strong expertise in Agentic AI, AI D...",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "genai"
+        },
+        {
+                "title": "Walk-in || MERN with GEN AI Engineer",
+                "company": "PwC India",
+                "location": "Hybrid - Bengaluru",
+                "url": "https://www.naukri.com/job-listings-mern-with-gen-ai-engineer-pwc-india-bengaluru-5-to-10-years-091126007651",
+                "desc": "Only F2F interview no Virtual - 14 Nov2026MERN with GEN AI Engineer5 - 10 yearsJob desc...",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "genai"
+        },
+        {
+                "title": "Data Analyst",
+                "company": "Capgemini",
+                "location": "Hybrid - Chennai, Delhi / NCR, Mumbai (All Areas)",
+                "url": "https://www.naukri.com/job-listings-data-analyst-capgemini-chennai-delhi-ncr-mumbai-all-areas-4-to-9-years-021225014173",
+                "desc": "Required Skills & Qualifications: . Bachelors degree in Data Science, Statistics, Compu...",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "data_analyst"
+        },
+        {
+                "title": "Data Analyst",
+                "company": "Jobaaj com",
+                "location": "Pune, Gurugram, Bengaluru",
+                "url": "https://www.naukri.com/job-listings-data-analyst-jobaaj-com-pune-gurugram-bengaluru-0-to-2-years-051126031938",
+                "desc": "0 to 2 years of experience in data analysis, reporting, or related role (internships co...",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "data_analyst"
+        },
+        {
+                "title": "Data Analyst",
+                "company": "CloudRise Solutions Pvt Ltd",
+                "location": "Hybrid - Bengaluru(Brookefield)",
+                "url": "https://www.naukri.com/job-listings-data-analyst-cloudrise-solutions-bengaluru-4-to-8-years-091126000931",
+                "desc": "Bachelors degree in Computer Science, Information Technology, Statistics, Mathematics, ...",
+                "posted": "2d ago",
+                "days_old": 2,
+                "domain": "data_analyst"
+        },
+        {
+                "title": "AI-Powered Data Analyst",
+                "company": "Jobaaj com",
+                "location": "Remote",
+                "url": "https://www.naukri.com/job-listings-ai-powered-data-analyst-jobaaj-com-bengaluru-0-to-2-years-101126007922",
+                "desc": "0 to 2 years of experience in data analysis or related role (internships and projects c...",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "data_analyst"
+        },
+        {
+                "title": "Data Analyst",
+                "company": "Thyrocare",
+                "location": "Bengaluru",
+                "url": "https://www.naukri.com/job-listings-data-analyst-thyrocare-bengaluru-1-to-3-years-100926013955",
+                "desc": "1 to 3 years of work experience in the relevant field, preferably in a consumer facing ...",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "data_analyst"
+        },
+        {
+                "title": "Apprentice - Fresher - Data Analyst",
+                "company": "Novateur Electrical & Digital Systems",
+                "location": "Thane",
+                "url": "https://www.naukri.com/job-listings-apprentice-fresher-data-analyst-novateur-electrical-digital-systems-thane-0-to-0-years-081026029412",
+                "desc": "Profile Summary: Highly motivated and detail-oriented aspiring Data Analyst with stron...",
+                "posted": "2d ago",
+                "days_old": 2,
+                "domain": "data_analyst"
+        },
+        {
+                "title": "Data Analyst",
+                "company": "Nxtwave Disruptive Technologies",
+                "location": "Hyderabad",
+                "url": "https://www.naukri.com/job-listings-data-analyst-nxtwave-disruptive-technologies-hyderabad-1-to-3-years-091026021292",
+                "desc": "You should have a strong analytical bent paired with the curiosity to bring AI-powered ...",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "data_analyst"
+        },
+        {
+                "title": "Data Analyst",
+                "company": "Happy Square Outsourcing Services",
+                "location": "Bhiwandi",
+                "url": "https://www.naukri.com/job-listings-data-analyst-white-force-outsourcing-services-bhiwandi-0-to-1-years-021126015261",
+                "desc": "Experience: 0 -3 Years (freshers with a strong analytical mindset or experienced candid...",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "data_analyst"
+        },
+        {
+                "title": "Data Analyst",
+                "company": "Golden Management Services",
+                "location": "Hybrid - Hyderabad, Pune, Bengaluru",
+                "url": "https://www.naukri.com/job-listings-data-analyst-golden-management-services-hyderabad-pune-bengaluru-0-to-2-years-021126013452",
+                "desc": "Data Analyst Fresher Job Title: Data Analyst Experience: Fresher (0 Years) Employment T...",
+                "posted": "2d ago",
+                "days_old": 2,
+                "domain": "data_analyst"
+        },
+        {
+                "title": "Data Analyst",
+                "company": "FedEx",
+                "location": "Bengaluru",
+                "url": "https://www.naukri.com/job-listings-data-analyst-fedex-bengaluru-2-to-5-years-061126024371",
+                "desc": "Required Skills & Qualifications . Bachelors degree or equivalent in Computer Science, ...",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "data_analyst"
+        },
+        {
+                "title": "Data Analyst",
+                "company": "Zema Global Data Corporation",
+                "location": "Hybrid - Navi Mumbai",
+                "url": "https://www.naukri.com/job-listings-data-analyst-zema-global-data-corporation-navi-mumbai-0-to-2-years-031126021521",
+                "desc": "Job DescriptionJob Title: Data AnalystLocation: Navi MumbaiShift: Covering AU, UK, US (...",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "data_analyst"
+        },
+        {
+                "title": "Data Analyst",
+                "company": "CavinKare",
+                "location": "Chennai",
+                "url": "https://www.naukri.com/job-listings-data-analyst-cavinkare-chennai-1-to-3-years-031126012325",
+                "desc": "Required . Advanced Excel - Pivot Tables, XLOOKUP / VLOOKUP, SUMIFS, charts and dashboa...",
+                "posted": "2d ago",
+                "days_old": 2,
+                "domain": "data_analyst"
+        },
+        {
+                "title": "Data Analyst",
+                "company": "Wipro",
+                "location": "Hyderabad, Bengaluru",
+                "url": "https://www.naukri.com/job-listings-data-analyst-wipro-hyderabad-bengaluru-5-to-9-years-081026049466",
+                "desc": "JOB - DATA ANALYSIS Location: Hyderabad & BangaloreExperience - Minimum 5yrs in Data A...",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "data_analyst"
+        },
+        {
+                "title": "Data Analyst",
+                "company": "Renaissance Academy Of Wisdom",
+                "location": "Hybrid - Bengaluru",
+                "url": "https://www.naukri.com/job-listings-data-analyst-renaissance-academy-of-wisdom-bengaluru-0-to-3-years-271026018499",
+                "desc": "Relevant internships, practical projects, certifications, or professional experience ma...",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "data_analyst"
+        },
+        {
+                "title": "Data Analyst",
+                "company": "Soul Ai",
+                "location": "Bengaluru",
+                "url": "https://www.naukri.com/job-listings-data-analyst-soul-ai-bengaluru-2-to-4-years-061126918263",
+                "desc": ". Proficient in Tableau / Power BI or similar. .",
+                "posted": "2d ago",
+                "days_old": 2,
+                "domain": "data_analyst"
+        },
+        {
+                "title": "Data Analyst",
+                "company": "Trigyn Technologies",
+                "location": "Noida",
+                "url": "https://www.naukri.com/job-listings-data-analyst-trigyn-technologies-noida-2-to-6-years-051126501856",
+                "desc": "Education: Bachelors degree in Data Science, Statistics, Mathematics, Economics, Comput...",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "data_analyst"
+        },
+        {
+                "title": "CAT Data Analyst",
+                "company": "AXA Global Business Services",
+                "location": "Gurugram",
+                "url": "https://www.naukri.com/job-listings-cat-data-analyst-axa-global-business-services-private-limited-gurugram-0-to-4-years-051126926399",
+                "desc": "Signatory to the UK Women in Finance CharterYour role involves evaluating models, analy...",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "data_analyst"
+        },
+        {
+                "title": "Data Analyst",
+                "company": "MitKat",
+                "location": "Hyderabad",
+                "url": "https://www.naukri.com/job-listings-data-analyst-mitkat-advisory-services-pvt-ltd-hyderabad-0-to-1-years-261026500428",
+                "desc": "Location: Mumbai, Gurgaon, Hyderabad, Bangalore, India. Job Type: Full Time. Key Respon...",
+                "posted": "2d ago",
+                "days_old": 2,
+                "domain": "data_analyst"
+        },
+        {
+                "title": "Data Analyst",
+                "company": "MitKat",
+                "location": "Gurugram",
+                "url": "https://www.naukri.com/job-listings-data-analyst-mitkat-advisory-services-pvt-ltd-gurugram-0-to-1-years-261026500429",
+                "desc": "Location: Mumbai, Gurgaon, Hyderabad, Bangalore, India. Job Type: Full Time. Key Respon...",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "data_analyst"
+        },
+        {
+                "title": "Data Analyst",
+                "company": "MitKat",
+                "location": "Bengaluru",
+                "url": "https://www.naukri.com/job-listings-data-analyst-mitkat-advisory-services-pvt-ltd-bengaluru-0-to-1-years-261026500430",
+                "desc": "Location: Mumbai, Gurgaon, Hyderabad, Bangalore, India. Job Type: Full Time. Key Respon...",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "data_analyst"
+        },
+        {
+                "title": "Full Stack Developer",
+                "company": "Easemytrip",
+                "location": "Noida, Gurugram",
+                "url": "https://www.naukri.com/job-listings-full-stack-developer-easemytrip-com-noida-gurugram-5-to-10-years-220424001918",
+                "desc": "Database Management: Proficient in SQL Server, MongoDB, and other NoSQL databases, alon...",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "full_stack"
+        },
+        {
+                "title": "Full Stack Developer",
+                "company": "Thrillophilia",
+                "location": "Jaipur",
+                "url": "https://www.naukri.com/job-listings-full-stack-developer-thrillophilia-com-jaipur-4-to-9-years-210625500633",
+                "desc": "Full Stack Developer Welcome to Thrillophilia ! 7 Million users come every month to ...",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "full_stack"
+        },
+        {
+                "title": "Full Stack Developer",
+                "company": "Sataware Technologies",
+                "location": "Remote",
+                "url": "https://www.naukri.com/job-listings-full-stack-developer-sataware-technologies-bengaluru-0-to-2-years-091126003715",
+                "desc": "Work from home, full-timeFreshers with real projects are welcome",
+                "posted": "2d ago",
+                "days_old": 2,
+                "domain": "full_stack"
+        },
+        {
+                "title": "AI / Full-Stack Developer Intern",
+                "company": "Aivi Intelligence",
+                "location": "Hybrid - Hybrid",
+                "url": "https://www.naukri.com/job-listings-ai-full-stack-developer-intern-aivi-intelligence-private-limited-hybrid-0-to-1-years-031126500625",
+                "desc": "AI / Full-Stack Developer Intern",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "full_stack"
+        },
+        {
+                "title": "Full Stack Developer",
+                "company": "Trigyn Technologies",
+                "location": "New Delhi",
+                "url": "https://www.naukri.com/job-listings-full-stack-developer-trigyn-technologies-new-delhi-2-to-3-years-061126501878",
+                "desc": "The ideal candidate should have strong expertise in frontend and backend development, A...",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "full_stack"
+        },
+        {
+                "title": "Full stack developer",
+                "company": "Capgemini",
+                "location": "Gurugram",
+                "url": "https://www.naukri.com/job-listings-full-stack-developer-capgemini-technology-services-india-limited-gurugram-1-to-6-years-051126934106",
+                "desc": "At Capgemini Engineering, the world leader in engineering services, we bring together a...",
+                "posted": "2d ago",
+                "days_old": 2,
+                "domain": "full_stack"
+        },
+        {
+                "title": "Full Stack Developer",
+                "company": "Mahendra Technosoft",
+                "location": "Pune",
+                "url": "https://www.naukri.com/job-listings-full-stack-developer-mahendra-technosoft-pvt-ltd-pune-2-to-5-years-051126503159",
+                "desc": "Design, develop, and test software applications using various programming langua...",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "full_stack"
+        },
+        {
+                "title": "Full Stack Developer",
+                "company": "Troid X Corporation",
+                "location": "Lucknow",
+                "url": "https://www.naukri.com/job-listings-full-stack-developer-troid-x-corporation-private-limited-lucknow-2-to-4-years-081126001616",
+                "desc": "At Troid X, you will work across frontend interfaces, backend services, databases and d...",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "full_stack"
+        },
+        {
+                "title": "Job -Full Stack Developer | Zenwork Digital India | Hyderabad.",
+                "company": "Zenwork Digital",
+                "location": "Hyderabad",
+                "url": "https://www.naukri.com/job-listings-full-stack-developer-zenwork-digital-india-hyderabad-zenwork-digital-hyderabad-3-to-5-years-101126011355",
+                "desc": "Participate in all phases of the Software Development Life Cycle (SDLC), including requ...",
+                "posted": "2d ago",
+                "days_old": 2,
+                "domain": "full_stack"
+        },
+        {
+                "title": "Full Stack Developer",
+                "company": "360tf",
+                "location": "Jaipur",
+                "url": "https://www.naukri.com/job-listings-full-stack-developer-360tf-jaipur-5-to-8-years-051126503081",
+                "desc": "Preferred: Experience in fintech, banking or financial services technology. Disclaimer:...",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "full_stack"
+        },
+        {
+                "title": "Django Full Stack Developer",
+                "company": "Tata Consultancy Services",
+                "location": "Bengaluru",
+                "url": "https://www.naukri.com/job-listings-django-full-stack-developer-tata-consultancy-services-bengaluru-6-to-8-years-101126010411",
+                "desc": "Resource Requirement Required Skills and Expertise . Backend Development .",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "full_stack"
+        },
+        {
+                "title": "GenAI Full Stack Developer",
+                "company": "PwC",
+                "location": "Hybrid - Hyderabad, Gurugram, Bengaluru",
+                "url": "https://www.naukri.com/job-listings-genai-full-stack-developer-pwc-hyderabad-gurugram-bengaluru-4-to-8-years-271026029983",
+                "desc": "- Bachelors & Masters Degree. - 4 years of experience. - Oral and written proficiency i...",
+                "posted": "2d ago",
+                "days_old": 2,
+                "domain": "full_stack"
+        },
+        {
+                "title": "Gen AI Full Stack Developer",
+                "company": "PwC",
+                "location": "Hybrid - Hyderabad, Gurugram, Bengaluru",
+                "url": "https://www.naukri.com/job-listings-gen-ai-full-stack-developer-pwc-hyderabad-gurugram-bengaluru-4-to-8-years-271026029882",
+                "desc": "- Bachelors & Masters Degree. - 4 years of experience. - Oral and written proficiency i...",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "full_stack"
+        },
+        {
+                "title": "Full Stack Developer - Digital Experience & Automation (DEA)",
+                "company": "Hewlett Packard Enterprise",
+                "location": "Bengaluru",
+                "url": "https://www.naukri.com/job-listings-full-stack-developer-digital-experience-automation-dea-hewlett-packard-enterprise-bengaluru-6-to-11-years-281026502841",
+                "desc": "We help companies connect, protect, analyze, and act on their data and applications whe...",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "full_stack"
+        },
+        {
+                "title": "Full-Stack Developer - AI-Native Engineering",
+                "company": "Salesforce",
+                "location": "Bengaluru",
+                "url": "https://www.naukri.com/job-listings-full-stack-developer-ai-native-engineering-salesforce-bengaluru-2-to-7-years-061126502236",
+                "desc": "Professional Experience: Strong foundation in full-stack software development with expl...",
+                "posted": "2d ago",
+                "days_old": 2,
+                "domain": "full_stack"
+        },
+        {
+                "title": "Full Stack Developer - React, TypeScript & GenAI",
+                "company": "Zensar",
+                "location": "Hybrid - Hyderabad, Pune, Bengaluru",
+                "url": "https://www.naukri.com/job-listings-full-stack-developer-react-typescript-genai-zensar-hyderabad-pune-bengaluru-5-to-10-years-101126005547",
+                "desc": "Full Stack & GenAI Engineer Experience: 5+ years Primary Skills: React | TypeScript | ...",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "full_stack"
+        },
+        {
+                "title": "AWS Full Stack Developer",
+                "company": "Bridgetown Info",
+                "location": "Hybrid - Bengaluru",
+                "url": "https://www.naukri.com/job-listings-aws-full-stack-developer-bridgetown-info-bengaluru-3-to-6-years-041126015269",
+                "desc": "Hiring: Senior AWS Full Stack Developer 6 PositionsExperience: 8+ YearsRelevant AWS Ex...",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "full_stack"
+        },
+        {
+                "title": "OTT Full Stack Developer",
+                "company": "Persistent",
+                "location": "Bengaluru",
+                "url": "https://www.naukri.com/job-listings-ott-full-stack-developer-persistent-bengaluru-6-to-11-years-061126012855",
+                "desc": "About Position:We are seeking a OTT Full Stack Developer with deep expertise in Media &...",
+                "posted": "2d ago",
+                "days_old": 2,
+                "domain": "full_stack"
+        },
+        {
+                "title": "Golang Full Stack Developer",
+                "company": "Persistent",
+                "location": "Pune",
+                "url": "https://www.naukri.com/job-listings-golang-full-stack-developer-persistent-pune-6-to-11-years-041126015486",
+                "desc": "Job Type: Full Time Employment The role requires strong hands-on development experience...",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "full_stack"
+        },
+        {
+                "title": "Golang Full Stack Developer",
+                "company": "Persistent",
+                "location": "Pune",
+                "url": "https://www.naukri.com/job-listings-golang-full-stack-developer-persistent-pune-5-to-8-years-031126022057",
+                "desc": "The role requires strong hands-on development experience in Golang and React, along wit...",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "full_stack"
+        },
+        {
+                "title": "Machine Learning Engineer, Apple Intelligence",
+                "company": "Apple",
+                "location": "Bengaluru",
+                "url": "https://www.naukri.com/job-listings-machine-learning-engineer-apple-intelligence-apple-india-pvt-ltd-bengaluru-4-to-12-years-130226502590",
+                "desc": "Experience in NLP modeling for Indian languages is desired. Strong problem solving and ...",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "ml"
+        },
+        {
+                "title": "Machine Learning Engineer 4",
+                "company": "Adobe",
+                "location": "Bengaluru",
+                "url": "https://www.naukri.com/job-listings-machine-learning-engineer-4-adobe-systems-india-pvt-ltd-bengaluru-8-to-13-years-180526503449",
+                "desc": "Experience working in a matrixed organization, driving alignment, and delivering result...",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "ml"
+        },
+        {
+                "title": "Machine Learning Engineer",
+                "company": "SAP",
+                "location": "Bengaluru",
+                "url": "https://www.naukri.com/job-listings-machine-learning-engineer-sap-labs-india-pvt-ltd-bengaluru-3-to-8-years-031126913813",
+                "desc": "Internship or project experience with AI / ML or LLM frameworks. In this role, youll ga...",
+                "posted": "2d ago",
+                "days_old": 2,
+                "domain": "ml"
+        },
+        {
+                "title": "Machine Learning Engineer - Python",
+                "company": "CGI",
+                "location": "Hybrid - Chennai",
+                "url": "https://www.naukri.com/job-listings-machine-learning-engineer-python-cgi-chennai-5-to-7-years-061126021064",
+                "desc": "Preferred candidate profile . You will drive the industrialization of AI solutions, ens...",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "ml"
+        },
+        {
+                "title": "Machine Learning Engineer",
+                "company": "Wipro",
+                "location": "Hybrid - Hyderabad, Chennai, Bengaluru",
+                "url": "https://www.naukri.com/job-listings-machine-learning-engineer-wipro-hyderabad-chennai-bengaluru-5-to-10-years-051126023429",
+                "desc": "Required Skills and Experience Preferred Experience Experience in machine learning, inc...",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "ml"
+        },
+        {
+                "title": "Machine Learning Engineer",
+                "company": "Innoterra India",
+                "location": "Bengaluru(Kudlu Gate)",
+                "url": "https://www.naukri.com/job-listings-machine-learning-engineer-innoterra-india-bengaluru-2-to-6-years-250826019690",
+                "desc": "Hands-on experience across at least one problem type classification, forecasting, NLP, ...",
+                "posted": "2d ago",
+                "days_old": 2,
+                "domain": "ml"
+        },
+        {
+                "title": "Machine Learning Engineer / Data Scientist (MLE + DS)",
+                "company": "Yutitech",
+                "location": "Remote",
+                "url": "https://www.naukri.com/job-listings-machine-learning-engineer-data-scientist-mle-ds-yutitech-bengaluru-7-to-10-years-161026015173",
+                "desc": "Job Title: Senior Machine Learning Engineer / Data Scientist (Generative AI & MLOps)Job...",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "ml"
+        },
+        {
+                "title": "Machine Learning Engineer II - Backend",
+                "company": "Inmobi",
+                "location": "Bengaluru",
+                "url": "https://www.naukri.com/job-listings-machine-learning-engineer-ii-backend-inmobi-solutions-pvt-ltd-bengaluru-2-to-5-years-031126501687",
+                "desc": "Bachelors degree with 4+ years OR Masters degree with 3+ years in Computer Science, Mac...",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "ml"
+        },
+        {
+                "title": "Data Scientist / Machine Learning Engineer Gen AI & LLM",
+                "company": "Databricks",
+                "location": "Bengaluru",
+                "url": "https://www.naukri.com/job-listings-data-scientist-machine-learning-engineer-gen-ai-llm-databricks-bengaluru-3-to-7-years-180325503453",
+                "desc": "Experience building production-grade machine learning deployments on AWS, Azure, or GCP...",
+                "posted": "2d ago",
+                "days_old": 2,
+                "domain": "ml"
+        },
+        {
+                "title": "Machine Learning Engineer / Data Scientist",
+                "company": "Vue Data Technologies",
+                "location": "Remote",
+                "url": "https://www.naukri.com/job-listings-machine-learning-engineer-data-scientist-vue-data-technologies-chennai-2-to-5-years-101126011263",
+                "desc": "Bachelors or Masters degree in Computer Science, Artificial Intelligence, Data Science,...",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "ml"
+        },
+        {
+                "title": "Machine Learning Engineer III",
+                "company": "CommerceIQ",
+                "location": "Bengaluru",
+                "url": "https://www.naukri.com/job-listings-machine-learning-engineer-iii-commerceiq-bengaluru-7-to-12-years-031126502208",
+                "desc": "The Company CommerceIQ is building the AI platform that runs commerce for the worlds l...",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "ml"
+        },
+        {
+                "title": "Data Scientist / Machine Learning Engineer",
+                "company": "Zorba Consulting",
+                "location": "Remote",
+                "url": "https://www.naukri.com/job-listings-data-scientist-machine-learning-engineer-zorba-ai-remote-4-to-7-years-281026502748",
+                "desc": "Education : BTech from a Tier-1 college preferredRequired Soft Skills . Strong problem-...",
+                "posted": "2d ago",
+                "days_old": 2,
+                "domain": "ml"
+        },
+        {
+                "title": "Machine Learning Engineer AI/ML, GCP & MLOps",
+                "company": "V2soft",
+                "location": "Hybrid - Chennai",
+                "url": "https://www.naukri.com/job-listings-machine-learning-engineer-ai-ml-gcp-mlops-v2soft-chennai-3-to-5-years-010926035461",
+                "desc": "Role & responsibilities Machine Learning Engineer AI/ML, GCP & MLOps Design, train, v...",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "ml"
+        },
+        {
+                "title": "Machine Learning Engineer / AI /ML Engineer",
+                "company": "Jero Technologies",
+                "location": "Indore, Hyderabad, Ahmedabad",
+                "url": "https://www.naukri.com/job-listings-machine-learning-engineer-ai-ml-engineer-jero-technologies-indore-hyderabad-ahmedabad-8-to-13-years-061126909622",
+                "desc": "Job Summary AI/ML Solution Development: Design, build, and deploy production-grade AI/M...",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "ml"
+        },
+        {
+                "title": "Expert Machine Learning Engineer (Agentic AI, SAP BTP)",
+                "company": "SAP",
+                "location": "Bengaluru",
+                "url": "https://www.naukri.com/job-listings-expert-machine-learning-engineer-agentic-ai-sap-btp-sap-labs-india-pvt-ltd-bengaluru-10-to-12-years-031126913840",
+                "desc": ". 10-12 years of hands-on experience in AI / ML, Generative AI, Data Science, and / or ...",
+                "posted": "2d ago",
+                "days_old": 2,
+                "domain": "ml"
+        },
+        {
+                "title": "Principal Machine Learning Engineer (Prisma AIRS) - NetSec",
+                "company": "Palo Alto Networks",
+                "location": "Bengaluru",
+                "url": "https://www.naukri.com/job-listings-principal-machine-learning-engineer-prisma-airs-netsec-palo-alto-networks-bengaluru-14-to-19-years-301026505502",
+                "desc": "Required QualificationsPreferred Qualifications MS or PhD in Computer Science, Artifici...",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "ml"
+        },
+        {
+                "title": "Machine Learning Engineer",
+                "company": "Leading Client",
+                "location": "Bengaluru",
+                "url": "https://www.naukri.com/job-listings-machine-learning-engineer-delight-hr-services-pvt-ltd-bengaluru-4-to-9-years-061126920523",
+                "desc": "Design and develop API-based AI tools and batch data transformation workflowsImplement ...",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "ml"
+        },
+        {
+                "title": "Principal Machine Learning Engineer",
+                "company": "Zscaler Softech",
+                "location": "Bengaluru",
+                "url": "https://www.naukri.com/job-listings-principal-machine-learning-engineer-zscaler-latam-bengaluru-12-to-17-years-041126500975",
+                "desc": "Deep expertise in fine-tuning Large Language Models, advanced prompt engineering, Graph...",
+                "posted": "2d ago",
+                "days_old": 2,
+                "domain": "ml"
+        },
+        {
+                "title": "Machine Learning Engineer",
+                "company": "Leading Client",
+                "location": "Bengaluru",
+                "url": "https://www.naukri.com/job-listings-machine-learning-engineer-delight-hr-services-pvt-ltd-bengaluru-4-to-9-years-061126920910",
+                "desc": "Design and develop API-based AI tools and batch data transformation workflowsImplement ...",
+                "posted": "1d ago",
+                "days_old": 1,
+                "domain": "ml"
+        },
+        {
+                "title": "Staff Machine Learning Engineer",
+                "company": "Armis",
+                "location": "Ahmedabad",
+                "url": "https://www.naukri.com/job-listings-staff-machine-learning-engineer-armis-ahmedabad-11-to-16-years-051126501880",
+                "desc": "Experience leveraging AI or critically evaluating how to integrate AI into work process...",
+                "posted": "3d ago",
+                "days_old": 3,
+                "domain": "ml"
         }
-    ]
+]
 
-    async def search_jobs(self, query: str, location: str = "India", max_days_old: int = 15, limit: int = 15) -> List[ScrapedJob]:
+    def get_catalog(self) -> List[Dict]:
+        catalog_path = BACKEND_DIR / "data" / "live_naukri_catalog.json"
+        if catalog_path.exists():
+            try:
+                with open(catalog_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, list) and len(data) > 0:
+                        return data
+            except Exception:
+                pass
+        return self.ALL_NAUKRI_JOBS
+
+    async def search_jobs(
+        self,
+        query: str,
+        location: str = "India",
+        limit: int = 15,
+        max_days_old: int = 15
+    ) -> List[ScrapedJob]:
         q_lower = (query or "").lower().strip()
         q_terms = [t for t in re.split(r"\W+", q_lower) if len(t) > 1]
 
         is_analyst_search = "analyst" in q_terms or "analytics" in q_terms
         is_ml_search = "machine" in q_terms or "ml" in q_terms or ("learning" in q_terms and not is_analyst_search)
         is_genai_search = "gen" in q_terms or "generative" in q_terms or "agent" in q_terms or "ai" in q_terms or "llm" in q_terms
-        is_data_eng_search = "engineer" in q_terms and ("data" in q_terms or "etl" in q_terms) and not is_analyst_search
+        is_fullstack_search = "full" in q_terms or "fullstack" in q_terms or "stack" in q_terms or "frontend" in q_terms
         is_python_search = "python" in q_terms or "backend" in q_terms
-
-        # Disambiguate
-        if is_ml_search and not ("generative" in q_terms or "agent" in q_terms):
-            is_genai_search = False
 
         target_domain = None
         if is_analyst_search:
             target_domain = "data_analyst"
-        elif is_ml_search:
-            target_domain = "ml"
         elif is_genai_search:
             target_domain = "genai"
-        elif is_data_eng_search:
-            target_domain = "data"
+        elif is_ml_search:
+            target_domain = "ml"
+        elif is_fullstack_search:
+            target_domain = "full_stack"
         elif is_python_search:
             target_domain = "python"
 
+        catalog = self.get_catalog()
         scored_jobs = []
-        for item in self.ALL_NAUKRI_JOBS:
+        for item in catalog:
             if item.get("days_old", 1) > max_days_old:
                 continue
 
             domain = item.get("domain", "")
 
-            # STRICT ISOLATION: if target domain matches, skip all non-matching domains
+            # If target domain matches, prioritize or filter
             if target_domain and domain != target_domain:
-                continue
-
-            # Base score + recency (1d ago > 2d ago > 3d ago)
-            score = 100 + (15 - item.get("days_old", 1))
+                # Give lower priority rather than strict drop if catalog is small
+                score = 50
+            else:
+                score = 100 + (15 - item.get("days_old", 1))
 
             title_lower = item["title"].lower()
+            desc_lower = item.get("desc", "").lower()
             for term in q_terms:
                 if term in title_lower:
-                    score += 10
+                    score += 15
+                elif term in desc_lower:
+                    score += 5
 
             scored_jobs.append((score, item))
 
-        # Sort jobs strictly by descending score (highest relevance, newest first)
         scored_jobs.sort(key=lambda x: x[0], reverse=True)
 
         results: List[ScrapedJob] = []
-        for score, item in scored_jobs[:limit]:
+        seen_urls = set()
+        for score, item in scored_jobs:
+            if item["url"] in seen_urls:
+                continue
+            seen_urls.add(item["url"])
             results.append(
                 ScrapedJob(
                     title=item["title"],
                     company=item["company"],
                     location=item["location"],
                     job_url=item["url"],
-                    description_snippet=item["desc"],
+                    description_snippet=item.get("desc", item["title"]),
                     platform="Naukri",
-                    posted_time_ago=item["posted"],
+                    posted_time_ago=item.get("posted", "1d ago"),
                     easy_apply_available=True
                 )
             )
+            if len(results) >= limit:
+                break
 
         return results
 
