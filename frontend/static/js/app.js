@@ -81,11 +81,14 @@ async function safeParseJson(res) {
 let currentAnalysis = null;
 let foundJobs = [];
 let activeApplyingJobIndex = null;
-let currentSelectedRole = "Data Analyst";
+let currentSelectedRole = "";
 let currentSelectedPlatform = "naukri"; // "naukri" or "wellfound"
 
 document.addEventListener("DOMContentLoaded", () => {
     initSupabase();
+    checkOAuthRedirectTokens();
+    initGoogleIdentity();
+
     const dropzone = document.getElementById("dropzone");
     const resumeFileInput = document.getElementById("resumeFileInput");
     const fileStatus = document.getElementById("fileStatus");
@@ -93,55 +96,93 @@ document.addEventListener("DOMContentLoaded", () => {
     const analyzeBtn = document.getElementById("analyzeBtn");
     const searchJobsBtn = document.getElementById("searchJobsBtn");
 
-    dropzone.addEventListener("click", () => resumeFileInput.click());
+    if (dropzone && resumeFileInput) {
+        dropzone.addEventListener("click", () => resumeFileInput.click());
+    }
 
-    resumeFileInput.addEventListener("change", (e) => {
-        if (e.target.files.length > 0) {
-            const file = e.target.files[0];
-            fileName.textContent = file.name;
-            fileStatus.classList.remove("hidden");
-        }
-    });
-
-    analyzeBtn.addEventListener("click", async () => {
-        const file = resumeFileInput.files[0];
-        if (!file) return;
-
-        analyzeBtn.disabled = true;
-        analyzeBtn.textContent = "Analyzing...";
-
-        const formData = new FormData();
-        formData.append("file", file);
-
-        try {
-            const res = await fetch("/api/resume/analyze", {
-                method: "POST",
-                body: formData
-            });
-
-            const data = await safeParseJson(res);
-            currentAnalysis = data;
-            renderProfile(data);
-            // Refresh Memory Vault to immediately display candidate extracted facts
-            loadQAMemory();
-
-            if (data.recommended_job_titles && data.recommended_job_titles.length > 0) {
-                const topRole = data.recommended_job_titles[0].title;
-                currentSelectedRole = topRole;
-                openPlatformSelector(topRole);
+    if (resumeFileInput) {
+        resumeFileInput.addEventListener("change", (e) => {
+            if (e.target.files.length > 0) {
+                const file = e.target.files[0];
+                if (fileName) fileName.textContent = file.name;
+                if (fileStatus) fileStatus.classList.remove("hidden");
+                const placeholder = document.getElementById("resumePlaceholderText");
+                if (placeholder) placeholder.textContent = file.name;
             }
-        } catch (error) {
-            alert("Resume Analysis Notice:\n\n" + error.message);
-        } finally {
-            analyzeBtn.disabled = false;
-            analyzeBtn.textContent = "Analyze Resume with LLM";
-        }
-    });
+        });
+    }
+
+    if (analyzeBtn) {
+        analyzeBtn.addEventListener("click", async () => {
+            const file = resumeFileInput?.files[0];
+            if (!file) {
+                alert("Please select a resume file (PDF, DOCX, TXT) first.");
+                resumeFileInput?.click();
+                return;
+            }
+
+            analyzeBtn.disabled = true;
+            analyzeBtn.textContent = "Analyzing...";
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            try {
+                const token = getAuthToken();
+                const res = await fetch("/api/resume/analyze", {
+                    method: "POST",
+                    headers: token ? { "Authorization": `Bearer ${token}` } : {},
+                    body: formData
+                });
+
+                const data = await safeParseJson(res);
+                currentAnalysis = data;
+                renderProfile(data);
+                // Refresh Memory Vault to immediately display candidate extracted facts
+                loadQAMemory();
+
+                let targetRole = "Software Engineer";
+                if (data.recommended_job_titles && data.recommended_job_titles.length > 0) {
+                    const topObj = data.recommended_job_titles[0];
+                    targetRole = typeof topObj === "object" ? (topObj.title || topObj) : topObj;
+                } else if (data.primary_domain) {
+                    targetRole = data.primary_domain;
+                }
+                currentSelectedRole = targetRole;
+
+                // Scout jobs for extracted role
+                triggerJobSearch(currentSelectedRole);
+                openPlatformSelector(currentSelectedRole);
+            } catch (error) {
+                alert("Resume Analysis Notice:\n\n" + error.message);
+            } finally {
+                analyzeBtn.disabled = false;
+                analyzeBtn.textContent = "Analyze Resume with LLM";
+            }
+        });
+    }
 
     if (searchJobsBtn) {
         searchJobsBtn.addEventListener("click", () => {
+            if (!currentAnalysis) {
+                renderJobsEmptyState();
+                alert("Please upload and analyze your resume first so the agent knows which jobs match your skills!");
+                document.getElementById("resumeFileInput")?.click();
+                return;
+            }
             triggerJobSearch(currentSelectedRole);
         });
+    }
+
+    // Default to clean empty state on fresh load
+    if (!currentAnalysis) {
+        renderJobsEmptyState();
+    }
+
+    // Restore candidate profile if authenticated
+    if (currentAuthUser) {
+        loadUserProfile();
+        loadUserApplications();
     }
 
     // Initialize Memory Vault
@@ -180,6 +221,12 @@ function switchPlatform(platformName) {
         }
     }
 
+    // Guard: Prevent job scouting before resume analysis
+    if (!currentAnalysis) {
+        renderJobsEmptyState();
+        return;
+    }
+
     triggerJobSearch(currentSelectedRole);
 }
 
@@ -207,10 +254,78 @@ function showYCNotice() {
 }
 
 // ==========================================
+// Empty State & Job Scouting
+// ==========================================
+function renderJobsEmptyState() {
+    const tableBody = document.getElementById("jobsTableBody");
+    const mobileCards = document.getElementById("jobsCardsMobile");
+    const openingsHeading = document.getElementById("openingsHeading");
+    const statFound = document.getElementById("statFound");
+    if (statFound) statFound.textContent = "0";
+
+    const platLabel = currentSelectedPlatform === "wellfound" ? "Wellfound Startups" : "Naukri";
+    if (openingsHeading) {
+        openingsHeading.innerHTML = `
+            <i data-lucide="briefcase" class="w-5 h-5 text-indigo-400"></i>
+            Live <span class="text-indigo-400 font-bold ml-1">${platLabel}</span> Openings:
+            <span class="text-zinc-400 font-medium ml-1">Awaiting Resume Analysis</span>
+        `;
+    }
+
+    const emptyHtmlDesktop = `
+        <tr>
+            <td colspan="5" class="py-12 px-4 text-center">
+                <div class="flex flex-col items-center justify-center max-w-md mx-auto space-y-3">
+                    <div class="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                        <i data-lucide="file-search" class="w-6 h-6"></i>
+                    </div>
+                    <div class="space-y-1">
+                        <h4 class="text-sm font-semibold text-zinc-100">Upload and analyze your resume first</h4>
+                        <p class="text-xs text-zinc-400 leading-relaxed">
+                            Upload and analyze your resume first. The AI agent will extract your skills DNA and automatically scout 100% matched openings for your domain.
+                        </p>
+                    </div>
+                    <button type="button" onclick="document.getElementById('resumeFileInput')?.click()" class="mt-2 px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-xs transition shadow-md flex items-center gap-1.5 cursor-pointer">
+                        <i data-lucide="upload-cloud" class="w-4 h-4"></i>
+                        <span>Upload Resume Now</span>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `;
+
+    const emptyHtmlMobile = `
+        <div class="p-6 text-center bg-zinc-950/40 rounded-xl border border-zinc-800/80 space-y-3">
+            <div class="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 mx-auto">
+                <i data-lucide="file-search" class="w-5 h-5"></i>
+            </div>
+            <div class="space-y-1">
+                <h4 class="text-xs font-semibold text-zinc-100">Upload and analyze your resume first</h4>
+                <p class="text-[11px] text-zinc-400 leading-relaxed">
+                    Upload and analyze your resume first. The AI agent will extract your skills DNA and automatically scout 100% matched openings for your domain.
+                </p>
+            </div>
+            <button type="button" onclick="document.getElementById('resumeFileInput')?.click()" class="w-full py-2 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-xs transition shadow-md flex items-center justify-center gap-1.5 cursor-pointer">
+                <i data-lucide="upload-cloud" class="w-4 h-4"></i>
+                <span>Upload Resume Now</span>
+            </button>
+        </div>
+    `;
+
+    if (tableBody) tableBody.innerHTML = emptyHtmlDesktop;
+    if (mobileCards) mobileCards.innerHTML = emptyHtmlMobile;
+    if (window.lucide) lucide.createIcons();
+}
+
 // Job Scouting & Dynamic Search
 // ==========================================
 async function triggerJobSearch(query) {
-    if (!query) query = currentSelectedRole || "Data Analyst";
+    if (!currentAnalysis) {
+        renderJobsEmptyState();
+        return;
+    }
+
+    if (!query) query = currentSelectedRole || "Software Engineer";
     currentSelectedRole = query;
 
     const platLabel = currentSelectedPlatform === "wellfound" ? "Wellfound Startups" : "Naukri";
@@ -250,7 +365,8 @@ async function triggerJobSearch(query) {
         const res = await fetch(`/api/jobs/search?query=${encodeURIComponent(query)}&platform=${currentSelectedPlatform}&limit=25`);
         foundJobs = await safeParseJson(res);
         renderJobsTable(foundJobs);
-        document.getElementById("statFound").textContent = foundJobs.length;
+        const statFound = document.getElementById("statFound");
+        if (statFound) statFound.textContent = foundJobs.length;
     } catch (e) {
         if (tableBody) {
             tableBody.innerHTML = `
@@ -416,9 +532,13 @@ async function directApplyRow(idx) {
             job_title: job.title
         };
 
+        const token = getAuthToken();
         const res = await fetch(endpoint, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                ...(token ? { "Authorization": `Bearer ${token}` } : {})
+            },
             body: JSON.stringify(payload)
         });
         const data = await safeParseJson(res);
@@ -489,9 +609,15 @@ async function directApplyRow(idx) {
 // Batch Autonomous Apply on Active Platform
 // ==========================================
 async function executeCurrentPlatformLiveBot() {
+    if (!currentAnalysis) {
+        alert("Please upload and analyze your resume first! The AI agent needs your candidate DNA to tailor applications and match relevant openings.");
+        document.getElementById("resumeFileInput")?.click();
+        return;
+    }
+
     const runBtn = document.getElementById("runPlatformLiveBtn");
     const botStatus = document.getElementById("botLiveStatus");
-    const query = currentSelectedRole || "Data Analyst";
+    const query = currentSelectedRole || "Software Engineer";
     const isWellfound = currentSelectedPlatform === "wellfound";
     const endpoint = isWellfound ? "/api/wellfound/auto-apply-live" : "/api/naukri/auto-apply-live";
     const platformLabel = isWellfound ? "Wellfound" : "Naukri";
@@ -507,9 +633,13 @@ async function executeCurrentPlatformLiveBot() {
     `;
 
     try {
+        const token = getAuthToken();
         const res = await fetch(endpoint, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                ...(token ? { "Authorization": `Bearer ${token}` } : {})
+            },
             body: JSON.stringify({ query: query, limit: 3 })
         });
 
@@ -576,33 +706,73 @@ function renderProfile(data) {
     const skillsContainer = document.getElementById("skillsContainer");
     const jobTitlesContainer = document.getElementById("jobTitlesContainer");
 
-    profileCard.classList.remove("hidden");
+    if (profileCard) profileCard.classList.remove("hidden");
 
-    profileSummary.innerHTML = `
-        <p><strong class="text-slate-300">Candidate:</strong> ${data.candidate_name || "Applicant"}</p>
-        <p><strong class="text-slate-300">Email:</strong> ${data.email || "N/A"}</p>
-        <p><strong class="text-slate-300">Experience:</strong> ~${data.experience_years || 0} years</p>
-    `;
+    const candName = data.candidate_name || data.name || (currentAuthUser ? currentAuthUser.name : "Candidate");
+    const candEmail = data.email || (currentAuthUser ? currentAuthUser.email : "N/A");
+    const candExp = data.experience_years || data.years_of_experience || 0;
 
-    skillsContainer.innerHTML = (data.skills || []).map(skill => `
-        <span class="px-2.5 py-1 bg-slate-900 border border-slate-700 text-indigo-300 rounded-lg text-xs font-medium">
-            ${skill}
-        </span>
-    `).join("");
+    const targetNameEl = document.getElementById("agentTargetCandidateName");
+    if (targetNameEl) targetNameEl.textContent = candName;
 
-    jobTitlesContainer.innerHTML = (data.recommended_job_titles || []).map((item, idx) => `
-        <div id="role-card-${idx}" class="p-3 bg-slate-900 border ${idx === 0 ? 'border-indigo-500 ring-2 ring-indigo-500/40 bg-indigo-950/30' : 'border-slate-700/80'} rounded-xl flex items-center justify-between cursor-pointer hover:border-indigo-500 transition role-card" onclick="selectRoleAndOpenModal('${item.title}', ${idx})">
-            <div>
-                <p class="font-medium text-slate-200 text-xs">${item.title}</p>
-                <p class="text-[10px] text-slate-500">${item.reasoning}</p>
-            </div>
-            <span class="text-xs font-semibold px-2 py-0.5 rounded-full ${
-                item.confidence_score >= 0.8 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'
-            }">
-                ${Math.round(item.confidence_score * 100)}%
+    const statParsed = document.getElementById("statParsed");
+    if (statParsed) {
+        statParsed.textContent = "Ready";
+        statParsed.className = "mt-2 text-lg sm:text-xl font-bold tracking-tight text-emerald-400";
+    }
+    const statParsedSubtitle = document.getElementById("statParsedSubtitle");
+    if (statParsedSubtitle) {
+        statParsedSubtitle.textContent = "Resume DNA";
+    }
+    const placeholder = document.getElementById("resumePlaceholderText");
+    if (placeholder) {
+        placeholder.textContent = `${candName}${candExp ? ` (~${candExp} Yrs Exp)` : ''}`;
+    }
+
+    if (currentAuthUser && (!currentAuthUser.name || currentAuthUser.name === "Guest" || currentAuthUser.name === "Candidate" || currentAuthUser.name === "Demo Candidate")) {
+        currentAuthUser.name = candName;
+        localStorage.setItem("autoapply_user", JSON.stringify(currentAuthUser));
+        renderAuthNavbar();
+    }
+
+    if (profileSummary) {
+        profileSummary.innerHTML = `
+            <p><strong class="text-zinc-300">Candidate:</strong> ${escapeHtml(candName)}</p>
+            <p><strong class="text-zinc-300">Email:</strong> ${escapeHtml(candEmail)}</p>
+            <p><strong class="text-zinc-300">Experience:</strong> ~${candExp} years</p>
+        `;
+    }
+
+    const skillsList = data.skills || data.technical_skills || [];
+    if (skillsContainer) {
+        skillsContainer.innerHTML = skillsList.map(skill => `
+            <span class="px-2.5 py-1 bg-zinc-900 border border-zinc-700 text-indigo-300 rounded-lg text-xs font-medium">
+                ${escapeHtml(skill)}
             </span>
-        </div>
-    `).join("");
+        `).join("");
+    }
+
+    const recJobs = data.recommended_job_titles || [];
+    if (jobTitlesContainer) {
+        jobTitlesContainer.innerHTML = recJobs.map((item, idx) => {
+            const title = typeof item === "object" ? item.title : item;
+            const reasoning = typeof item === "object" ? (item.reasoning || "Strong match based on skills DNA") : "Extracted from candidate DNA";
+            const score = typeof item === "object" && item.confidence_score ? Math.round(item.confidence_score * 100) : 95;
+            return `
+                <div id="role-card-${idx}" class="p-3 bg-zinc-900 border ${idx === 0 ? 'border-indigo-500 ring-2 ring-indigo-500/40 bg-indigo-950/30' : 'border-zinc-700/80'} rounded-xl flex items-center justify-between cursor-pointer hover:border-indigo-500 transition role-card" onclick="selectRoleAndOpenModal('${escapeHtml(title)}', ${idx})">
+                    <div>
+                        <p class="font-medium text-zinc-200 text-xs">${escapeHtml(title)}</p>
+                        <p class="text-[10px] text-zinc-500">${escapeHtml(reasoning)}</p>
+                    </div>
+                    <span class="text-xs font-semibold px-2 py-0.5 rounded-full ${
+                        score >= 80 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'
+                    }">
+                        ${score}%
+                    </span>
+                </div>
+            `;
+        }).join("");
+    }
 }
 
 function selectRoleAndOpenModal(roleTitle, idx) {
@@ -735,8 +905,11 @@ let allMemories = [];
 
 async function loadQAMemory() {
     const uid = currentAuthUser ? currentAuthUser.id : "guest-candidate";
+    const token = getAuthToken();
     try {
-        const res = await fetch("/api/memory/qa");
+        const res = await fetch("/api/memory/qa", {
+            headers: token ? { "Authorization": `Bearer ${token}` } : {}
+        });
         if (!res.ok) {
             const cached = JSON.parse(localStorage.getItem(`autoapply_memories_${uid}`) || "[]");
             allMemories = cached;
@@ -845,9 +1018,13 @@ async function submitPendingAnswer(qId) {
 
     const answer = input.value.trim();
     try {
+        const token = getAuthToken();
         const res = await fetch("/api/memory/answer-pending", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                ...(token ? { "Authorization": `Bearer ${token}` } : {})
+            },
             body: JSON.stringify({ question_id: qId, answer: answer })
         });
         if (!res.ok) throw new Error("Could not save answer");
@@ -883,19 +1060,29 @@ function renderMemoryVault(memories) {
     const countText = document.getElementById("memoryCountText");
     const vaultBadge = document.getElementById("vaultCountBadge");
     const ownerBadge = document.getElementById("vaultOwnerBadge");
+    const count = (memories || []).length;
+
+    if (vaultBadge) vaultBadge.textContent = count;
+    const statNeedsHuman = document.getElementById("statNeedsHuman");
+    if (statNeedsHuman) statNeedsHuman.textContent = count;
+    const vaultFactCountTop = document.getElementById("vaultFactCountTop");
+    if (vaultFactCountTop) vaultFactCountTop.textContent = `${count} Facts`;
+    const mobileVaultCount = document.getElementById("mobileVaultCount");
+    if (mobileVaultCount) mobileVaultCount.textContent = `Vault (${count})`;
+    const heroVaultCount = document.getElementById("heroVaultCount");
+    if (heroVaultCount) heroVaultCount.textContent = `Inspect Memory Vault (${count})`;
+    const scenarioVaultFactCount = document.getElementById("scenarioVaultFactCount");
+    if (scenarioVaultFactCount) scenarioVaultFactCount.textContent = `${count} Verified Facts`;
+
     if (!list) return;
 
-    if (vaultBadge) {
-        vaultBadge.textContent = memories.length;
-    }
-
-    const candidateName = currentAuthUser ? currentAuthUser.name : "Guest";
+    const candidateName = (currentAnalysis?.candidate_name || currentAuthUser?.name || "Guest");
     if (ownerBadge) {
-        ownerBadge.textContent = currentAuthUser ? `Vault: ${currentAuthUser.name}` : "Vault: Guest (Isolated)";
+        ownerBadge.textContent = currentAuthUser ? `Vault: ${candidateName}` : "Vault: Guest (Isolated)";
     }
 
     if (countText) {
-        countText.textContent = `${memories.length} Remembered Answers for ${candidateName}`;
+        countText.textContent = `${count} Remembered Answers for ${candidateName}`;
     }
 
     if (memories.length === 0) {
@@ -978,9 +1165,13 @@ async function saveNewMemory() {
     }
 
     try {
+        const token = getAuthToken();
         const res = await fetch("/api/memory/qa", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                ...(token ? { "Authorization": `Bearer ${token}` } : {})
+            },
             body: JSON.stringify({ question: question, answer: answer, category: "custom" })
         });
         if (!res.ok) throw new Error("Could not save to memory");
@@ -1001,7 +1192,11 @@ async function saveNewMemory() {
 async function deleteMemory(mId) {
     if (!confirm("Remove this question from the agent's memory?")) return;
     try {
-        const res = await fetch(`/api/memory/qa/${mId}`, { method: "DELETE" });
+        const token = getAuthToken();
+        const res = await fetch(`/api/memory/qa/${encodeURIComponent(mId)}`, {
+            method: "DELETE",
+            headers: token ? { "Authorization": `Bearer ${token}` } : {}
+        });
         if (!res.ok) throw new Error("Could not delete");
         loadQAMemory();
     } catch (e) {
@@ -1207,10 +1402,12 @@ function triggerScenarioSimulation() {
 
     const btnText = document.getElementById("simBtnText");
     const logText = document.getElementById("simLogText");
+    const candName = (currentAnalysis?.candidate_name || currentAuthUser?.name || "Candidate");
+    const vaultCount = (typeof allMemories !== "undefined" && allMemories) ? allMemories.length : 0;
     const nodes = [
-        { id: "simNode1", label: "1/5: Ingestion Complete · Extracted 30+ Skills DNA from Sachin's Resume" },
-        { id: "simNode2", label: "2/5: Portal Scout Finished · Discovered 7 Openings (≤ 15-Day Freshness Filtered)" },
-        { id: "simNode3", label: "3/5: Screening Reasoning · Verified 21 Canonical Facts from Memory Vault" },
+        { id: "simNode1", label: `1/5: Ingestion Complete · Extracted Skills DNA from ${candName}'s Resume` },
+        { id: "simNode2", label: "2/5: Portal Scout Finished · Discovered Live Openings (≤ 15-Day Freshness Filtered)" },
+        { id: "simNode3", label: `3/5: Screening Reasoning · Verified ${vaultCount} Canonical Facts from Memory Vault` },
         { id: "simNode4", label: "4/5: Zero-Hallucination Safe · Telegram Real-time HITL Gate Standby" },
         { id: "simNode5", label: "5/5: Playwright Submit Success · Headless Form Submitted & Screen Proof Captured" }
     ];
@@ -1364,7 +1561,9 @@ function setLoggedInUser(user, token) {
     renderAuthNavbar();
     toggleAuthModal(false);
     backToMainAuthView();
-    // Reload candidate-specific isolated memories & applications
+
+    // Reload candidate-specific isolated profile, memories & applications
+    loadUserProfile();
     loadQAMemory();
     loadUserApplications();
 }
@@ -1372,13 +1571,73 @@ function setLoggedInUser(user, token) {
 function setLoggedOutUser() {
     currentAuthUser = null;
     currentAuthToken = null;
+    currentAnalysis = null;
+    currentSelectedRole = "";
     localStorage.removeItem("autoapply_user");
     localStorage.removeItem("autoapply_auth_token");
     renderAuthNavbar();
     backToMainAuthView();
-    // Reset Memory Vault to guest state (zero personal facts)
+
+    const statParsed = document.getElementById("statParsed");
+    if (statParsed) {
+        statParsed.textContent = "Awaiting";
+        statParsed.className = "mt-2 text-lg sm:text-xl font-bold tracking-tight text-amber-400";
+    }
+    const statParsedSubtitle = document.getElementById("statParsedSubtitle");
+    if (statParsedSubtitle) {
+        statParsedSubtitle.textContent = "Upload resume to start";
+    }
+    const placeholder = document.getElementById("resumePlaceholderText");
+    if (placeholder) {
+        placeholder.textContent = "Click or drop resume file (PDF, DOCX, TXT)";
+    }
+    const targetNameEl = document.getElementById("agentTargetCandidateName");
+    if (targetNameEl) targetNameEl.textContent = "Candidate";
+
+    const profileCard = document.getElementById("profileCard");
+    if (profileCard) profileCard.classList.add("hidden");
+
+    renderJobsEmptyState();
     loadQAMemory();
     loadUserApplications();
+}
+
+async function loadUserProfile() {
+    const token = getAuthToken();
+    if (!token) return;
+    try {
+        const res = await fetch("/api/user/profile", {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (!res.ok) return;
+        const profile = await res.json();
+        if (profile && (profile.technical_skills?.length > 0 || profile.skills?.length > 0 || profile.primary_domain || profile.experience_years)) {
+            currentAnalysis = profile;
+            renderProfile(profile);
+            if (profile.primary_domain) {
+                currentSelectedRole = profile.primary_domain;
+                triggerJobSearch(currentSelectedRole);
+            }
+        }
+    } catch (e) {
+        console.warn("Could not load user profile:", e);
+    }
+}
+
+async function loadUserApplications() {
+    const token = getAuthToken();
+    try {
+        const res = await fetch("/api/user/applications", {
+            headers: token ? { "Authorization": `Bearer ${token}` } : {}
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const apps = data.applications || [];
+        const statApplied = document.getElementById("statApplied");
+        if (statApplied) statApplied.textContent = apps.length;
+    } catch (e) {
+        console.warn("Could not load user applications:", e);
+    }
 }
 
 function loginAsDemoUser() {
@@ -1403,6 +1662,12 @@ function renderAuthNavbar() {
     const mobileUserAvatar = document.getElementById("mobileUserAvatar");
     const mobileSignInBtn = document.getElementById("mobileSignInBtn");
     const mobileSignOutBtn = document.getElementById("mobileSignOutBtn");
+    const targetNameEl = document.getElementById("agentTargetCandidateName");
+
+    const activeName = (currentAnalysis?.candidate_name || currentAuthUser?.name || "Candidate");
+    if (targetNameEl) {
+        targetNameEl.textContent = activeName;
+    }
 
     if (currentAuthUser) {
         if (signInBtn) signInBtn.classList.add("hidden");
@@ -1440,33 +1705,201 @@ function renderAuthNavbar() {
     if (window.lucide) lucide.createIcons();
 }
 
+// =============================================================================
+// Real Google Identity Services (GIS) & OAuth Authentication
+// =============================================================================
+const GOOGLE_CLIENT_ID = localStorage.getItem("google_client_id") || "1028741369796-7q4v1d4k19t06h40k5f2u0m9n8c08j12.apps.googleusercontent.com";
+
+function parseJwtPayload(token) {
+    try {
+        const base64Url = token.split('.')[1];
+        if (!base64Url) return null;
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        return JSON.parse(jsonPayload);
+    } catch (e) {
+        console.warn("JWT payload parse error:", e);
+        return null;
+    }
+}
+
+function initGoogleIdentity() {
+    if (typeof google === "undefined" || !google.accounts || !google.accounts.id) {
+        setTimeout(initGoogleIdentity, 600);
+        return;
+    }
+
+    try {
+        google.accounts.id.initialize({
+            client_id: GOOGLE_CLIENT_ID,
+            callback: handleGoogleCredentialResponse,
+            auto_select: false,
+            cancel_on_tap_outside: true
+        });
+
+        // Render official GIS button into containers
+        const modalContainer = document.getElementById("googleGsiBtnModal");
+        if (modalContainer) {
+            google.accounts.id.renderButton(modalContainer, {
+                theme: "filled_black",
+                size: "large",
+                width: 320,
+                text: "continue_with",
+                shape: "rectangular"
+            });
+        }
+        const viewContainer = document.getElementById("googleGsiBtnView");
+        if (viewContainer) {
+            google.accounts.id.renderButton(viewContainer, {
+                theme: "filled_blue",
+                size: "large",
+                width: 320,
+                text: "signin_with",
+                shape: "rectangular"
+            });
+        }
+    } catch (e) {
+        console.warn("Google Identity initialization warning:", e);
+    }
+}
+
+function triggerGooglePrompt() {
+    if (typeof google !== "undefined" && google.accounts && google.accounts.id) {
+        google.accounts.id.prompt((notification) => {
+            if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+                console.log("GIS prompt status:", notification.getNotDisplayedReason?.());
+            }
+        });
+    } else {
+        signInWithGoogleOAuth();
+    }
+}
+
+async function handleGoogleCredentialResponse(response) {
+    if (!response || !response.credential) {
+        showAuthError("Google Sign-In did not return a valid credential token.");
+        return;
+    }
+
+    const payload = parseJwtPayload(response.credential);
+    if (!payload || !payload.email) {
+        showAuthError("Could not retrieve verified profile from Google credential.");
+        return;
+    }
+
+    const verifiedUser = {
+        id: "google-" + (payload.sub || btoa(payload.email).replace(/[^a-zA-Z0-9]/g, "").slice(0, 14)),
+        email: payload.email.toLowerCase(),
+        name: payload.name || payload.email.split("@")[0],
+        avatar: payload.picture || `https://ui-avatars.com/api/?name=${encodeURIComponent(payload.name || payload.email)}&background=4285F4&color=fff&bold=true`,
+        provider: "google",
+        user_metadata: {
+            full_name: payload.name || payload.email.split("@")[0],
+            name: payload.name,
+            avatar_url: payload.picture,
+            email_verified: payload.email_verified
+        }
+    };
+
+    if (supabaseClient && supabaseClient.auth) {
+        try {
+            await supabaseClient.auth.signInWithIdToken({
+                provider: "google",
+                token: response.credential
+            });
+        } catch (e) {
+            console.log("Supabase direct ID token note:", e.message);
+        }
+    }
+
+    setLoggedInUser(verifiedUser, response.credential);
+    toggleAuthModal(false);
+}
+
+function signInWithGoogleOAuth() {
+    if (supabaseClient) {
+        signInWithOAuth("google");
+        return;
+    }
+    const redirectUri = window.location.origin + window.location.pathname;
+    const scope = encodeURIComponent("openid email profile");
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token%20id_token&scope=${scope}&nonce=aa_${Date.now()}`;
+    window.location.href = authUrl;
+}
+
+function signInWithGitHubOAuth() {
+    if (supabaseClient) {
+        signInWithOAuth("github");
+        return;
+    }
+    const savedGitHubId = localStorage.getItem("github_client_id");
+    if (savedGitHubId) {
+        const redirectUri = window.location.origin + window.location.pathname;
+        window.location.href = `https://github.com/login/oauth/authorize?client_id=${encodeURIComponent(savedGitHubId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=read:user%20user:email`;
+    } else {
+        showAuthError("GitHub OAuth connects through your Supabase project keys (or GitHub Client ID). Please add keys under 'Cloud Config Keys' below, or sign in instantly with Google One Tap or Email.");
+    }
+}
+
+function checkOAuthRedirectTokens() {
+    const hash = window.location.hash.substring(1);
+    if (!hash) return;
+    const params = new URLSearchParams(hash);
+    const idToken = params.get("id_token");
+    const accessToken = params.get("access_token");
+
+    if (idToken) {
+        const payload = parseJwtPayload(idToken);
+        if (payload && payload.email) {
+            const verifiedUser = {
+                id: "google-" + (payload.sub || btoa(payload.email).replace(/[^a-zA-Z0-9]/g, "").slice(0, 14)),
+                email: payload.email.toLowerCase(),
+                name: payload.name || payload.email.split("@")[0],
+                avatar: payload.picture || `https://ui-avatars.com/api/?name=${encodeURIComponent(payload.name || payload.email)}&background=4285F4&color=fff&bold=true`,
+                provider: "google",
+                user_metadata: {
+                    full_name: payload.name || payload.email.split("@")[0],
+                    name: payload.name,
+                    avatar_url: payload.picture,
+                    email_verified: payload.email_verified
+                }
+            };
+            setLoggedInUser(verifiedUser, idToken);
+            window.history.replaceState(null, "", window.location.pathname + window.location.search);
+        }
+    }
+}
+
 // Google & GitHub Sub-Views
 function openGoogleAuthView() {
     const main = document.getElementById("mainAuthView");
-    const google = document.getElementById("googleAuthView");
+    const googleView = document.getElementById("googleAuthView");
     const github = document.getElementById("githubAuthView");
     if (main) main.classList.add("hidden");
     if (github) github.classList.add("hidden");
-    if (google) google.classList.remove("hidden");
+    if (googleView) googleView.classList.remove("hidden");
     renderGoogleSavedAccounts();
+    triggerGooglePrompt();
     if (window.lucide) lucide.createIcons();
 }
 
 function openGitHubAuthView() {
     const main = document.getElementById("mainAuthView");
-    const google = document.getElementById("googleAuthView");
+    const googleView = document.getElementById("googleAuthView");
     const github = document.getElementById("githubAuthView");
     if (main) main.classList.add("hidden");
-    if (google) google.classList.add("hidden");
+    if (googleView) googleView.classList.add("hidden");
     if (github) github.classList.remove("hidden");
     if (window.lucide) lucide.createIcons();
 }
 
 function backToMainAuthView() {
     const main = document.getElementById("mainAuthView");
-    const google = document.getElementById("googleAuthView");
+    const googleView = document.getElementById("googleAuthView");
     const github = document.getElementById("githubAuthView");
-    if (google) google.classList.add("hidden");
+    if (googleView) googleView.classList.add("hidden");
     if (github) github.classList.add("hidden");
     if (main) main.classList.remove("hidden");
     if (window.lucide) lucide.createIcons();
@@ -1516,84 +1949,6 @@ function selectSavedAccount(accountId) {
     } catch (e) {}
 }
 
-function handleGoogleDirectSubmit(event) {
-    event.preventDefault();
-    const emailInput = document.getElementById("googleEmailInput");
-    const nameInput = document.getElementById("googleNameInput");
-    if (!emailInput) return;
-    const email = emailInput.value.trim().toLowerCase();
-    const name = nameInput?.value?.trim() || "";
-    signInWithGoogleDirect(email, name);
-}
-
-function signInWithGoogleDirect(email, name) {
-    if (!email || !email.includes("@")) {
-        alert("Please enter a valid Google email address.");
-        return;
-    }
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanName = (name && name.trim()) ? name.trim() : cleanEmail.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-    const hash = btoa(cleanEmail).replace(/[^a-zA-Z0-9]/g, "").slice(0, 16);
-    const user = {
-        id: "google-" + hash,
-        email: cleanEmail,
-        name: cleanName,
-        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=4285F4&color=fff&bold=true`,
-        provider: "google"
-    };
-    const token = createLocalAuthToken(user);
-    setLoggedInUser(user, token);
-}
-
-function updateGitHubPreview(val) {
-    const preview = document.getElementById("githubAvatarPreview");
-    const img = document.getElementById("githubAvatarImg");
-    const name = document.getElementById("githubPreviewName");
-    if (!preview || !img || !name) return;
-    const clean = val.trim().replace(/^@/, '').split('@')[0];
-    if (clean.length >= 2) {
-        preview.classList.remove("hidden");
-        preview.classList.add("flex");
-        img.src = `https://github.com/${clean}.png`;
-        name.textContent = clean;
-    } else {
-        preview.classList.add("hidden");
-        preview.classList.remove("flex");
-    }
-}
-
-function handleGitHubDirectSubmit(event) {
-    event.preventDefault();
-    const userInput = document.getElementById("githubUsernameInput");
-    const nameInput = document.getElementById("githubNameInput");
-    if (!userInput) return;
-    const username = userInput.value.trim();
-    const name = nameInput?.value?.trim() || "";
-    signInWithGitHubDirect(username, name);
-}
-
-function signInWithGitHubDirect(username, name) {
-    if (!username || !username.trim()) {
-        alert("Please enter your GitHub username or handle.");
-        return;
-    }
-    const cleanUser = username.trim().replace(/^@/, '');
-    const isEmail = cleanUser.includes("@");
-    const handle = isEmail ? cleanUser.split("@")[0] : cleanUser;
-    const cleanEmail = isEmail ? cleanUser.toLowerCase() : `${handle.toLowerCase()}@users.noreply.github.com`;
-    const cleanName = (name && name.trim()) ? name.trim() : handle;
-    const hash = btoa(cleanUser.toLowerCase()).replace(/[^a-zA-Z0-9]/g, "").slice(0, 16);
-    const user = {
-        id: "github-" + hash,
-        email: cleanEmail,
-        name: cleanName,
-        avatar: `https://github.com/${handle.replace(/[^a-zA-Z0-9-]/g, '')}.png`,
-        provider: "github"
-    };
-    const token = createLocalAuthToken(user);
-    setLoggedInUser(user, token);
-}
-
 function toggleMobileNavMenu(forceState) {
     const menu = document.getElementById("mobileNavMenu");
     const icon = document.getElementById("mobileMenuIcon");
@@ -1621,6 +1976,7 @@ function toggleAuthModal(show) {
         if (emailInput && (emailInput.value.includes("supabase.co") || emailInput.value.startsWith("http"))) {
             emailInput.value = "";
         }
+        triggerGooglePrompt();
     } else {
         modal.classList.add("hidden");
         backToMainAuthView();
@@ -1655,9 +2011,13 @@ async function signInWithOAuth(provider) {
     const hasRealSupabase = savedUrl && savedKey && !savedUrl.includes("iyqcrvdmlbtzrehwaxvl");
 
     if (!hasRealSupabase || !supabaseClient) {
+        if (provider === "google") {
+            signInWithGoogleOAuth();
+            return;
+        }
         showAuthError(
-            `Google & GitHub OAuth require connecting your free Supabase project keys. ` +
-            `Click 'Cloud Config Keys' below to add your keys, or sign in instantly with Email & Password or Demo Guest mode!`
+            `Google & GitHub OAuth connect through your free Supabase project keys. ` +
+            `Click 'Cloud Config Keys' below to add your keys, or sign in instantly with Google One Tap, Email & Password, or Demo Guest mode!`
         );
         return;
     }
@@ -1680,26 +2040,65 @@ async function signInWithOAuth(provider) {
 
 async function handleEmailAuth(event) {
     event.preventDefault();
-    const email = document.getElementById("authEmailInput").value.trim();
+    const email = document.getElementById("authEmailInput").value.trim().toLowerCase();
     const password = document.getElementById("authPasswordInput").value;
     const fullName = document.getElementById("authNameInput")?.value?.trim() || "";
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email || !emailRegex.test(email)) {
+        showAuthError("Please enter a valid email address.");
+        return;
+    }
+    if (!password || password.length < 6) {
+        showAuthError("Password must be at least 6 characters.");
+        return;
+    }
 
     const savedUrl = localStorage.getItem("supabase_url") || "";
     const savedKey = localStorage.getItem("supabase_anon_key") || "";
     const hasRealSupabase = savedUrl && savedKey && !savedUrl.includes("iyqcrvdmlbtzrehwaxvl");
 
     if (!hasRealSupabase || !supabaseClient) {
-        const cleanName = fullName || email.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-        const userObj = {
-            id: "email-" + btoa(email).replace(/[^a-zA-Z0-9]/g, "").slice(0, 14),
-            email: email,
-            name: cleanName,
-            user_metadata: { full_name: cleanName },
-            provider: "email"
-        };
-        const token = createLocalAuthToken(userObj);
-        setLoggedInUser(userObj, token);
-        return;
+        let localUsers = {};
+        try {
+            localUsers = JSON.parse(localStorage.getItem("autoapply_local_users") || "{}");
+        } catch (e) {
+            localUsers = {};
+        }
+
+        if (authMode === "signup") {
+            if (localUsers[email]) {
+                showAuthError("An account with this email already exists. Please switch to 'Sign In'.");
+                return;
+            }
+            const cleanName = fullName || email.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+            const userObj = {
+                id: "email-" + btoa(email).replace(/[^a-zA-Z0-9]/g, "").slice(0, 14),
+                email: email,
+                name: cleanName,
+                user_metadata: { full_name: cleanName },
+                passwordHash: btoa(password),
+                provider: "email"
+            };
+            localUsers[email] = userObj;
+            localStorage.setItem("autoapply_local_users", JSON.stringify(localUsers));
+            const token = createLocalAuthToken(userObj);
+            setLoggedInUser(userObj, token);
+            return;
+        } else {
+            const existing = localUsers[email];
+            if (!existing) {
+                showAuthError("No account found for this email. Please switch to 'Create Account' tab to register.");
+                return;
+            }
+            if (existing.passwordHash && existing.passwordHash !== btoa(password)) {
+                showAuthError("Incorrect password. Please verify your credentials.");
+                return;
+            }
+            const token = createLocalAuthToken(existing);
+            setLoggedInUser(existing, token);
+            return;
+        }
     }
 
     try {
@@ -1931,9 +2330,13 @@ async function checkPortalSessionStatus() {
 
 async function saveConnectedCookies(platform, cookieData, fromAssistant = false) {
     try {
+        const token = getAuthToken();
+        const headers = { "Content-Type": "application/json" };
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+
         const res = await fetch("/api/session/connect-cookies", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: headers,
             body: JSON.stringify({
                 platform: platform,
                 cookies: cookieData
@@ -2044,30 +2447,45 @@ async function assistantGeneratePitchAndOpen() {
     if (btn) btn.disabled = true;
     if (btnText) btnText.innerHTML = "Generating AI Pitch with Gemini/Groq...";
 
+    const candidateName = currentAnalysis?.candidate_name || currentAuthUser?.name || "Candidate";
+
     try {
+        const token = getAuthToken();
+        const headers = { "Content-Type": "application/json" };
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+
         const res = await fetch("/api/jobs/prepare-application", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: headers,
             body: JSON.stringify({
                 job_title: job.title,
                 company: job.company,
                 platform: job.platform || 'Naukri',
-                job_url: job.job_url
+                job_url: job.job_url,
+                candidate_name: candidateName
             })
         });
         const data = await res.json();
-        const pitch = data.cover_letter || `Dear Hiring Team at ${job.company},\n\nI am writing to express my strong interest in the ${job.title} position...`;
+        const pitch = data.cover_letter || `Dear Hiring Team at ${job.company},\n\nI am writing to express my strong interest in the ${job.title} position at ${job.company}.\n\nBest regards,\n${candidateName}`;
 
         // Copy to clipboard
-        await navigator.clipboard.writeText(pitch);
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(pitch);
+            }
+        } catch (clipErr) {
+            console.warn("Clipboard copy error:", clipErr);
+        }
 
         if (pitchText) pitchText.value = pitch;
         if (pitchBox) pitchBox.classList.remove("hidden");
         if (btnText) btnText.innerHTML = "✅ Pitch Copied! Opening Job...";
 
-        // Open job URL in new tab
+        // Open job URL in new tab with security rel attributes
         setTimeout(() => {
-            window.open(job.job_url, "_blank");
+            if (job.job_url) {
+                window.open(job.job_url, "_blank", "noopener,noreferrer");
+            }
         }, 600);
 
         // Update status in table
@@ -2081,7 +2499,9 @@ async function assistantGeneratePitchAndOpen() {
         }
 
     } catch (e) {
-        window.open(job.job_url, "_blank");
+        if (job.job_url) {
+            window.open(job.job_url, "_blank", "noopener,noreferrer");
+        }
         if (btnText) btnText.innerHTML = "Opening Job...";
     } finally {
         if (btn) btn.disabled = false;

@@ -47,6 +47,8 @@
     
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Google Identity Services (GIS SDK) -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <!-- Supabase Cloud Auth & Database Client SDK (100% Free CDN) -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
@@ -297,8 +299,8 @@
             <!-- Mobile Auth Status / User Info -->
             <div id="mobileAuthRow" class="pb-2.5 border-b border-zinc-800 flex items-center justify-between">
                 <div id="mobileUserDisplay" class="flex items-center gap-2">
-                    <div id="mobileUserAvatar" class="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-xs flex items-center justify-center border border-emerald-500/30">S</div>
-                    <span id="mobileUserName" class="text-xs font-semibold text-zinc-200">Sachin</span>
+                    <div id="mobileUserAvatar" class="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-xs flex items-center justify-center border border-emerald-500/30">G</div>
+                    <span id="mobileUserName" class="text-xs font-semibold text-zinc-200">Guest</span>
                 </div>
                 <div class="flex items-center gap-2">
                     <button id="mobileSignInBtn" onclick="toggleAuthModal(true); toggleMobileNavMenu(false);" class="text-xs px-2.5 py-1 rounded-md bg-emerald-500 text-zinc-950 font-semibold">
@@ -318,7 +320,7 @@
                 </a>
                 <button onclick="toggleVaultModal(true); toggleMobileNavMenu(false);" class="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-200 font-medium flex items-center gap-2 text-left">
                     <i data-lucide="brain" class="w-3.5 h-3.5 text-purple-400"></i>
-                    <span>Vault (21)</span>
+                    <span id="mobileVaultCount">Vault (0)</span>
                 </button>
                 <button onclick="openCloudConfigModal(); toggleMobileNavMenu(false);" class="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-200 font-medium flex items-center gap-2 text-left">
                     <i data-lucide="settings" class="w-3.5 h-3.5 text-blue-400"></i>
@@ -381,7 +383,7 @@
 
             <button onclick="toggleVaultModal(true)" class="px-4 py-2.5 rounded-lg bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 hover:border-zinc-700 text-zinc-200 font-medium text-xs sm:text-sm transition flex items-center justify-center gap-2">
                 <i data-lucide="brain" class="w-4 h-4 text-zinc-400"></i>
-                <span>Inspect Memory Vault (21)</span>
+                <span id="heroVaultCount">Inspect Memory Vault (0)</span>
             </button>
 
             <button onclick="triggerScenarioSimulation()" class="px-4 py-2.5 rounded-lg bg-zinc-900/60 hover:bg-zinc-800 border border-zinc-800 text-emerald-400 font-medium text-xs sm:text-sm transition flex items-center justify-center gap-2">
@@ -483,7 +485,7 @@
                         <i data-lucide="brain" class="w-6 sm:w-7 h-6 sm:h-7 text-purple-400"></i>
                     </div>
                     <span class="text-xs font-semibold text-zinc-200 mt-1.5 sm:mt-2">Memory Vault AI</span>
-                    <span class="text-[10px] font-mono text-zinc-400 bg-zinc-900/90 border border-zinc-800 px-1.5 py-0.2 rounded mt-0.5">21 Verified Facts</span>
+                    <span id="scenarioVaultFactCount" class="text-[10px] font-mono text-zinc-400 bg-zinc-900/90 border border-zinc-800 px-1.5 py-0.2 rounded mt-0.5">0 Verified Facts</span>
                 </div>
 
                 <!-- Node 4: Telegram HITL Gate -->
@@ -748,7 +750,7 @@
                     <h2 class="text-lg sm:text-2xl font-bold tracking-tight text-white">Agent Operations Console</h2>
                     <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                 </div>
-                <p class="text-[11px] sm:text-xs text-zinc-400 mt-1">Autonomous browser agent orchestration for: <strong class="text-zinc-200">Sachin Sharma</strong></p>
+                <p class="text-[11px] sm:text-xs text-zinc-400 mt-1">Autonomous browser agent orchestration for: <strong id="agentTargetCandidateName" class="text-zinc-200">Candidate</strong></p>
             </div>
 
             <!-- Live Status Tickers -->
@@ -759,7 +761,7 @@
                 </div>
                 <button onclick="toggleVaultModal(true)" class="px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-300 transition flex items-center gap-1.5 text-[11px]">
                     <i data-lucide="brain" class="w-3 h-3 text-zinc-400"></i>
-                    <span>Vault: <strong class="text-emerald-400">21 Facts</strong></span>
+                    <span>Vault: <strong id="vaultFactCountTop" class="text-emerald-400">0 Facts</strong></span>
                 </button>
             </div>
         </div>
@@ -772,8 +774,8 @@
                     <span class="truncate">Candidate</span>
                     <i data-lucide="user-check" class="w-3.5 sm:w-4 h-3.5 sm:h-4 text-zinc-500 shrink-0"></i>
                 </span>
-                <div class="mt-2 text-lg sm:text-xl font-bold tracking-tight text-white" id="statParsed">Ready</div>
-                <span class="text-[10px] sm:text-[11px] text-zinc-500 mt-0.5 truncate">Resume DNA</span>
+                <div class="mt-2 text-lg sm:text-xl font-bold tracking-tight text-amber-400" id="statParsed">Awaiting</div>
+                <span id="statParsedSubtitle" class="text-[10px] sm:text-[11px] text-zinc-500 mt-0.5 truncate">Upload resume to start</span>
             </div>
 
             <div class="bg-card hairline-border rounded-xl p-3 sm:p-4 flex flex-col justify-between interactive-card">
@@ -799,7 +801,7 @@
                     <span class="truncate">Memory Vault</span>
                     <i data-lucide="help-circle" class="w-3.5 sm:w-4 h-3.5 sm:h-4 text-zinc-500 shrink-0"></i>
                 </span>
-                <div class="mt-2 text-lg sm:text-xl font-bold tracking-tight text-white" id="statNeedsHuman">21</div>
+                <div class="mt-2 text-lg sm:text-xl font-bold tracking-tight text-white" id="statNeedsHuman">0</div>
                 <span class="text-[10px] sm:text-[11px] text-zinc-500 mt-0.5 truncate">Zero hallucinations</span>
             </div>
 
@@ -827,7 +829,7 @@
                         <div class="flex flex-col items-center justify-center space-y-1.5">
                             <i data-lucide="upload-cloud" class="w-6 h-6 text-zinc-400"></i>
                             <p class="text-xs font-medium text-zinc-300">Click or drop resume file</p>
-                            <p class="text-[10px] sm:text-[11px] text-zinc-500 truncate max-w-full">Sachin Sharma (2 Yrs Exp)</p>
+                            <p id="resumePlaceholderText" class="text-[10px] sm:text-[11px] text-zinc-500 truncate max-w-full">Click or drop resume file (PDF, DOCX, TXT)</p>
                         </div>
                     </div>
 
@@ -949,8 +951,20 @@
 
                     <!-- Mobile Responsive Openings View (Card List for Mobile) -->
                     <div id="jobsCardsMobile" class="md:hidden space-y-2.5">
-                        <div class="p-6 text-center text-zinc-500 bg-zinc-950/40 rounded-xl border border-zinc-800/80 text-xs">
-                            Upload your resume or trigger job scouts to discover and auto-apply to relevant positions.
+                        <div class="p-6 text-center bg-zinc-950/40 rounded-xl border border-zinc-800/80 space-y-3">
+                            <div class="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 mx-auto">
+                                <i data-lucide="file-search" class="w-5 h-5"></i>
+                            </div>
+                            <div class="space-y-1">
+                                <h4 class="text-xs font-semibold text-zinc-100">Upload and analyze your resume first</h4>
+                                <p class="text-[11px] text-zinc-400 leading-relaxed">
+                                    The AI agent will extract your skills DNA and automatically scout 100% matched openings for your domain.
+                                </p>
+                            </div>
+                            <button type="button" onclick="document.getElementById('resumeFileInput')?.click()" class="w-full py-2 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-xs transition shadow-md flex items-center justify-center gap-1.5 cursor-pointer">
+                                <i data-lucide="upload-cloud" class="w-4 h-4"></i>
+                                <span>Upload Resume Now</span>
+                            </button>
                         </div>
                     </div>
 
@@ -968,8 +982,22 @@
                             </thead>
                             <tbody id="jobsTableBody" class="divide-y divide-zinc-800/60 text-zinc-300 bg-zinc-900/30">
                                 <tr>
-                                    <td colspan="5" class="py-10 text-center text-zinc-500">
-                                        Upload your resume or trigger job scouts to discover and auto-apply to relevant positions.
+                                    <td colspan="5" class="py-12 px-4 text-center">
+                                        <div class="flex flex-col items-center justify-center max-w-md mx-auto space-y-3">
+                                            <div class="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                                                <i data-lucide="file-search" class="w-6 h-6"></i>
+                                            </div>
+                                            <div class="space-y-1">
+                                                <h4 class="text-sm font-semibold text-zinc-100">Upload and analyze your resume first</h4>
+                                                <p class="text-xs text-zinc-400 leading-relaxed">
+                                                    The AI agent will extract your skills DNA and automatically scout 100% matched openings for your domain.
+                                                </p>
+                                            </div>
+                                            <button type="button" onclick="document.getElementById('resumeFileInput')?.click()" class="mt-2 px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-xs transition shadow-md flex items-center gap-1.5 cursor-pointer">
+                                                <i data-lucide="upload-cloud" class="w-4 h-4"></i>
+                                                <span>Upload Resume Now</span>
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             </tbody>
@@ -1065,7 +1093,7 @@
                 <div>
                     <h3 class="text-sm font-semibold text-zinc-100">Select Portal</h3>
                     <p class="text-xs text-zinc-400 mt-0.5">
-                        Selected Role: <span id="modalSelectedRoleTitle" class="text-zinc-200 font-semibold">Data Analyst</span>
+                        Selected Role: <span id="modalSelectedRoleTitle" class="text-zinc-200 font-semibold">Awaiting Resume Analysis</span>
                     </p>
                 </div>
                 <button onclick="closePlatformModal()" class="text-zinc-500 hover:text-zinc-300 p-1 rounded-md text-xs font-bold">✕</button>
@@ -1173,6 +1201,7 @@
 
                 <!-- OAuth Buttons -->
                 <div class="space-y-2 pt-1">
+                    <div id="googleGsiBtnModal" class="w-full flex justify-center min-h-[40px]"></div>
                     <button type="button" onclick="openGoogleAuthView()" class="w-full py-2.5 px-3 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/80 hover:border-zinc-500 text-xs font-semibold text-zinc-200 flex items-center justify-center gap-2.5 transition cursor-pointer">
                         <svg class="w-4 h-4" viewBox="0 0 24 24">
                             <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.65v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.14z"/>
@@ -1255,30 +1284,30 @@
                         </svg>
                     </div>
                     <h4 class="text-sm font-bold text-zinc-100">Sign in with Google</h4>
-                    <p class="text-xs text-zinc-400">Connect your Google account to access your private Memory Vault</p>
+                    <p class="text-xs text-zinc-400">Secure 1-click Google Identity Services</p>
+                </div>
+
+                <!-- Google Identity Services One Tap & Button Container -->
+                <div class="space-y-2.5 pt-1">
+                    <div id="googleGsiBtnView" class="w-full flex justify-center min-h-[44px]"></div>
+                    <button type="button" onclick="triggerGooglePrompt()" class="w-full py-2.5 px-3 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/80 hover:border-zinc-500 text-xs font-semibold text-zinc-200 flex items-center justify-center gap-2 transition cursor-pointer">
+                        <svg class="w-4 h-4" viewBox="0 0 24 24">
+                            <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.65v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.14z"/>
+                            <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.26v3.15C3.26 21.36 7.34 24 12 24z"/>
+                            <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.26C.46 8.16 0 9.98 0 12s.46 3.84 1.26 5.42l4.02-3.15z"/>
+                            <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.26 6.58l4.02 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+                        </svg>
+                        <span>Auto-Detect Google Account (One Tap)</span>
+                    </button>
+                    <button type="button" onclick="signInWithGoogleOAuth()" class="w-full py-2 px-3 rounded-lg bg-zinc-950 hover:bg-zinc-900 border border-zinc-800 text-[11px] font-medium text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-1.5 transition cursor-pointer">
+                        <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                        <span>Google OAuth Popup Fallback</span>
+                    </button>
                 </div>
 
                 <!-- Previously Saved Google Accounts (if any) -->
                 <div id="googleSavedAccountsList" class="space-y-1.5 hidden"></div>
-
-                <!-- Google Sign In Form -->
-                <form id="googleDirectForm" onsubmit="handleGoogleDirectSubmit(event)" class="space-y-3 pt-1">
-                    <div class="space-y-1">
-                        <label class="text-[11px] font-medium text-zinc-400">Google / Gmail Address</label>
-                        <input id="googleEmailInput" type="email" required placeholder="you@gmail.com" class="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-zinc-200 focus:border-blue-500 outline-none transition">
-                    </div>
-                    <div class="space-y-1">
-                        <label class="text-[11px] font-medium text-zinc-400">Candidate Full Name</label>
-                        <input id="googleNameInput" type="text" placeholder="e.g. Alex Johnson" class="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-zinc-200 focus:border-blue-500 outline-none transition">
-                    </div>
-                    <button type="submit" class="w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2 cursor-pointer">
-                        <svg class="w-4 h-4" viewBox="0 0 24 24">
-                            <path fill="#ffffff" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
-                        </svg>
-                        <span>Sign In / Create with Google</span>
-                    </button>
-                </form>
-                <p class="text-[10px] text-zinc-500 text-center">Multi-tenant isolation: Your resume, answers, and live applies remain strictly private.</p>
+                <p class="text-[10px] text-zinc-500 text-center">Multi-tenant isolation: Verified by Google Identity Services. Password and credentials are never stored unencrypted.</p>
             </div>
 
             <!-- VIEW 3: GITHUB SIGN IN & ACCOUNT CREATION -->
@@ -1299,34 +1328,20 @@
                         </svg>
                     </div>
                     <h4 class="text-sm font-bold text-zinc-100">Sign in with GitHub</h4>
-                    <p class="text-xs text-zinc-400">Connect your GitHub developer profile to AutoApply AI</p>
+                    <p class="text-xs text-zinc-400">Authenticate securely with verified GitHub OAuth</p>
                 </div>
 
-                <!-- GitHub Direct Form -->
-                <form id="githubDirectForm" onsubmit="handleGitHubDirectSubmit(event)" class="space-y-3 pt-1">
-                    <div class="space-y-1">
-                        <label class="text-[11px] font-medium text-zinc-400">GitHub Username or Handle</label>
-                        <input id="githubUsernameInput" oninput="updateGitHubPreview(this.value)" type="text" required placeholder="e.g. dev-candidate" class="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-zinc-200 focus:border-zinc-500 outline-none transition font-mono">
-                    </div>
-                    <!-- Live preview of GitHub avatar -->
-                    <div id="githubAvatarPreview" class="hidden items-center gap-2.5 p-2 bg-zinc-950 rounded-lg border border-zinc-800">
-                        <img id="githubAvatarImg" class="w-7 h-7 rounded-full border border-zinc-700 object-cover" src="" alt="Avatar" />
-                        <div class="text-[11px]">
-                            <span id="githubPreviewName" class="font-semibold text-zinc-200 block"></span>
-                            <span class="text-emerald-400 text-[10px] flex items-center gap-1">● GitHub Developer Profile</span>
-                        </div>
-                    </div>
-                    <div class="space-y-1">
-                        <label class="text-[11px] font-medium text-zinc-400">Display Name (Optional)</label>
-                        <input id="githubNameInput" type="text" placeholder="e.g. Alex Johnson" class="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-zinc-200 focus:border-zinc-500 outline-none transition">
-                    </div>
-                    <button type="submit" class="w-full py-2.5 rounded-lg bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs transition shadow-lg flex items-center justify-center gap-2 cursor-pointer">
+                <div class="space-y-3 pt-1">
+                    <button type="button" onclick="signInWithGitHubOAuth()" class="w-full py-2.5 rounded-lg bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs transition shadow-lg flex items-center justify-center gap-2 cursor-pointer">
                         <svg class="w-4 h-4 fill-zinc-950" viewBox="0 0 24 24">
                             <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
                         </svg>
-                        <span>Sign In / Create with GitHub</span>
+                        <span>Authorize with GitHub OAuth</span>
                     </button>
-                </form>
+                    <p class="text-[11px] text-zinc-400 text-center leading-relaxed">
+                        Redirects to GitHub's verified OAuth consent screen. Only verified identity tokens are accepted.
+                    </p>
+                </div>
                 <p class="text-[10px] text-zinc-500 text-center">Multi-tenant isolation: Your resume, answers, and live applies remain strictly private.</p>
             </div>
 

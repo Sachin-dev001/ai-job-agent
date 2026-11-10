@@ -22,7 +22,7 @@ import json
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, JSONResponse
 from pydantic import BaseModel
 
 from app.config import settings
@@ -54,8 +54,11 @@ FRONTEND_DIR = os.path.join(PROJECT_ROOT, "frontend")
 STATIC_DIR = os.path.join(FRONTEND_DIR, "static")
 PROOF_DIR = os.path.join(PROJECT_ROOT, "backend", "proofs")
 UPLOAD_DIR = os.path.join(PROJECT_ROOT, "backend", "uploads")
-COOKIES_DIR = os.path.join(PROJECT_ROOT, "backend", "cookies")
-os.makedirs(COOKIES_DIR, exist_ok=True)
+BACKEND_DIR = os.path.join(PROJECT_ROOT, "backend")
+DATA_DIR = os.path.join(BACKEND_DIR, "data")
+DATA_COOKIES_DIR = os.path.join(DATA_DIR, "cookies")
+os.makedirs(DATA_COOKIES_DIR, exist_ok=True)
+
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(PROOF_DIR, exist_ok=True)
 
@@ -64,7 +67,7 @@ if os.path.exists(STATIC_DIR):
 if os.path.exists(PROOF_DIR):
     app.mount("/proofs", StaticFiles(directory=PROOF_DIR), name="proofs")
 
-LATEST_PROFILE = {}
+
 
 @app.get("/")
 async def serve_index():
@@ -123,7 +126,7 @@ async def get_user_applications(limit: int = 50, user: CurrentUser = Depends(get
 # ==============================================================================
 @app.post("/api/resume/analyze", response_model=ResumeAnalysisResult)
 async def analyze_resume(file: UploadFile = File(...), user: CurrentUser = Depends(get_current_user)):
-    global LATEST_PROFILE
+
     file_ext = os.path.splitext(file.filename)[1].lower()
     if file_ext not in [".pdf", ".docx", ".txt"]:
         raise HTTPException(status_code=400, detail="Only .pdf, .docx, and .txt files are supported.")
@@ -136,20 +139,31 @@ async def analyze_resume(file: UploadFile = File(...), user: CurrentUser = Depen
 
     try:
         result = await resume_analyst.analyze(file_path)
-        LATEST_PROFILE = result.dict()
         # Save extracted candidate details to profile
         cand_name = getattr(result, 'candidate_name', None) or getattr(result, 'name', None) or user.name
         cand_email = getattr(result, 'email', None) or user.email
         cand_phone = getattr(result, 'phone', None)
         cand_exp = getattr(result, 'experience_years', None) or getattr(result, 'years_of_experience', 2.0)
+        skills = getattr(result, 'skills', []) or []
+        tech_skills = getattr(result, 'technical_skills', []) or skills
+        domain = getattr(result, 'primary_domain', None) or getattr(result, 'domain', 'AI/Software Engineer')
+
+        # Update candidate profile in cloud_db (isolated per user.id)
+        await cloud_db.update_profile(user.id, {
+            'full_name': cand_name,
+            'email': cand_email,
+            'phone': cand_phone,
+            'experience_years': cand_exp,
+            'skills': skills,
+            'technical_skills': tech_skills,
+            'primary_domain': domain,
+            'resume_analyzed': True,
+            'resume_filename': file.filename,
+            'analyzed_at': datetime.utcnow().isoformat(),
+            'analysis_result': result.dict()
+        })
 
         if cand_name or cand_email or cand_phone:
-            await cloud_db.update_profile(user.id, {
-                'full_name': cand_name,
-                'email': cand_email,
-                'phone': cand_phone,
-                'experience_years': cand_exp
-            })
             # Auto-seed this candidate's private memory vault from parsed resume facts
             if cand_name and cand_name != "Guest":
                 await cloud_db.save_memory(user.id, "What is your full name?", cand_name, "personal")
@@ -159,7 +173,6 @@ async def analyze_resume(file: UploadFile = File(...), user: CurrentUser = Depen
                 await cloud_db.save_memory(user.id, "What is your mobile/contact number?", str(cand_phone), "contact")
             if cand_exp:
                 await cloud_db.save_memory(user.id, "How many total years of work experience do you have?", str(cand_exp), "experience")
-            skills = getattr(result, 'skills', []) or []
             if skills:
                 skills_str = ", ".join(skills) if isinstance(skills, list) else str(skills)
                 await cloud_db.save_memory(user.id, "What skills and technologies have you worked with?", skills_str, "skills")
@@ -188,13 +201,17 @@ class ApplicationPrepRequest(BaseModel):
 
 @app.post("/api/jobs/prepare-application")
 async def prepare_application(req: ApplicationPrepRequest, user: CurrentUser = Depends(get_current_user)):
-    candidate_skills = LATEST_PROFILE.get("technical_skills", ["Python", "FastAPI", "AI Agents"])
-    exp_years = LATEST_PROFILE.get("years_of_experience", 2)
-    role_pitch = LATEST_PROFILE.get("primary_domain", "AI/Software Engineer")
+    user_profile = await cloud_db.get_profile(user.id) or {}
+
+    cand_name = user_profile.get("full_name") or user.name or "Candidate"
+    skills = user_profile.get("technical_skills") or user_profile.get("skills") or ["Python", "FastAPI", "AI Agents"]
+    if isinstance(skills, str):
+        skills = [s.strip() for s in skills.split(",") if s.strip()]
+    exp_years = user_profile.get("experience_years") or 2
 
     cover_letter = await cover_letter_agent.generate_cover_letter(
-        candidate_name=user.name or "Candidate",
-        candidate_skills=candidate_skills,
+        candidate_name=cand_name,
+        candidate_skills=skills,
         experience_summary=f"{exp_years} years building production applications and autonomous AI systems.",
         target_role=req.job_title,
         target_company=req.company,
@@ -217,6 +234,31 @@ async def prepare_application(req: ApplicationPrepRequest, user: CurrentUser = D
         "cover_letter": cover_letter
     }
 
+RESUME_REQUIRED_MSG = "Resume profile required before running auto-apply. Please upload and analyze your resume first."
+
+async def has_analyzed_resume(user_id: str) -> bool:
+    profile = await cloud_db.get_profile(user_id)
+    if not profile:
+        return False
+    if profile.get("resume_analyzed") is True:
+        return True
+    if profile.get("analyzed_at"):
+        return True
+    skills = profile.get("skills") or profile.get("technical_skills")
+    if skills and len(skills) > 0:
+        return True
+    return False
+
+def resume_required_response():
+    return JSONResponse(
+        status_code=400,
+        content={
+            "status": "validation_error",
+            "message": RESUME_REQUIRED_MSG,
+            "detail": RESUME_REQUIRED_MSG
+        }
+    )
+
 class LiveApplyRequest(BaseModel):
     query: str = "AI Engineer"
     limit: int = 3
@@ -227,17 +269,21 @@ async def execute_live_naukri_apply(req: LiveApplyRequest, user: CurrentUser = D
     Launches autonomous Playwright browser, clicks real 'Apply on Naukri' buttons,
     submits real applications, and returns proof screenshots.
     """
+    if not await has_analyzed_resume(user.id):
+        return resume_required_response()
+
     try:
-        result = await naukri_live_runner.execute_live_apply(query=req.query, limit=req.limit)
+        result = await naukri_live_runner.execute_live_apply(query=req.query, limit=req.limit, user_id=user.id)
         # Record application
-        await cloud_db.create_application(user.id, {
-            "platform": "naukri",
-            "job_title": req.query,
-            "company_name": "Naukri Matched Employer",
-            "job_url": "https://www.naukri.com",
-            "status": "applied" if result.get("success") else "failed",
-            "match_score": 94.0
-        })
+        if result.get("success") or result.get("status") == "applied_successfully":
+            await cloud_db.create_application(user.id, {
+                "platform": "naukri",
+                "job_title": req.query,
+                "company_name": "Naukri Matched Employer",
+                "job_url": "https://www.naukri.com",
+                "status": "applied",
+                "match_score": 94.0
+            })
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -247,13 +293,17 @@ class SingleJobApplyRequest(BaseModel):
     job_title: str = "AI Engineer"
 
 @app.post("/api/naukri/apply-single")
+@app.post("/api/apply/single")
 async def apply_single_job(req: SingleJobApplyRequest, user: CurrentUser = Depends(get_current_user)):
     """
     Directly navigates to the specified job URL, clicks Apply,
     navigates questionnaires, and saves screenshot proof.
     """
+    if not await has_analyzed_resume(user.id):
+        return resume_required_response()
+
     try:
-        result = await naukri_live_runner.apply_single_job(job_url=req.job_url, job_title=req.job_title)
+        result = await naukri_live_runner.apply_single_job(job_url=req.job_url, job_title=req.job_title, user_id=user.id)
         return result
     except Exception as e:
         return {
@@ -274,11 +324,15 @@ async def apply_single_wellfound_job(req: WellfoundSingleApplyRequest, user: Cur
     Directly navigates to the specified Wellfound startup job,
     submits application with user profile & pitch, and takes screenshot proof.
     """
+    if not await has_analyzed_resume(user.id):
+        return resume_required_response()
+
     try:
         result = await wellfound_live_runner.apply_single_job(
             job_url=req.job_url,
             job_title=req.job_title,
-            company=req.company
+            company=req.company,
+            user_id=user.id
         )
         return result
     except Exception as e:
@@ -294,21 +348,23 @@ async def execute_live_wellfound_apply(req: LiveApplyRequest, user: CurrentUser 
     """
     Batch auto-apply on Wellfound startup jobs matching query.
     """
+    if not await has_analyzed_resume(user.id):
+        return resume_required_response()
+
     try:
-        result = await wellfound_live_runner.execute_batch_apply(query=req.query, limit=req.limit)
+        result = await wellfound_live_runner.execute_batch_apply(query=req.query, limit=req.limit, user_id=user.id)
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 class ConnectCookiesRequest(BaseModel):
     platform: Optional[str] = "Naukri"
     cookies: Any
 
 @app.get("/api/session/status")
-async def get_session_status():
-    naukri_cookies = naukri_live_runner._load_cookies()
-    wellfound_cookies = wellfound_live_runner._load_cookies()
+async def get_session_status(user: CurrentUser = Depends(get_current_user)):
+    naukri_cookies = naukri_live_runner._load_cookies(user_id=user.id)
+    wellfound_cookies = wellfound_live_runner._load_cookies(user_id=user.id)
     return {
         "naukri_connected": len(naukri_cookies) > 0,
         "naukri_cookies_count": len(naukri_cookies),
@@ -317,7 +373,7 @@ async def get_session_status():
     }
 
 @app.post("/api/session/connect-cookies")
-async def connect_portal_cookies(req: ConnectCookiesRequest):
+async def connect_portal_cookies(req: ConnectCookiesRequest, user: CurrentUser = Depends(get_current_user)):
     platform = req.platform.lower().strip()
     if platform not in ["naukri", "wellfound"]:
         raise HTTPException(status_code=400, detail="Platform must be 'naukri' or 'wellfound'")
@@ -332,7 +388,9 @@ async def connect_portal_cookies(req: ConnectCookiesRequest):
     if not isinstance(raw, list):
         raise HTTPException(status_code=400, detail="Cookies must be a list of cookie objects")
 
-    cookie_file = os.path.join(COOKIES_DIR, f"{platform}_cookies.json")
+    user_cookies_dir = os.path.join(DATA_COOKIES_DIR, user.id)
+    os.makedirs(user_cookies_dir, exist_ok=True)
+    cookie_file = os.path.join(user_cookies_dir, f"{platform}_cookies.json")
     with open(cookie_file, "w", encoding="utf-8") as f:
         json.dump(raw, f, indent=2)
 

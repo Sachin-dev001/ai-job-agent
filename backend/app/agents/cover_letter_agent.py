@@ -13,9 +13,13 @@ class CoverLetterAgent:
         pass
 
     async def generate(self, candidate_data: dict, job_title: str, company: str, job_description: str) -> str:
-        skills = ", ".join(candidate_data.get("skills", ["Python", "LangGraph", "GenAI", "Machine Learning"]))
-        name = candidate_data.get("candidate_name") or "Sachin Sharma"
-        exp = candidate_data.get("experience_years", 1.5)
+        skills_val = candidate_data.get("skills", ["Python", "AI", "Software Engineering"])
+        if isinstance(skills_val, list):
+            skills = ", ".join(skills_val)
+        else:
+            skills = str(skills_val)
+        name = candidate_data.get("candidate_name") or "Candidate"
+        exp = candidate_data.get("experience_years", 2.0)
 
         user_content = f"""
 Candidate: {name}
@@ -74,8 +78,8 @@ Generate a punchy, 3-paragraph tailored cover letter:
 
     async def generate_cover_letter(self, **kwargs) -> str:
         candidate_data = {
-            "candidate_name": kwargs.get("candidate_name", "Sachin"),
-            "skills": kwargs.get("candidate_skills", ["Python", "LangGraph", "FastAPI", "AI Agents"]),
+            "candidate_name": kwargs.get("candidate_name", "Candidate"),
+            "skills": kwargs.get("candidate_skills", ["Python", "FastAPI", "AI Agents"]),
             "experience_years": kwargs.get("experience_years", 2)
         }
         return await self.generate(

@@ -7,12 +7,13 @@ from typing import Dict, Any
 from app.notifications.notifier import notifier
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
-COOKIES_DIR = BACKEND_DIR / "cookies"
-COOKIE_PATH = str(COOKIES_DIR / "naukri_cookies.json")
+DATA_COOKIES_DIR = BACKEND_DIR / "data" / "cookies"
+DATA_COOKIES_DIR.mkdir(parents=True, exist_ok=True)
 
 class NaukriApplyAgent:
     """
     Submits applications to Naukri using your authenticated session.
+    - Multi-tenant cookie isolation partitioned strictly by user_id.
     - Verifies user authentication before processing.
     - Records the application timestamp, job title, and company.
     - If manual action (e.g. OTP, recruiter questionnaire) is required, sends an alert with link.
@@ -20,38 +21,28 @@ class NaukriApplyAgent:
     def __init__(self):
         pass
 
-    def _load_cookies(self) -> Dict[str, str]:
-        env_cookies = os.getenv("NAUKRI_COOKIES")
-        raw = None
-        if env_cookies:
-            try:
-                raw = json.loads(env_cookies)
-            except Exception:
-                pass
-        if not raw and os.path.exists(COOKIE_PATH):
-            try:
-                with open(COOKIE_PATH, "r") as f:
-                    raw = json.load(f)
-            except Exception:
-                pass
-        if not raw:
+    def _load_cookies(self, user_id: str = None) -> Dict[str, str]:
+        if not user_id:
+            return {}
+        cookie_file = DATA_COOKIES_DIR / str(user_id) / "naukri_cookies.json"
+        if not cookie_file.exists():
             return {}
         try:
-            return {c["name"]: c["value"] for c in raw}
+            with open(cookie_file, "r", encoding="utf-8") as f:
+                raw = json.load(f)
+            if not isinstance(raw, list):
+                return {}
+            return {c["name"]: c["value"] for c in raw if isinstance(c, dict) and "name" in c and "value" in c}
         except Exception:
             return {}
 
-    async def apply_to_job(self, job_title: str, company: str, job_url: str) -> Dict[str, Any]:
-        cookies = self._load_cookies()
+    async def apply_to_job(self, job_title: str, company: str, job_url: str, user_id: str = None) -> Dict[str, Any]:
+        cookies = self._load_cookies(user_id=user_id)
         if not cookies:
-            await notifier.send_hitl_alert(
-                job_title=job_title,
-                company=company,
-                platform="Naukri.com",
-                job_url=job_url,
-                reason="Naukri session cookies missing in backend."
-            )
-            return {"status": "hitl_triggered", "reason": "Missing cookies"}
+            return {
+                "status": "session_required",
+                "message": "No active session cookies connected for your account. Please connect your cookies in Settings or use 1-Click AI Tailored Pitch to apply directly."
+            }
 
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",

@@ -6,34 +6,13 @@ from typing import List, Dict
 from app.scrapers.base_scraper import BaseJobScraper, ScrapedJob
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
-COOKIES_DIR = BACKEND_DIR / "cookies"
-COOKIE_PATH = str(COOKIES_DIR / "naukri_cookies.json")
 
 class NaukriScraper(BaseJobScraper):
     def __init__(self):
         super().__init__(platform_name="Naukri")
-        self.cookie_path = COOKIE_PATH
 
     def _load_cookies(self):
-        env_cookies = os.getenv("NAUKRI_COOKIES")
-        raw = None
-        if env_cookies:
-            try:
-                raw = json.loads(env_cookies)
-            except Exception:
-                pass
-        if not raw and os.path.exists(self.cookie_path):
-            try:
-                with open(self.cookie_path, "r", encoding="utf-8") as f:
-                    raw = json.load(f)
-            except Exception:
-                pass
-        if not raw:
-            return {}
-        try:
-            return {c["name"]: c["value"] for c in raw}
-        except Exception:
-            return {}
+        return {}
 
     # Comprehensive catalog of verified active Naukri job listings (all <= 15 days old)
     ALL_NAUKRI_JOBS: List[Dict] = [

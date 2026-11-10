@@ -14,9 +14,8 @@ from app.memory.qa_vault import qa_vault
 from app.notifications.telegram_listener import telegram_listener
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
-COOKIES_DIR = BACKEND_DIR / "cookies"
-COOKIES_DIR.mkdir(parents=True, exist_ok=True)
-COOKIE_PATH = str(COOKIES_DIR / "naukri_cookies.json")
+DATA_COOKIES_DIR = BACKEND_DIR / "data" / "cookies"
+DATA_COOKIES_DIR.mkdir(parents=True, exist_ok=True)
 if "PLAYWRIGHT_BROWSERS_PATH" not in os.environ:
     os.environ["PLAYWRIGHT_BROWSERS_PATH"] = "0"
 PROOF_DIR = str(BACKEND_DIR / "proofs")
@@ -25,10 +24,14 @@ os.makedirs(PROOF_DIR, exist_ok=True)
 # Dynamic candidate knowledge vault loaded from active profile/session
 def get_candidate_vault(profile: dict = None) -> dict:
     p = profile or {}
+    cand_name = p.get("full_name") or os.getenv("CANDIDATE_NAME", "Candidate")
+    parts = cand_name.split()
+    first_name = parts[0] if parts else "Candidate"
+    last_name = " ".join(parts[1:]) if len(parts) > 1 else ""
     return {
-        "name": p.get("full_name") or os.getenv("CANDIDATE_NAME", "Candidate"),
-        "first_name": (p.get("full_name") or os.getenv("CANDIDATE_NAME", "Candidate")).split()[0],
-        "last_name": " ".join((p.get("full_name") or os.getenv("CANDIDATE_NAME", "Candidate")).split()[1:]),
+        "name": cand_name,
+        "first_name": first_name,
+        "last_name": last_name,
         "email": p.get("email") or os.getenv("CANDIDATE_EMAIL", ""),
         "phone": p.get("phone") or os.getenv("CANDIDATE_PHONE", ""),
         "mobile": p.get("phone") or os.getenv("CANDIDATE_PHONE", ""),
@@ -56,6 +59,7 @@ CANDIDATE_VAULT = get_candidate_vault()
 class RealNaukriApplyEngine:
     """
     Autonomous Playwright Submissions Engine for Naukri.com:
+    - Multi-tenant cookie isolation partitioned strictly by user_id.
     - Uses authenticated browser cookies.
     - Physically interacts with job listings and application flows.
     - Handles complex multi-step recruiter screening questionnaires:
@@ -88,25 +92,26 @@ class RealNaukriApplyEngine:
         ]
         return await p.chromium.launch(headless=True, args=args)
 
-    def _load_cookies(self):
-        # 1. Check environment variable first (e.g. NAUKRI_COOKIES on Render)
-        env_cookies = os.getenv("NAUKRI_COOKIES")
-        raw = None
-        if env_cookies:
-            try:
-                raw = json.loads(env_cookies)
-            except Exception as e:
-                print(f"[Naukri Bot] Failed to parse NAUKRI_COOKIES env var: {e}")
+    def _load_cookies(self, user_id: str = None) -> List[Dict]:
+        """
+        Loads session cookies strictly for the specified user_id.
+        No global fallbacks or cross-tenant leakage.
+        """
+        if not user_id:
+            return []
 
-        # 2. Check disk file
-        if not raw and os.path.exists(COOKIE_PATH):
-            try:
-                with open(COOKIE_PATH, "r", encoding="utf-8") as f:
-                    raw = json.load(f)
-            except Exception as e:
-                print(f"[Naukri Bot] Error loading cookies file: {e}")
+        cookie_file = DATA_COOKIES_DIR / str(user_id) / "naukri_cookies.json"
+        if not cookie_file.exists():
+            return []
 
-        if not raw:
+        try:
+            with open(cookie_file, "r", encoding="utf-8") as f:
+                raw = json.load(f)
+        except Exception as e:
+            print(f"[Naukri Bot] Error loading cookies for user {user_id}: {e}")
+            return []
+
+        if not raw or not isinstance(raw, list):
             return []
 
         try:
@@ -118,14 +123,15 @@ class RealNaukriApplyEngine:
                     "path": c.get("path", "/")
                 }
                 for c in raw
+                if isinstance(c, dict) and "name" in c and "value" in c
             ]
         except Exception as e:
-            print(f"[Naukri Bot] Error normalizing cookies: {e}")
+            print(f"[Naukri Bot] Error normalizing cookies for user {user_id}: {e}")
             return []
 
-    async def _get_smart_answer(self, question: str, job_title: str = "", company: str = "", job_url: str = "") -> Optional[str]:
+    async def _get_smart_answer(self, question: str, job_title: str = "", company: str = "", job_url: str = "", user_id: str = None) -> Optional[str]:
         """
-        Looks up answer from QA Memory Vault.
+        Looks up answer from QA Memory Vault for user_id.
         If unknown, dispatches the exact question to the user via Telegram & UI,
         waits for user reply, and saves it permanently to memory!
         """
@@ -134,7 +140,7 @@ class RealNaukriApplyEngine:
             return None
 
         # 1. Check QA Memory Vault first
-        vault_answer = qa_vault.find_answer(q)
+        vault_answer = qa_vault.find_answer(q, user_id=user_id or "guest-candidate")
         if vault_answer:
             print(f"[Naukri Bot] Memory Vault Match: '{q}' -> '{vault_answer}'")
             return vault_answer
@@ -145,7 +151,8 @@ class RealNaukriApplyEngine:
             question=q,
             job_title=job_title or "Job",
             company=company or "Company",
-            job_url=job_url
+            job_url=job_url,
+            user_id=user_id or "guest-candidate"
         )
 
         # 3. Alert candidate via Telegram with exact copy-pasted question
@@ -173,7 +180,7 @@ class RealNaukriApplyEngine:
         print("[Naukri Bot] Candidate did not reply within 35s. Pausing submission.")
         return None
 
-    async def _get_best_option_index(self, question: str, options: list, job_title: str = "", company: str = "", job_url: str = "") -> Optional[int]:
+    async def _get_best_option_index(self, question: str, options: list, job_title: str = "", company: str = "", job_url: str = "", user_id: str = None) -> Optional[int]:
         """
         Determines the optimal option index (0-based) for radio buttons / chips.
         Checks QA Memory Vault first. If completely unknown, queries user.
@@ -185,7 +192,7 @@ class RealNaukriApplyEngine:
         opts_lower = [o.lower() for o in options]
 
         # 1. Check if Memory Vault has an exact match for one of the options
-        vault_ans = qa_vault.find_answer(question)
+        vault_ans = qa_vault.find_answer(question, user_id=user_id or "guest-candidate")
         if vault_ans:
             vault_ans_lower = vault_ans.lower()
             for idx, o in enumerate(opts_lower):
@@ -235,7 +242,8 @@ class RealNaukriApplyEngine:
             job_title=job_title or "Job",
             company=company or "Company",
             job_url=job_url,
-            options=options
+            options=options,
+            user_id=user_id or "guest-candidate"
         )
         opts_list = "\n".join([f"{i+1}. {opt}" for i, opt in enumerate(options)])
         telegram_msg = (
@@ -299,7 +307,7 @@ class RealNaukriApplyEngine:
             print(f"[Naukri Bot] Confirmation check note: {e}")
             return False
 
-    async def _handle_chatbot_drawer(self, page, job_title: str, job_url: str) -> bool:
+    async def _handle_chatbot_drawer(self, page, job_title: str, job_url: str, user_id: str = None) -> bool:
         """
         Executes sequential questionnaire answers until full submission.
         Returns True if application is confirmed, False otherwise.
@@ -346,7 +354,7 @@ class RealNaukriApplyEngine:
                         t = (await rc.text_content() or "").strip()
                         option_texts.append(t)
 
-                    best_idx = await self._get_best_option_index(current_q, option_texts, job_title=job_title, job_url=job_url)
+                    best_idx = await self._get_best_option_index(current_q, option_texts, job_title=job_title, job_url=job_url, user_id=user_id)
                     if best_idx is None:
                         best_idx = 0
                     print(f"  -> Selecting Radio Option [{best_idx}]: '{option_texts[best_idx]}'")
@@ -374,7 +382,7 @@ class RealNaukriApplyEngine:
                 elif await drawer.locator(".chatbot_Chip, .chipItem").count() > 0:
                     chips = await drawer.locator(".chatbot_Chip, .chipItem").all()
                     chip_texts = [(await c.text_content() or "").strip() for c in chips]
-                    best_idx = await self._get_best_option_index(current_q, chip_texts, job_title=job_title, job_url=job_url)
+                    best_idx = await self._get_best_option_index(current_q, chip_texts, job_title=job_title, job_url=job_url, user_id=user_id)
                     if best_idx is None:
                         best_idx = 0
                     print(f"  -> Clicking Option Chip [{best_idx}]: '{chip_texts[best_idx]}'")
@@ -385,7 +393,7 @@ class RealNaukriApplyEngine:
                 # 3. Check for Text / CTC / Number Input (.textArea, input, textarea)
                 text_input = drawer.locator(".textArea, textarea, input:not([type='radio']):not([type='checkbox']):not([type='file'])").first
                 if await text_input.is_visible():
-                    answer_text = await self._get_smart_answer(current_q, job_title=job_title, job_url=job_url)
+                    answer_text = await self._get_smart_answer(current_q, job_title=job_title, job_url=job_url, user_id=user_id)
                     if not answer_text:
                         print(f"  -> Question '{current_q}' is not answered in memory or by user. Pausing.")
                         return False
@@ -414,18 +422,26 @@ class RealNaukriApplyEngine:
             print(f"[Naukri Bot] Questionnaire handler exception: {e}")
             return await self._is_submission_confirmed(page)
 
-    async def apply_single_job(self, job_url: str, job_title: str = "AI Engineer", company: str = "Recruiter"):
+    async def apply_single_job(self, job_url: str, job_title: str = "AI Engineer", company: str = "Recruiter", user_id: str = None):
         """
         Executes end-to-end autonomous application to a single live Naukri job listing.
         Returns verified proof or alerts candidate if manual intervention is required.
         """
-        cookies = self._load_cookies()
+        cookies = self._load_cookies(user_id=user_id)
         if not cookies:
-            return {"status": "error", "message": "Naukri session cookies missing."}
+            return {
+                "status": "session_required",
+                "message": "No active session cookies connected for your account. Please connect your cookies in Settings or use 1-Click AI Tailored Pitch to apply directly."
+            }
 
+        user_key = user_id or "guest-candidate"
+        user_proof_dir = os.path.join(PROOF_DIR, user_key)
+        os.makedirs(user_proof_dir, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         proof_filename = f"proof_{timestamp}.png"
-        proof_path = os.path.join(PROOF_DIR, proof_filename)
+        proof_path = os.path.join(user_proof_dir, proof_filename)
+        proof_url = f"/proofs/{user_key}/{proof_filename}"
+
         user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
         try:
@@ -453,7 +469,7 @@ class RealNaukriApplyEngine:
                             "status": "already_applied",
                             "job_title": job_title,
                             "job_url": job_url,
-                            "proof_image": f"/proofs/{proof_filename}",
+                            "proof_image": proof_url,
                             "message": "Already applied to this job."
                         }
     
@@ -466,7 +482,7 @@ class RealNaukriApplyEngine:
                             "status": "external_portal",
                             "job_title": job_title,
                             "job_url": job_url,
-                            "proof_image": f"/proofs/{proof_filename}",
+                            "proof_image": proof_url,
                             "message": "Job redirects to an external company ATS portal."
                         }
     
@@ -479,7 +495,7 @@ class RealNaukriApplyEngine:
                             "status": "external_portal",
                             "job_title": job_title,
                             "job_url": job_url,
-                            "proof_image": f"/proofs/{proof_filename}",
+                            "proof_image": proof_url,
                             "message": "Direct apply button not found (external redirect)."
                         }
     
@@ -489,7 +505,7 @@ class RealNaukriApplyEngine:
                     await page.wait_for_timeout(3500)
     
                     # Run questionnaire handler if chatbot appears
-                    applied_ok = await self._handle_chatbot_drawer(page, job_title, job_url)
+                    applied_ok = await self._handle_chatbot_drawer(page, job_title, job_url, user_id=user_id)
                     await page.wait_for_timeout(2500)
     
                     # Capture definitive proof screenshot
@@ -503,7 +519,7 @@ class RealNaukriApplyEngine:
                             "status": "applied_successfully",
                             "job_title": job_title,
                             "job_url": job_url,
-                            "proof_image": f"/proofs/{proof_filename}",
+                            "proof_image": proof_url,
                             "applied_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         }
                     else:
@@ -521,7 +537,7 @@ class RealNaukriApplyEngine:
                             "status": "needs_human_action",
                             "job_title": job_title,
                             "job_url": job_url,
-                            "proof_image": f"/proofs/{proof_filename}",
+                            "proof_image": proof_url,
                             "message": "Screening questionnaire requires manual review. Alert sent to your Telegram!"
                         }
     
@@ -533,15 +549,18 @@ class RealNaukriApplyEngine:
             clean_err = str(browser_err).splitlines()[0] if str(browser_err) else "Browser error"
             print(f"[Naukri Bot] Playwright notice: {clean_err}. Executing session apply...")
             from app.agents.naukri_apply_agent import naukri_apply_agent
-            return await naukri_apply_agent.apply_to_job(job_title=job_title, company=company, job_url=job_url)
+            return await naukri_apply_agent.apply_to_job(job_title=job_title, company=company, job_url=job_url, user_id=user_id)
 
-    async def execute_live_apply(self, query: str = "AI Engineer", limit: int = 3):
+    async def execute_live_apply(self, query: str = "AI Engineer", limit: int = 3, user_id: str = None):
         """
         Batch autonomous application across fresh matching Naukri listings.
         """
-        cookies = self._load_cookies()
+        cookies = self._load_cookies(user_id=user_id)
         if not cookies:
-            return {"status": "error", "message": "Naukri session cookies missing."}
+            return {
+                "status": "session_required",
+                "message": "No active session cookies connected for your account. Please connect your cookies in Settings or use 1-Click AI Tailored Pitch to apply directly."
+            }
 
         results = []
         user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
@@ -549,150 +568,154 @@ class RealNaukriApplyEngine:
         try:
             async with async_playwright() as p:
                 browser = await self._launch_browser(p)
-            context = await browser.new_context(
-                viewport={"width": 1366, "height": 768},
-                user_agent=user_agent
-            )
-            await context.add_cookies(cookies)
-            page = await context.new_page()
-            stealth = Stealth()
-            await stealth.apply_stealth_async(page)
+                context = await browser.new_context(
+                    viewport={"width": 1366, "height": 768},
+                    user_agent=user_agent
+                )
+                await context.add_cookies(cookies)
+                page = await context.new_page()
+                stealth = Stealth()
+                await stealth.apply_stealth_async(page)
 
-            clean_query = query.replace(" ", "-").lower()
-            search_url = f"https://www.naukri.com/{clean_query}-jobs"
-            print(f"[Naukri Live Runner] Scanning: {search_url}")
+                clean_query = query.replace(" ", "-").lower()
+                search_url = f"https://www.naukri.com/{clean_query}-jobs"
+                print(f"[Naukri Live Runner] Scanning: {search_url}")
 
-            try:
                 try:
-                    await page.goto(search_url, wait_until="domcontentloaded", timeout=20000)
-                    await page.wait_for_timeout(3000)
-
-                    # Extract candidate job listing links
-                    cards = await page.locator(".srp-jobtuple-wrapper, .cust-job-tuple").all()
-                    urls_to_apply = []
-
-                    for card in cards:
-                        title_el = card.locator("a.title").first
-                        title = (await title_el.text_content() or "").strip()
-                        href = await title_el.get_attribute("href")
-                        card_text = (await card.text_content() or "").lower()
-
-                        if "applied" in card_text:
-                            continue
-
-                        if href and "job-listings" in href and len(title) > 3:
-                            if href not in [u["url"] for u in urls_to_apply]:
-                                urls_to_apply.append({"title": title, "url": href})
-                        if len(urls_to_apply) >= limit * 3:
-                            break
-                except Exception as scan_err:
-                    print(f"[Naukri Live Runner] Scan error ({scan_err}), fallback to verified catalog...")
-                    urls_to_apply = []
-
-                if not urls_to_apply:
-                    print(f"[Naukri Live Runner] Using verified {query} catalog listings...")
-                    from app.scrapers.naukri_scraper import naukri_scraper
-                    matched = await naukri_scraper.search_jobs(query=query, limit=limit * 2)
-                    urls_to_apply = [{"title": j.title, "url": j.job_url} for j in matched]
-
-                print(f"[Naukri Live Runner] Ready to process {len(urls_to_apply)} openings for '{query}'.")
-
-                processed_count = 0
-                for item in urls_to_apply:
-                    if processed_count >= limit:
-                        break
-
-                    job_title = item["title"]
-                    job_url = item["url"]
-                    print(f"\n[Naukri Live Runner] [{processed_count+1}/{limit}] Opening: {job_title}")
-
-                    job_page = await context.new_page()
-                    await stealth.apply_stealth_async(job_page)
-
                     try:
-                        await job_page.goto(job_url, wait_until="domcontentloaded", timeout=25000)
-                        await job_page.wait_for_timeout(2500)
+                        await page.goto(search_url, wait_until="domcontentloaded", timeout=20000)
+                        await page.wait_for_timeout(3000)
 
-                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                        proof_filename = f"proof_batch_{processed_count+1}_{timestamp}.png"
-                        proof_path = os.path.join(PROOF_DIR, proof_filename)
+                        # Extract candidate job listing links
+                        cards = await page.locator(".srp-jobtuple-wrapper, .cust-job-tuple").all()
+                        urls_to_apply = []
 
-                        # Check if already applied
-                        if await self._is_submission_confirmed(job_page):
-                            await job_page.screenshot(path=proof_path)
-                            results.append({
-                                "job_title": job_title,
-                                "status": "already_applied",
-                                "proof_image": f"/proofs/{proof_filename}",
-                                "url": job_url
-                            })
-                            print(f"  -> Already applied to {job_title}.")
-                            continue
+                        for card in cards:
+                            title_el = card.locator("a.title").first
+                            title = (await title_el.text_content() or "").strip()
+                            href = await title_el.get_attribute("href")
+                            card_text = (await card.text_content() or "").lower()
 
-                        # Check if external portal
-                        external_btn = job_page.locator(".company-site-button, button:has-text('Apply on company site')").first
-                        if await external_btn.is_visible():
-                            await job_page.screenshot(path=proof_path)
-                            results.append({
-                                "job_title": job_title,
-                                "status": "external_portal",
-                                "proof_image": f"/proofs/{proof_filename}",
-                                "url": job_url
-                            })
-                            print(f"  -> External portal: {job_title}")
-                            continue
+                            if "applied" in card_text:
+                                continue
 
-                        # Direct Apply
-                        apply_btn = job_page.locator("#apply-button, button.apply-button, button:has-text('Apply on Naukri'), button:has-text('Apply')").first
-                        if await apply_btn.is_visible():
-                            print(f"  -> Clicking 'Apply' for {job_title}...")
-                            await apply_btn.click()
-                            await job_page.wait_for_timeout(3500)
+                            if href and "job-listings" in href and len(title) > 3:
+                                if href not in [u["url"] for u in urls_to_apply]:
+                                    urls_to_apply.append({"title": title, "url": href})
+                            if len(urls_to_apply) >= limit * 3:
+                                break
+                    except Exception as scan_err:
+                        print(f"[Naukri Live Runner] Scan error ({scan_err}), fallback to verified catalog...")
+                        urls_to_apply = []
 
-                            # Questionnaire handler
-                            applied_ok = await self._handle_chatbot_drawer(job_page, job_title, job_url)
+                    if not urls_to_apply:
+                        print(f"[Naukri Live Runner] Using verified {query} catalog listings...")
+                        from app.scrapers.naukri_scraper import naukri_scraper
+                        matched = await naukri_scraper.search_jobs(query=query, limit=limit * 2)
+                        urls_to_apply = [{"title": j.title, "url": j.job_url} for j in matched]
+
+                    print(f"[Naukri Live Runner] Ready to process {len(urls_to_apply)} openings for '{query}'.")
+
+                    processed_count = 0
+                    for item in urls_to_apply:
+                        if processed_count >= limit:
+                            break
+
+                        job_title = item["title"]
+                        job_url = item["url"]
+                        print(f"\n[Naukri Live Runner] [{processed_count+1}/{limit}] Opening: {job_title}")
+
+                        job_page = await context.new_page()
+                        await stealth.apply_stealth_async(job_page)
+
+                        try:
+                            await job_page.goto(job_url, wait_until="domcontentloaded", timeout=25000)
                             await job_page.wait_for_timeout(2500)
-                            await job_page.screenshot(path=proof_path)
 
-                            if applied_ok or await self._is_submission_confirmed(job_page):
+                            user_key = user_id or "guest-candidate"
+                            user_proof_dir = os.path.join(PROOF_DIR, user_key)
+                            os.makedirs(user_proof_dir, exist_ok=True)
+                            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                            proof_filename = f"proof_batch_{processed_count+1}_{timestamp}.png"
+                            proof_path = os.path.join(user_proof_dir, proof_filename)
+                            proof_url = f"/proofs/{user_key}/{proof_filename}"
+
+                            # Check if already applied
+                            if await self._is_submission_confirmed(job_page):
+                                await job_page.screenshot(path=proof_path)
                                 results.append({
                                     "job_title": job_title,
-                                    "status": "applied_successfully",
-                                    "proof_image": f"/proofs/{proof_filename}",
-                                    "applied_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                    "status": "already_applied",
+                                    "proof_image": proof_url,
                                     "url": job_url
                                 })
-                                print(f"[+] SUCCESS! Real application submitted for: {job_title}")
-                                processed_count += 1
+                                print(f"  -> Already applied to {job_title}.")
+                                continue
+
+                            # Check if external portal
+                            external_btn = job_page.locator(".company-site-button, button:has-text('Apply on company site')").first
+                            if await external_btn.is_visible():
+                                await job_page.screenshot(path=proof_path)
+                                results.append({
+                                    "job_title": job_title,
+                                    "status": "external_portal",
+                                    "proof_image": proof_url,
+                                    "url": job_url
+                                })
+                                print(f"  -> External portal: {job_title}")
+                                continue
+
+                            # Direct Apply
+                            apply_btn = job_page.locator("#apply-button, button.apply-button, button:has-text('Apply on Naukri'), button:has-text('Apply')").first
+                            if await apply_btn.is_visible():
+                                print(f"  -> Clicking 'Apply' for {job_title}...")
+                                await apply_btn.click()
+                                await job_page.wait_for_timeout(3500)
+
+                                # Questionnaire handler
+                                applied_ok = await self._handle_chatbot_drawer(job_page, job_title, job_url, user_id=user_id)
+                                await job_page.wait_for_timeout(2500)
+                                await job_page.screenshot(path=proof_path)
+
+                                if applied_ok or await self._is_submission_confirmed(job_page):
+                                    results.append({
+                                        "job_title": job_title,
+                                        "status": "applied_successfully",
+                                        "proof_image": proof_url,
+                                        "applied_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                        "url": job_url
+                                    })
+                                    print(f"[+] SUCCESS! Real application submitted for: {job_title}")
+                                    processed_count += 1
+                                else:
+                                    results.append({
+                                        "job_title": job_title,
+                                        "status": "needs_human_action",
+                                        "proof_image": proof_url,
+                                        "url": job_url
+                                    })
+                                    print(f"[-] Questionnaire incomplete for: {job_title}")
                             else:
+                                await job_page.screenshot(path=proof_path)
                                 results.append({
                                     "job_title": job_title,
-                                    "status": "needs_human_action",
-                                    "proof_image": f"/proofs/{proof_filename}",
+                                    "status": "external_portal",
+                                    "proof_image": proof_url,
                                     "url": job_url
                                 })
-                                print(f"[-] Questionnaire incomplete for: {job_title}")
-                        else:
-                            await job_page.screenshot(path=proof_path)
-                            results.append({
-                                "job_title": job_title,
-                                "status": "external_portal",
-                                "proof_image": f"/proofs/{proof_filename}",
-                                "url": job_url
-                            })
 
-                    except Exception as err:
-                        print(f"  -> Error applying to {job_title}: {err}")
-                        results.append({"job_title": job_title, "status": "error", "message": str(err), "url": job_url})
-                    finally:
-                        await job_page.close()
+                        except Exception as err:
+                            print(f"  -> Error applying to {job_title}: {err}")
+                            results.append({"job_title": job_title, "status": "error", "message": str(err), "url": job_url})
+                        finally:
+                            await job_page.close()
 
-                await browser.close()
-            except Exception as e:
-                print(f"[Naukri Live Runner Exception]: {e}")
-                return {"status": "error", "message": str(e)}
+                    await browser.close()
+                except Exception as e:
+                    print(f"[Naukri Live Runner Exception]: {e}")
+                    return {"status": "error", "message": str(e)}
 
-            return {"status": "completed", "applications": results}
+                return {"status": "completed", "applications": results}
         except Exception as browser_err:
             clean_err = str(browser_err).splitlines()[0] if str(browser_err) else "Browser error"
             print(f"[Naukri Bot] Playwright notice: {clean_err}. Executing session batch apply...")
@@ -701,7 +724,7 @@ class RealNaukriApplyEngine:
             matched = await naukri_scraper.search_jobs(query=query, limit=limit)
             batch_results = []
             for j in matched:
-                res = await naukri_apply_agent.apply_to_job(job_title=j.title, company=j.company, job_url=j.job_url)
+                res = await naukri_apply_agent.apply_to_job(job_title=j.title, company=j.company, job_url=j.job_url, user_id=user_id)
                 batch_results.append(res)
             return {"status": "completed", "applications": batch_results}
 

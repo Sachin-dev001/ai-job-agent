@@ -2,10 +2,15 @@ import os
 import json
 import uuid
 import logging
+from pathlib import Path
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
 logger = logging.getLogger("supabase_client")
+
+BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
+DATA_DIR = BACKEND_DIR / "data"
+PROFILES_FILE = DATA_DIR / "user_profiles.json"
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", os.getenv("SUPABASE_ANON_KEY", ""))
@@ -38,6 +43,25 @@ class CloudDatabaseService:
     def is_cloud_enabled(self) -> bool:
         return _supabase_client is not None
 
+    def _load_local_profiles(self) -> Dict[str, Any]:
+        if PROFILES_FILE.exists():
+            try:
+                with open(PROFILES_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        return data
+            except Exception as e:
+                logger.warning(f"[Supabase] Error reading local profiles: {e}")
+        return {}
+
+    def _save_local_profiles(self, profiles: Dict[str, Any]):
+        try:
+            DATA_DIR.mkdir(parents=True, exist_ok=True)
+            with open(PROFILES_FILE, "w", encoding="utf-8") as f:
+                json.dump(profiles, f, indent=2)
+        except Exception as e:
+            logger.warning(f"[Supabase] Error saving local profiles: {e}")
+
     # --------------------------------------------------------------------------
     # User Profile Operations
     # --------------------------------------------------------------------------
@@ -49,6 +73,12 @@ class CloudDatabaseService:
                     return res.data[0]
             except Exception as e:
                 logger.error(f"[Supabase] Error getting profile for {user_id}: {e}")
+
+        # Local storage check
+        local_profiles = self._load_local_profiles()
+        if user_id in local_profiles:
+            return local_profiles[user_id]
+
         # Isolated candidate profile fallback (never leak private contact details across users)
         return {
             "id": user_id,
@@ -57,18 +87,31 @@ class CloudDatabaseService:
             "phone": "",
             "current_ctc": "",
             "expected_ctc": "",
-            "notice_period": ""
+            "notice_period": "",
+            "resume_analyzed": False
         }
 
     async def update_profile(self, user_id: str, updates: Dict[str, Any]) -> bool:
         if self.is_cloud_enabled() and is_valid_uuid(user_id):
             try:
-                updates["updated_at"] = datetime.utcnow().isoformat()
-                _supabase_client.table("profiles").update(updates).eq("id", user_id).execute()
-                return True
+                updates_copy = dict(updates)
+                updates_copy["updated_at"] = datetime.utcnow().isoformat()
+                _supabase_client.table("profiles").update(updates_copy).eq("id", user_id).execute()
             except Exception as e:
                 logger.error(f"[Supabase] Error updating profile for {user_id}: {e}")
-                return False
+
+        # Always save locally so local testing and offline modes retain user profiles
+        local_profiles = self._load_local_profiles()
+        current = local_profiles.get(user_id, {
+            "id": user_id,
+            "full_name": "Candidate",
+            "email": f"{user_id}@candidate.autoapply.ai" if user_id != "guest-candidate" else "guest@autoapply.ai",
+            "resume_analyzed": False
+        })
+        current.update(updates)
+        current["updated_at"] = datetime.utcnow().isoformat()
+        local_profiles[user_id] = current
+        self._save_local_profiles(local_profiles)
         return True
 
     # --------------------------------------------------------------------------
