@@ -84,7 +84,7 @@ function getAuthToken() {
 }
 
 function requireAuth(actionDescription = "access this feature") {
-    if (!currentAuthUser || !currentAuthUser.id || currentAuthUser.id === "guest-candidate") {
+    if (!currentAuthUser || !currentAuthUser.id || currentAuthUser.id === "guest-candidate" || currentAuthUser.id.startsWith("demo-")) {
         toggleAuthModal(true);
         showAuthError(`Authentication Required: Please sign in or create an account to ${actionDescription}.`);
         return false;
@@ -1726,14 +1726,8 @@ async function loadUserApplications() {
 }
 
 function loginAsDemoUser() {
-    const demoUser = {
-        id: "demo-guest-" + Date.now().toString(36),
-        email: "demo.candidate@autoapply.ai",
-        name: "Demo Candidate",
-        provider: "demo"
-    };
-    const token = createLocalAuthToken(demoUser);
-    setLoggedInUser(demoUser, token);
+    showAuthError("Demo guest access is disabled for production security. Please sign in or create an account.");
+    toggleAuthModal(true);
 }
 
 function renderAuthNavbar() {
@@ -1870,8 +1864,12 @@ function switchAuthTab(tab) {
     hideAuthError();
 }
 
+function generateTenantId(email) {
+    return "user-" + base64UrlEncode(email.trim().toLowerCase());
+}
+
 async function handleEmailAuth(event) {
-    event.preventDefault();
+    if (event) event.preventDefault();
     const email = document.getElementById("authEmailInput").value.trim().toLowerCase();
     const password = document.getElementById("authPasswordInput").value;
     const fullName = document.getElementById("authNameInput")?.value?.trim() || "";
@@ -1886,77 +1884,47 @@ async function handleEmailAuth(event) {
         return;
     }
 
-    let localUsers = {};
+    const submitBtn = document.getElementById("authSubmitBtn");
+    const submitBtnText = document.getElementById("authSubmitBtnText");
+    const originalText = submitBtnText ? submitBtnText.textContent : "Submit";
+    if (submitBtnText) submitBtnText.textContent = authMode === "signup" ? "Creating Account..." : "Signing In...";
+    if (submitBtn) submitBtn.disabled = true;
+
     try {
-        localUsers = JSON.parse(localStorage.getItem("autoapply_local_users") || "{}");
-    } catch (e) {
-        localUsers = {};
-    }
+        const endpoint = authMode === "signup" ? "/api/auth/register" : "/api/auth/login";
+        const payload = authMode === "signup"
+            ? { email: email, password: password, full_name: fullName || email.split("@")[0] }
+            : { email: email, password: password };
 
-    const savedUrl = localStorage.getItem("supabase_url") || "";
-    const savedKey = localStorage.getItem("supabase_anon_key") || "";
-    const hasRealSupabase = savedUrl && savedKey && !savedUrl.includes("iyqcrvdmlbtzrehwaxvl");
+        const res = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
 
-    if (authMode === "signup") {
-        if (!fullName) {
-            showAuthError("Please enter your Full Name to create an account.");
+        const data = await res.json();
+        if (!res.ok) {
+            showAuthError(data.detail || data.message || "Authentication failed. Please check your credentials.");
             return;
         }
-        if (localUsers[email]) {
-            showAuthError("An account with this email already exists. Please switch to the 'Sign In' tab.");
-            return;
-        }
 
-        const cleanName = fullName;
         const userObj = {
-            id: "user-" + btoa(email).replace(/[^a-zA-Z0-9]/g, "").slice(0, 14),
-            email: email,
-            name: cleanName,
-            user_metadata: { full_name: cleanName, name: cleanName },
-            passwordHash: btoa(password),
+            id: data.user.id || generateTenantId(email),
+            email: data.user.email || email,
+            name: data.user.name || data.user.full_name || fullName || email.split("@")[0],
+            user_metadata: {
+                full_name: data.user.name || data.user.full_name || fullName || email.split("@")[0],
+                name: data.user.name || data.user.full_name || fullName || email.split("@")[0]
+            },
             provider: "email"
         };
-        localUsers[email] = userObj;
-        localStorage.setItem("autoapply_local_users", JSON.stringify(localUsers));
 
-        if (hasRealSupabase && supabaseClient) {
-            try {
-                await supabaseClient.auth.signUp({
-                    email,
-                    password,
-                    options: { data: { full_name: cleanName } }
-                });
-            } catch (e) {
-                console.log("Supabase signup note:", e);
-            }
-        }
-
-        const token = createLocalAuthToken(userObj);
-        setLoggedInUser(userObj, token);
-        return;
-    } else {
-        // Sign In mode: New users must make the account first!
-        const existing = localUsers[email];
-        if (!existing) {
-            showAuthError("No account found with this email. Please switch to the 'Create Account' tab above to register first.");
-            return;
-        }
-        if (existing.passwordHash && existing.passwordHash !== btoa(password)) {
-            showAuthError("Incorrect password. Please verify your password.");
-            return;
-        }
-
-        if (hasRealSupabase && supabaseClient) {
-            try {
-                await supabaseClient.auth.signInWithPassword({ email, password });
-            } catch (e) {
-                console.log("Supabase signin note:", e);
-            }
-        }
-
-        const token = createLocalAuthToken(existing);
-        setLoggedInUser(existing, token);
-        return;
+        setLoggedInUser(userObj, data.token);
+    } catch (err) {
+        showAuthError("Authentication service connection error: " + err.message);
+    } finally {
+        if (submitBtnText) submitBtnText.textContent = originalText;
+        if (submitBtn) submitBtn.disabled = false;
     }
 }
 

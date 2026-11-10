@@ -1176,18 +1176,6 @@
                 <button onclick="toggleAuthModal(false)" class="text-zinc-500 hover:text-zinc-300 p-1 rounded-md text-xs font-bold transition cursor-pointer">✕</button>
             </div>
 
-            <!-- Instant Demo / Guest Mode -->
-            <div class="p-3 sm:p-3.5 rounded-xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-indigo-500/10 border border-emerald-500/30 text-center space-y-1.5">
-                <div class="flex items-center justify-center gap-1.5 text-emerald-400 font-semibold text-xs">
-                    <i data-lucide="zap" class="w-4 h-4 text-emerald-400"></i>
-                    <span>Instant Demo / Guest Access</span>
-                </div>
-                <p class="text-[11px] text-zinc-400">Jump straight into the live dashboard without creating an account.</p>
-                <button type="button" onclick="loginAsDemoUser()" class="w-full py-2 px-4 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-xs transition shadow-md flex items-center justify-center gap-1.5 cursor-pointer">
-                    <i data-lucide="play" class="w-3.5 h-3.5 fill-zinc-950"></i>
-                    <span>Continue as Demo Guest (Instant Access)</span>
-                </button>
-            </div>
 
             <!-- Tabs: Sign In / Create Account -->
             <div class="flex rounded-lg bg-zinc-950 p-1 border border-zinc-800 text-xs font-medium">
@@ -1230,12 +1218,6 @@
                 <button type="button" onclick="switchAuthTab('signup')" class="text-emerald-400 hover:text-emerald-300 font-semibold underline cursor-pointer ml-1">Create an account first</button>
             </p>
 
-            <!-- Offline / Demo Fallback Option -->
-            <div class="pt-2 border-t border-zinc-800/80 text-center">
-                <button type="button" onclick="loginAsDemoUser()" class="text-[11px] text-zinc-500 hover:text-zinc-300 underline decoration-dotted transition cursor-pointer">
-                    Skip & Continue as Local Guest / Offline Mode
-                </button>
-            </div>
         </div>
     </div>
 

@@ -46,6 +46,8 @@ Generate a punchy, 3-paragraph tailored cover letter:
                     temperature=0.3
                 )
                 if result and len(result.strip()) > 30:
+                    if name and name != "Candidate" and name not in result:
+                        result = result.rstrip() + f"\n\nSincerely,\n{name}"
                     return result
             except Exception as e:
                 print(f"[CoverLetterAgent] Gemini attempt notice: {e}")
@@ -69,6 +71,8 @@ Generate a punchy, 3-paragraph tailored cover letter:
                     )
                     content = response.choices[0].message.content
                     if content and len(content.strip()) > 30:
+                        if name and name != "Candidate" and name not in content:
+                            content = content.rstrip() + f"\n\nSincerely,\n{name}"
                         return content
                 except Exception as model_err:
                     print(f"[CoverLetterAgent] Groq {model_name} notice: {model_err}")

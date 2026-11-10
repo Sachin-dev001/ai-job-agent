@@ -53,6 +53,7 @@ class GeminiService:
 
         encoded_data = json.dumps(payload).encode("utf-8")
 
+        import urllib.error
         for model_name in self.candidate_models:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
             try:
@@ -61,7 +62,7 @@ class GeminiService:
                     data=encoded_data,
                     headers={"Content-Type": "application/json"}
                 )
-                res = urllib.request.urlopen(req, timeout=15)
+                res = urllib.request.urlopen(req, timeout=6)
                 data = json.loads(res.read().decode())
                 candidates = data.get("candidates", [])
                 if candidates and isinstance(candidates, list) and len(candidates) > 0:
@@ -69,6 +70,12 @@ class GeminiService:
                     if parts and isinstance(parts, list) and isinstance(parts[0], dict) and "text" in parts[0]:
                         logger.info(f"[Gemini Service] Success with model: {model_name}")
                         return parts[0]["text"].strip()
+            except urllib.error.HTTPError as http_err:
+                logger.warning(f"[Gemini Service] Model {model_name} HTTP {http_err.code}: {http_err.reason}")
+                if http_err.code in (400, 401, 403):
+                    logger.warning(f"[Gemini Service] Fatal authentication or client error ({http_err.code}). Aborting model attempts.")
+                    break
+                continue
             except Exception as e:
                 logger.warning(f"[Gemini Service] Model {model_name} attempt: {e}")
                 continue

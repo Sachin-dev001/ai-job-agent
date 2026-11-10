@@ -20,6 +20,7 @@ import asyncio
 from datetime import datetime
 from typing import List, Optional, Any
 import json
+import re
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -37,7 +38,9 @@ from app.scrapers.base_scraper import ScrapedJob
 from app.notifications.notifier import notifier
 from app.memory.qa_vault import qa_vault
 from app.notifications.telegram_listener import telegram_listener
-from app.auth.auth_handler import get_current_user, require_authenticated_user, CurrentUser
+from app.auth.auth_handler import get_current_user, require_authenticated_user, CurrentUser, create_access_token, SERVER_AUTH_SECRET
+import hashlib
+import base64
 from app.database.supabase_client import cloud_db
 
 app = FastAPI(title=settings.PROJECT_NAME, version=settings.VERSION)
@@ -99,6 +102,101 @@ async def health_check():
 # ==============================================================================
 # Multi-User Authentication & Profile Endpoints
 # ==============================================================================
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+    full_name: Optional[str] = None
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+def hash_password(password: str) -> str:
+    salt = SERVER_AUTH_SECRET
+    return hashlib.sha256(f"{salt}:{password}".encode("utf-8")).hexdigest()
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return hash_password(plain_password) == hashed_password
+
+def generate_tenant_user_id(email: str) -> str:
+    encoded = base64.urlsafe_b64encode(email.strip().lower().encode("utf-8")).decode("utf-8").rstrip("=")
+    clean_id = re.sub(r"[^a-zA-Z0-9_\-]", "", encoded)
+    return f"user-{clean_id}"
+
+@app.post("/api/auth/register")
+async def register_candidate(req: RegisterRequest):
+    email = (req.email or "").strip().lower()
+    if not email or "@" not in email or "." not in email:
+        raise HTTPException(status_code=400, detail="Please enter a valid email address.")
+    if not req.password or len(req.password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters.")
+
+    existing_user = await cloud_db.get_user_by_email(email)
+    name = (req.full_name or "").strip() or email.split("@")[0]
+    pwd_hash = hash_password(req.password)
+
+    if existing_user:
+        if verify_password(req.password, existing_user.get("password_hash", "")):
+            user_id = existing_user["id"]
+            user_name = existing_user.get("full_name") or existing_user.get("name") or name
+            token = create_access_token(user_id=user_id, email=email, name=user_name)
+            return {
+                "token": token,
+                "user": {
+                    "id": user_id,
+                    "email": email,
+                    "name": user_name,
+                    "full_name": user_name
+                }
+            }
+        raise HTTPException(status_code=400, detail="An account with this email already exists. Please switch to Sign In.")
+
+    user_id = generate_tenant_user_id(email)
+    user_record = await cloud_db.create_user(
+        email=email,
+        password_hash=pwd_hash,
+        full_name=name,
+        user_id=user_id
+    )
+    token = create_access_token(user_id=user_id, email=email, name=name)
+    return {
+        "token": token,
+        "user": {
+            "id": user_id,
+            "email": email,
+            "name": name,
+            "full_name": name
+        }
+    }
+
+@app.post("/api/auth/login")
+async def login_candidate(req: LoginRequest):
+    email = (req.email or "").strip().lower()
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required.")
+    if not req.password:
+        raise HTTPException(status_code=400, detail="Password is required.")
+
+    user_record = await cloud_db.get_user_by_email(email)
+    if not user_record:
+        raise HTTPException(status_code=401, detail="No account found with this email. Please switch to the 'Create Account' tab above to register first.")
+
+    if not verify_password(req.password, user_record.get("password_hash", "")):
+        raise HTTPException(status_code=401, detail="Incorrect password. Please verify your credentials.")
+
+    user_id = user_record["id"]
+    user_name = user_record.get("full_name") or user_record.get("name") or email.split("@")[0]
+    token = create_access_token(user_id=user_id, email=email, name=user_name)
+    return {
+        "token": token,
+        "user": {
+            "id": user_id,
+            "email": email,
+            "name": user_name,
+            "full_name": user_name
+        }
+    }
+
 @app.get("/api/auth/me")
 async def get_auth_me(user: CurrentUser = Depends(get_current_user)):
     """Returns the authenticated user's identity and cloud status."""
@@ -171,16 +269,16 @@ async def analyze_resume(file: UploadFile = File(...), user: CurrentUser = Depen
         })
 
         if cand_name or cand_email or cand_phone:
-            # Auto-seed this candidate's private memory vault from parsed resume facts
-            if cand_name and cand_name != "Guest":
+            # Auto-seed this candidate's private memory vault from parsed resume facts (skip None, empty, or dummy values)
+            if cand_name and cand_name not in ["Guest", "Candidate"]:
                 await cloud_db.save_memory(user.id, "What is your full name?", cand_name, "personal")
-            if cand_email and not cand_email.endswith("@autoapply.ai"):
+            if cand_email and cand_email != "candidate@example.com" and not cand_email.endswith("@autoapply.ai"):
                 await cloud_db.save_memory(user.id, "What is your email address?", cand_email, "contact")
-            if cand_phone:
+            if cand_phone and cand_phone != "+1 (555) 019-2834":
                 await cloud_db.save_memory(user.id, "What is your mobile/contact number?", str(cand_phone), "contact")
-            if cand_exp:
+            if cand_exp and cand_exp > 0:
                 await cloud_db.save_memory(user.id, "How many total years of work experience do you have?", str(cand_exp), "experience")
-            if skills:
+            if skills and len(skills) > 0:
                 skills_str = ", ".join(skills) if isinstance(skills, list) else str(skills)
                 await cloud_db.save_memory(user.id, "What skills and technologies have you worked with?", skills_str, "skills")
         return result
@@ -296,8 +394,20 @@ async def execute_live_naukri_apply(req: LiveApplyRequest, user: CurrentUser = D
 
     try:
         result = await naukri_live_runner.execute_live_apply(query=req.query, limit=req.limit, user_id=user.id)
-        # Record application
-        if result.get("success") or result.get("status") == "applied_successfully":
+        # Record applications from batch results or completed status
+        apps_to_record = result.get("applications", [])
+        if apps_to_record:
+            for app_item in apps_to_record:
+                status = "applied" if app_item.get("status") in ["applied_successfully", "applied", "already_applied"] else app_item.get("status", "in_progress")
+                await cloud_db.create_application(user.id, {
+                    "platform": "naukri",
+                    "job_title": app_item.get("job_title") or req.query,
+                    "company_name": app_item.get("company_name") or "Naukri Matched Employer",
+                    "job_url": app_item.get("url") or "https://www.naukri.com",
+                    "status": status,
+                    "match_score": app_item.get("match_score", 94.0)
+                })
+        elif result.get("success") or result.get("status") in ["applied_successfully", "completed"]:
             await cloud_db.create_application(user.id, {
                 "platform": "naukri",
                 "job_title": req.query,
@@ -375,6 +485,27 @@ async def execute_live_wellfound_apply(req: LiveApplyRequest, user: CurrentUser 
 
     try:
         result = await wellfound_live_runner.execute_batch_apply(query=req.query, limit=req.limit, user_id=user.id)
+        apps_to_record = result.get("applications", [])
+        if apps_to_record:
+            for app_item in apps_to_record:
+                status = "applied" if app_item.get("status") in ["applied_successfully", "applied", "already_applied"] else app_item.get("status", "in_progress")
+                await cloud_db.create_application(user.id, {
+                    "platform": "wellfound",
+                    "job_title": app_item.get("job_title") or req.query,
+                    "company_name": app_item.get("company") or app_item.get("company_name") or "Wellfound Startup",
+                    "job_url": app_item.get("url") or app_item.get("job_url") or "https://wellfound.com",
+                    "status": status,
+                    "match_score": app_item.get("match_score", 92.0)
+                })
+        elif result.get("success") or result.get("status") in ["applied_successfully", "completed"]:
+            await cloud_db.create_application(user.id, {
+                "platform": "wellfound",
+                "job_title": req.query,
+                "company_name": "Wellfound Startup",
+                "job_url": "https://wellfound.com",
+                "status": "applied",
+                "match_score": 92.0
+            })
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -475,14 +606,14 @@ async def delete_qa_memory(memory_id: str, user: CurrentUser = Depends(require_a
 @app.post("/api/memory/answer-pending")
 async def answer_pending_question(req: AnswerPendingRequest, user: CurrentUser = Depends(require_authenticated_user)):
     """Answers a pending question from the dashboard and permanently saves it to user memory."""
-    pending_items = qa_vault.get_pending_questions()
+    pending_items = qa_vault.get_pending_questions(user.id)
     matched = None
     for p in pending_items:
         if p.get("id") == req.question_id:
             matched = p
             break
     if not matched:
-        raise HTTPException(status_code=404, detail="Pending question not found")
+        raise HTTPException(status_code=404, detail="Pending question not found or unauthorized")
 
     await cloud_db.save_memory(
         user_id=user.id,
@@ -497,7 +628,12 @@ async def answer_pending_question(req: AnswerPendingRequest, user: CurrentUser =
 @app.post("/api/memory/skip-pending")
 async def skip_pending_question(req: SkipPendingRequest, user: CurrentUser = Depends(require_authenticated_user)):
     """Skips or dismisses a pending question so it stops blocking the UI and applicant flow."""
-    success = qa_vault.skip_pending_question(req.question_id)
+    pending_items = qa_vault.get_pending_questions(user.id)
+    matched = any(p.get("id") == req.question_id for p in pending_items)
+    if not matched:
+        raise HTTPException(status_code=404, detail="Pending question not found or unauthorized")
+
+    success = qa_vault.skip_pending_question(req.question_id, user_id=user.id)
     if not success:
         raise HTTPException(status_code=404, detail="Pending question not found")
     return {"status": "skipped", "id": req.question_id}

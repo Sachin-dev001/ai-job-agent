@@ -68,21 +68,19 @@ class ResumeAnalyst:
             "HTML", "CSS", "SQL", "Playwright", "Selenium"
         ]
         skills = [s for s in common_skills if re.search(r"\b" + re.escape(s) + r"\b", raw_text, re.IGNORECASE)]
-        if not skills:
-            skills = ["Python", "FastAPI", "REST API", "Docker", "PostgreSQL"]
 
         # Experience years estimate
         exp_match = re.search(r"(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)(?:\s+of)?\s+experience", raw_text, re.IGNORECASE)
-        experience_years = float(exp_match.group(1)) if exp_match else 3.0
+        experience_years = float(exp_match.group(1)) if exp_match else 0.0
 
         # Education match
         edu_match = re.search(r"(Bachelor|Master|B\.Tech|M\.Tech|B\.S|M\.S|BCA|MCA|Degree)[^\n,.]*", raw_text, re.IGNORECASE)
-        education = edu_match.group(0).strip() if edu_match else "Bachelor of Science in Computer Science"
+        education = edu_match.group(0).strip() if edu_match else None
 
         return {
             "candidate_name": cand_name,
-            "email": email or "candidate@example.com",
-            "phone": phone or "+1 (555) 019-2834",
+            "email": email,
+            "phone": phone,
             "skills": skills,
             "experience_years": experience_years,
             "education": education,
@@ -185,8 +183,8 @@ class ResumeAnalyst:
 
         if "skills" not in data or not data["skills"]:
             data["skills"] = data.get("technical_skills", []) + data.get("soft_skills", [])
-            if not data["skills"]:
-                data["skills"] = ["Python", "FastAPI", "REST API", "Docker", "PostgreSQL"]
+        if "skills" not in data or data["skills"] is None:
+            data["skills"] = []
 
         if "experience_years" not in data:
             data["experience_years"] = float(data.get("years_of_experience", 2.5))

@@ -244,13 +244,16 @@ async def run_verification():
         print("TEST SUITE PART 3: AUTHENTICATED WORKFLOW & CONTROLLED PITCH GENERATION", flush=True)
         print("=" * 80, flush=True)
 
-        print("\n[Step 3.1] Signing in with Demo Guest Mode...", flush=True)
+        print("\n[Step 3.1] Registering and signing in test candidate account...", flush=True)
         await page.click("#authSignInBtn")
         await page.wait_for_selector("#authModal:not(.hidden)", state="visible", timeout=4000)
 
-        demo_guest_btn = page.locator("#authModal button:has-text('Continue as Demo Guest')")
-        await demo_guest_btn.click()
-        await page.wait_for_selector("#authModal", state="hidden", timeout=4000)
+        await page.click("#tabSignUpBtn")
+        await page.fill("#authNameInput", "Security Candidate")
+        await page.fill("#authEmailInput", "security.candidate@testdomain.com")
+        await page.fill("#authPasswordInput", "SecurePass123!")
+        await page.click("#authSubmitBtn")
+        await page.wait_for_selector("#authModal", state="hidden", timeout=10000)
         await page.wait_for_timeout(1000)
 
         # Assert candidate badge updates from "Candidate"

@@ -5,19 +5,15 @@ import urllib.error
 
 BASE_URL = "http://127.0.0.1:8000"
 
+import sys
+from pathlib import Path
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
+from app.auth.auth_handler import create_access_token
+
 def make_jwt(user_id, email, name):
-    def b64url(s):
-        return base64.urlsafe_b64encode(s.encode()).decode().rstrip("=")
-    header = b64url(json.dumps({"alg": "HS256", "typ": "JWT"}))
-    payload = b64url(json.dumps({
-        "sub": user_id,
-        "id": user_id,
-        "email": email,
-        "user_metadata": {"full_name": name, "name": name},
-        "exp": 2000000000
-    }))
-    sig = b64url("dummy_sig")
-    return f"{header}.{payload}.{sig}"
+    return create_access_token(user_id=user_id, email=email, name=name)
 
 def test_isolation():
     print("[TEST] Running Multi-Tenant Candidate Isolation Test...")

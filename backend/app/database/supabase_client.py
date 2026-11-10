@@ -11,6 +11,7 @@ logger = logging.getLogger("supabase_client")
 BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = BACKEND_DIR / "data"
 PROFILES_FILE = DATA_DIR / "user_profiles.json"
+USERS_FILE = DATA_DIR / "users.json"
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", os.getenv("SUPABASE_ANON_KEY", ""))
@@ -64,6 +65,56 @@ class CloudDatabaseService:
             os.replace(temp_name, PROFILES_FILE)
         except Exception as e:
             logger.warning(f"[Supabase] Error saving local profiles: {e}")
+
+    def _load_local_users(self) -> Dict[str, Any]:
+        if USERS_FILE.exists():
+            try:
+                with open(USERS_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        return data
+            except Exception as e:
+                logger.warning(f"[Supabase] Error reading local users: {e}")
+        return {}
+
+    def _save_local_users(self, users: Dict[str, Any]):
+        try:
+            import tempfile
+            DATA_DIR.mkdir(parents=True, exist_ok=True)
+            with tempfile.NamedTemporaryFile("w", dir=DATA_DIR, delete=False, encoding="utf-8") as tf:
+                json.dump(users, tf, indent=2)
+                temp_name = tf.name
+            os.replace(temp_name, USERS_FILE)
+        except Exception as e:
+            logger.warning(f"[Supabase] Error saving local users: {e}")
+
+    async def get_user_by_email(self, email: str) -> Optional[Dict[str, Any]]:
+        norm_email = (email or "").strip().lower()
+        if not norm_email:
+            return None
+        users = self._load_local_users()
+        for u in users.values():
+            if u.get("email", "").lower() == norm_email:
+                return u
+        return None
+
+    async def create_user(self, email: str, password_hash: str, full_name: str, user_id: str) -> Dict[str, Any]:
+        users = self._load_local_users()
+        user_record = {
+            "id": user_id,
+            "email": email.strip().lower(),
+            "full_name": full_name.strip(),
+            "name": full_name.strip(),
+            "password_hash": password_hash,
+            "created_at": datetime.utcnow().isoformat()
+        }
+        users[user_id] = user_record
+        self._save_local_users(users)
+        await self.update_profile(user_id, {
+            "full_name": full_name.strip(),
+            "email": email.strip().lower()
+        })
+        return user_record
 
     # --------------------------------------------------------------------------
     # User Profile Operations

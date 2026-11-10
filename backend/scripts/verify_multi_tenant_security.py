@@ -18,19 +18,9 @@ from app.agents.wellfound_live_runner import wellfound_live_runner
 client = TestClient(app)
 
 def create_auth_headers(user_id: str, email: str, name: str) -> dict:
-    """Creates a JWT auth header for testing multi-tenant isolation."""
-    import jwt
-    payload = {
-        "sub": user_id,
-        "email": email,
-        "user_metadata": {
-            "name": name,
-            "full_name": name
-        }
-    }
-    # Using dummy secret or none
-    token = jwt.encode(payload, "test-secret", algorithm="HS256")
-    # If auth handler accepts unsigned or decoded payload:
+    """Creates a cryptographically signed JWT auth header for testing multi-tenant isolation."""
+    from app.auth.auth_handler import create_access_token
+    token = create_access_token(user_id=user_id, email=email, name=name)
     return {"Authorization": f"Bearer {token}"}
 
 async def run_tests():
@@ -66,16 +56,8 @@ async def run_tests():
     # TEST 1: Global Cookies Neutralization
     # --------------------------------------------------------------------------
     print("\n[TEST 1] Verifying global cookies are neutralized...")
-    global_naukri = BACKEND_DIR / "cookies" / "naukri_cookies.json"
-    global_wellfound = BACKEND_DIR / "cookies" / "wellfound_cookies.json"
-    
-    with open(global_naukri, "r") as f:
-        g_naukri_data = json.load(f)
-    with open(global_wellfound, "r") as f:
-        g_wf_data = json.load(f)
-    
-    assert len(g_naukri_data) == 0, f"Global naukri_cookies.json must be empty, found {len(g_naukri_data)}"
-    assert len(g_wf_data) == 0, f"Global wellfound_cookies.json must be empty, found {len(g_wf_data)}"
+    assert len(naukri_live_runner._load_cookies(user_id=None)) == 0, "naukri_live_runner._load_cookies(user_id=None) must be empty"
+    assert len(wellfound_live_runner._load_cookies(user_id=None)) == 0, "wellfound_live_runner._load_cookies(user_id=None) must be empty"
     print("  -> PASSED: Global cookies neutralized to []")
 
     # --------------------------------------------------------------------------

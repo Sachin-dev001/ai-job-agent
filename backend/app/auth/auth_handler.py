@@ -1,14 +1,14 @@
 import os
 import jwt
-import base64
-import json
 import re
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from pydantic import BaseModel
 from fastapi import Header, HTTPException, Depends
 
 logger = logging.getLogger("auth_handler")
+SERVER_AUTH_SECRET = os.getenv("SERVER_AUTH_SECRET") or os.getenv("SUPABASE_JWT_SECRET") or "autoapply_secret_token_hmac_sign_key_9942"
 SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
 REQUIRE_AUTH = os.getenv("REQUIRE_AUTH", "true").lower() == "true"
 
@@ -25,55 +25,81 @@ def _sanitize_user_id(raw_id: str) -> str:
     clean = re.sub(r"[^a-zA-Z0-9_\-]", "", str(raw_id or ""))
     return clean[:64] if clean else "demo_candidate"
 
+def create_access_token(user_id: str, email: str, name: str = "Candidate", expires_in_days: int = 30) -> str:
+    """
+    Issues a cryptographically signed HS256 JWT access token.
+    """
+    now = datetime.now(timezone.utc)
+    payload = {
+        "sub": user_id,
+        "id": user_id,
+        "email": email,
+        "name": name,
+        "user_metadata": {
+            "full_name": name,
+            "name": name,
+            "role": "candidate"
+        },
+        "role": "candidate",
+        "aud": "authenticated",
+        "iat": int(now.timestamp()),
+        "exp": int((now + timedelta(days=expires_in_days)).timestamp())
+    }
+    return jwt.encode(payload, SERVER_AUTH_SECRET, algorithm="HS256")
+
 async def get_current_user(authorization: Optional[str] = Header(None)) -> CurrentUser:
     """
-    Validates Supabase JWT access token or local JWT token cleanly while sanitizing user_id.
+    Validates JWT access token strictly with HS256 cryptographic signature verification.
+    Rejects unsigned or forged payloads (CWE-347 remediation).
     """
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split("Bearer ")[1].strip()
         payload = None
-        try:
-            if SUPABASE_JWT_SECRET:
+
+        candidate_secrets = []
+        if SUPABASE_JWT_SECRET:
+            candidate_secrets.append(SUPABASE_JWT_SECRET)
+        if SERVER_AUTH_SECRET and SERVER_AUTH_SECRET not in candidate_secrets:
+            candidate_secrets.append(SERVER_AUTH_SECRET)
+
+        last_err = None
+        for secret in candidate_secrets:
+            try:
                 payload = jwt.decode(
                     token,
-                    SUPABASE_JWT_SECRET,
+                    secret,
                     algorithms=["HS256"],
-                    audience="authenticated"
+                    options={"verify_signature": True, "verify_aud": False}
                 )
-            else:
-                payload = jwt.decode(token, options={"verify_signature": False})
-        except Exception as jwt_err:
-            try:
-                parts = token.split(".")
-                raw_b64 = parts[1] if len(parts) == 3 else token
-                padding = "=" * (-len(raw_b64) % 4)
-                decoded_bytes = base64.urlsafe_b64decode(raw_b64 + padding)
-                payload = json.loads(decoded_bytes.decode("utf-8"))
-            except Exception as fallback_err:
-                logger.warning(f"Token decode failed: {jwt_err} / {fallback_err}")
-                if REQUIRE_AUTH and not payload:
-                    raise HTTPException(status_code=401, detail=f"Invalid or expired authentication token: {str(jwt_err)}")
+                if payload:
+                    break
+            except Exception as e:
+                last_err = e
+                continue
 
-        if isinstance(payload, dict):
-            user_id = _sanitize_user_id(payload.get("sub") or payload.get("id"))
-            email = payload.get("email", "user@example.com")
-            user_metadata = payload.get("user_metadata") or {}
-            full_name = (
-                user_metadata.get("full_name")
-                or user_metadata.get("name")
-                or payload.get("name")
-                or email.split("@")[0]
-            )
-            is_demo = user_id.startswith("demo") or user_id == "guest-candidate"
-            return CurrentUser(
-                id=user_id,
-                email=email,
-                name=full_name,
-                full_name=full_name,
-                role=user_metadata.get("role", "candidate"),
-                is_demo=is_demo,
-                is_authenticated=not is_demo
-            )
+        if not payload:
+            logger.warning(f"Token signature verification failed: {last_err}")
+            raise HTTPException(status_code=401, detail="Invalid or expired authentication token.")
+
+        user_id = _sanitize_user_id(payload.get("sub") or payload.get("id"))
+        email = payload.get("email", "user@example.com")
+        user_metadata = payload.get("user_metadata") or {}
+        full_name = (
+            user_metadata.get("full_name")
+            or user_metadata.get("name")
+            or payload.get("name")
+            or email.split("@")[0]
+        )
+        is_demo = user_id.startswith("demo") or user_id == "guest-candidate"
+        return CurrentUser(
+            id=user_id,
+            email=email,
+            name=full_name,
+            full_name=full_name,
+            role=user_metadata.get("role", "candidate"),
+            is_demo=is_demo,
+            is_authenticated=not is_demo
+        )
 
     if REQUIRE_AUTH:
         raise HTTPException(status_code=401, detail="Authentication required. Please sign in.")

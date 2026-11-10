@@ -250,10 +250,14 @@ class QAMemoryVault:
         if matched_id and matched_id in self._waiting_events:
             self._waiting_events[matched_id].set()
 
-    def skip_pending_question(self, q_id: str) -> bool:
+    def skip_pending_question(self, q_id: str, user_id: Optional[str] = None) -> bool:
         """Marks a pending question as skipped/dismissed and resolves any waiting coroutine."""
         self._load_pending()
         if q_id in self._pending_questions:
+            if user_id:
+                uid = self._sanitize_user_id(user_id)
+                if self._pending_questions[q_id].get("user_id", "guest-candidate") != uid:
+                    return False
             self._pending_questions[q_id]["status"] = "skipped"
             self._save_pending()
             if q_id in self._waiting_events:

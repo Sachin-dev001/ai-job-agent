@@ -35,6 +35,10 @@ backend/uploads/*
 *.sqlite
 *.sqlite3
 
+# Runtime Tenant & Vault Data
+backend/data/*.json
+!backend/data/.gitkeep
+
 # IDE / Editor Files
 .vscode/
 .idea/

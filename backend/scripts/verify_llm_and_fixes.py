@@ -10,13 +10,19 @@ sys.path.insert(0, r"D:\ai-job-agent\backend")
 async def test_all_fixes():
     print("[TEST] Running Deep Verification of All 9 Production Fixes...")
 
-    # 1. Test Supabase atomic profile writes
+    # 1. Test Supabase atomic profile writes without wiping existing profiles
     from app.database.supabase_client import cloud_db
-    cloud_db._save_local_profiles({"test_user_id": {"name": "Test Candidate", "skills": ["Python", "FastAPI"]}})
-    saved = cloud_db._load_local_profiles()
-    assert "test_user_id" in saved, "Atomic save failed to write profile!"
-    assert saved["test_user_id"]["name"] == "Test Candidate"
-    print("[PASS] Fix 8A: Atomic file write in supabase_client.py verified.")
+    original_profiles = cloud_db._load_local_profiles()
+    try:
+        test_profiles = dict(original_profiles)
+        test_profiles["test_user_id"] = {"name": "Test Candidate", "skills": ["Python", "FastAPI"]}
+        cloud_db._save_local_profiles(test_profiles)
+        saved = cloud_db._load_local_profiles()
+        assert "test_user_id" in saved, "Atomic save failed to write profile!"
+        assert saved["test_user_id"]["name"] == "Test Candidate"
+        print("[PASS] Fix 8A: Atomic file write in supabase_client.py verified.")
+    finally:
+        cloud_db._save_local_profiles(original_profiles)
 
     # 2. Test Resume Analyst markdown fence stripping
     from app.agents.resume_analyst import resume_analyst
@@ -37,8 +43,9 @@ async def test_all_fixes():
 
     # 3. Test LLM model endpoints in router & gemini service
     from app.llm.gemini_service import gemini_service
-    assert gemini_service.model_endpoint == "gemini-2.0-flash", f"Expected gemini-2.0-flash, got {gemini_service.model_endpoint}"
-    print("[PASS] Fix 4: gemini_service configured with valid model 'gemini-2.0-flash'.")
+    assert hasattr(gemini_service, "candidate_models") and len(gemini_service.candidate_models) > 0, "Candidate models list missing"
+    assert any(m in ["gemini-flash-lite-latest", "gemini-2.5-flash-lite", "gemini-2.0-flash"] for m in gemini_service.candidate_models), f"Expected modern gemini models, got {gemini_service.candidate_models}"
+    print(f"[PASS] Fix 4: gemini_service configured with valid candidate models: {gemini_service.candidate_models}.")
 
     # 4. Test Job Scout fault-tolerant gather
     from app.agents.job_scout import job_scout
