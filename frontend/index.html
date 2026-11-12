@@ -182,23 +182,6 @@
         <div class="w-full max-w-7xl h-full mx-auto bg-hero-glow"></div>
     </div>
 
-    <!-- ========================================================================= -->
-    <!-- VERCEL / REMOTE BACKEND NOTICE BANNER                                     -->
-    <!-- ========================================================================= -->
-    <div id="cloudBackendBanner" class="hidden relative z-50 bg-gradient-to-r from-amber-500/15 via-amber-600/10 to-transparent border-b border-amber-500/30 px-3 sm:px-4 py-2 text-xs text-amber-200">
-        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3">
-            <div class="flex items-center gap-2">
-                <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0"></span>
-                <span class="text-[11px] sm:text-xs"><strong>Running on Vercel:</strong> Connect your free Render backend URL to enable live AI resume parsing & auto-apply.</span>
-            </div>
-            <div class="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-                <button onclick="openCloudConfigModal()" class="px-2.5 py-0.5 rounded bg-amber-400/20 hover:bg-amber-400/30 text-amber-200 font-medium text-[11px] border border-amber-400/40 transition">
-                    Connect Backend
-                </button>
-                <button onclick="document.getElementById('cloudBackendBanner').classList.add('hidden')" class="text-amber-400 hover:text-white p-0.5 text-xs">✕</button>
-            </div>
-        </div>
-    </div>
 
     <!-- ========================================================================= -->
     <!-- STICKY NAVIGATION BAR (Mobile-First Responsive Header)                    -->
@@ -239,7 +222,7 @@
             <div class="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
                 
                 <!-- Cloud Backend Status Pill -->
-                <button id="backendStatusPill" onclick="openCloudConfigModal()" title="Backend Status: Click to configure" class="flex items-center gap-1 sm:gap-1.5 px-2 py-1 sm:px-2.5 rounded-md text-xs font-medium border transition cursor-pointer bg-zinc-900 border-zinc-800 text-zinc-300 hover:border-zinc-700">
+                <button id="backendStatusPill" onclick="triggerBackendHealthCheck(true)" title="Backend Status: Click to refresh connection" class="flex items-center gap-1 sm:gap-1.5 px-2 py-1 sm:px-2.5 rounded-md text-xs font-medium border transition cursor-pointer bg-zinc-900 border-zinc-800 text-zinc-300 hover:border-zinc-700">
                     <span id="backendStatusDot" class="w-1.5 h-1.5 rounded-full bg-zinc-500 shrink-0"></span>
                     <span id="backendStatusText" class="text-[10px] sm:text-[11px] truncate max-w-[65px] sm:max-w-none">Backend</span>
                 </button>
@@ -1246,7 +1229,7 @@
                 <div>
                     <label class="block text-zinc-300 font-medium mb-1">Backend API URL (Render / Cloud Server)</label>
                     <div class="flex flex-col sm:flex-row gap-2">
-                        <input id="cfgBackendUrl" type="url" placeholder="https://autoapply-backend.onrender.com" class="w-full sm:flex-1 p-2.5 bg-zinc-950 border border-zinc-800 rounded-lg text-zinc-200 focus:border-zinc-600 outline-none text-xs">
+                        <input id="cfgBackendUrl" type="url" placeholder="https://autoapply-backend-hvdm.onrender.com" class="w-full sm:flex-1 p-2.5 bg-zinc-950 border border-zinc-800 rounded-lg text-zinc-200 focus:border-zinc-600 outline-none text-xs">
                         <button type="button" onclick="testBackendUrl()" class="w-full sm:w-auto px-3 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-xs text-zinc-200 font-medium transition shrink-0">
                             Test Ping
                         </button>

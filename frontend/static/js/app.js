@@ -2448,7 +2448,7 @@ function toggleCloudConfigModal(show) {
         document.getElementById("cfgSupabaseUrl").value = localStorage.getItem("supabase_url") || "";
         document.getElementById("cfgSupabaseAnonKey").value = localStorage.getItem("supabase_anon_key") || "";
         if (document.getElementById("cfgBackendUrl")) {
-            document.getElementById("cfgBackendUrl").value = localStorage.getItem("backend_api_url") || "";
+            document.getElementById("cfgBackendUrl").value = localStorage.getItem("backend_api_url") || DEFAULT_REMOTE_BACKEND || "https://autoapply-backend-hvdm.onrender.com";
         }
         m.classList.remove("hidden");
         checkPortalSessionStatus();
@@ -2505,8 +2505,72 @@ function resetCloudConfig() {
 
 
 // =============================================================================
-// BACKEND CONNECTIVITY MONITOR & URL TESTER
+// BACKEND CONNECTIVITY & AUTONOMOUS AUTO-WAKEUP ENGINE
 // =============================================================================
+let isBackendConnected = false;
+let isBackendWakingUp = false;
+let autoWakeupTimer = null;
+let wakeupAttemptCount = 0;
+
+function showAppToast(msg, type = "info") {
+    let container = document.getElementById("appToastContainer");
+    if (!container) {
+        container = document.createElement("div");
+        container.id = "appToastContainer";
+        container.className = "fixed bottom-5 right-5 z-[9999] flex flex-col gap-2 pointer-events-none";
+        document.body.appendChild(container);
+    }
+    const toast = document.createElement("div");
+    const colors = {
+        success: "bg-emerald-950/90 border-emerald-500/40 text-emerald-200",
+        info: "bg-zinc-900/95 border-zinc-700/60 text-zinc-200",
+        warning: "bg-amber-950/90 border-amber-500/40 text-amber-200",
+        error: "bg-rose-950/90 border-rose-500/40 text-rose-200"
+    };
+    const colorClass = colors[type] || colors.info;
+    toast.className = `px-4 py-2.5 rounded-xl border text-xs shadow-2xl backdrop-blur-md transition-all duration-300 transform translate-y-2 opacity-0 pointer-events-auto flex items-center gap-2 max-w-sm ${colorClass}`;
+    toast.innerHTML = `<span>${msg}</span>`;
+    container.appendChild(toast);
+    requestAnimationFrame(() => {
+        toast.classList.remove("translate-y-2", "opacity-0");
+    });
+    setTimeout(() => {
+        toast.classList.add("translate-y-2", "opacity-0");
+        setTimeout(() => toast.remove(), 350);
+    }, 4000);
+}
+
+async function triggerBackendHealthCheck(isUserClick = false) {
+    if (isUserClick) {
+        if (isBackendConnected) {
+            showAppToast("🟢 Backend Server is connected and healthy! Render cloud engine is active.", "success");
+            return;
+        }
+        if (isBackendWakingUp) {
+            showAppToast("⚡ Backend is currently spinning up from sleep (~20-30s). Auto-connecting in background...", "info");
+            return;
+        }
+        showAppToast("🔄 Checking backend connection...", "info");
+    }
+    return await checkBackendHealth();
+}
+
+function startAutoWakeupLoop() {
+    if (autoWakeupTimer || isBackendConnected) return;
+    if (wakeupAttemptCount >= 25) {
+        // Stopped polling after ~100s
+        return;
+    }
+    wakeupAttemptCount++;
+    autoWakeupTimer = setTimeout(async () => {
+        autoWakeupTimer = null;
+        const ok = await checkBackendHealth();
+        if (!ok && !isBackendConnected) {
+            startAutoWakeupLoop();
+        }
+    }, 4000);
+}
+
 async function checkBackendHealth() {
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     const remoteBackend = localStorage.getItem('backend_api_url') || DEFAULT_REMOTE_BACKEND;
@@ -2521,12 +2585,21 @@ async function checkBackendHealth() {
 
     try {
         const controller = new AbortController();
-        // Give Render enough time to answer without hanging UI (6s)
-        const timeoutId = setTimeout(() => controller.abort(), 6000);
+        // Give Render adequate time to respond
+        const timeoutId = setTimeout(() => controller.abort(), 7000);
         const res = await originalFetch(targetUrl, { signal: controller.signal });
         clearTimeout(timeoutId);
 
         if (res.ok) {
+            const wasWaking = isBackendWakingUp;
+            isBackendConnected = true;
+            isBackendWakingUp = false;
+            wakeupAttemptCount = 0;
+            if (autoWakeupTimer) {
+                clearTimeout(autoWakeupTimer);
+                autoWakeupTimer = null;
+            }
+
             if (statusDot) statusDot.className = "w-1.5 h-1.5 rounded-full bg-emerald-400";
             if (statusText) statusText.textContent = "Backend: Connected";
             if (statusPill) {
@@ -2534,14 +2607,20 @@ async function checkBackendHealth() {
                 statusPill.title = `Live Connected to ${targetUrl}`;
             }
             if (banner) banner.classList.add("hidden");
+            if (wasWaking) {
+                showAppToast("🟢 Backend Connected! All AI agent services are active.", "success");
+            }
             return true;
         }
     } catch (e) {
         // Cold start or temporary network delay
     }
 
+    isBackendConnected = false;
+
     // Graceful handling for free-tier Render spin-down: show waking up instead of alarming disconnected state
     if (!isLocal && DEFAULT_REMOTE_BACKEND) {
+        isBackendWakingUp = true;
         if (statusDot) statusDot.className = "w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse";
         if (statusText) statusText.textContent = "Backend: Waking Up...";
         if (statusPill) {
@@ -2549,6 +2628,9 @@ async function checkBackendHealth() {
             statusPill.title = "Render Free Tier backend is waking up from sleep (~45s). Automatic connection in progress...";
         }
         if (banner) banner.classList.add("hidden");
+
+        // Kick off fast autonomous retry loop to detect the moment Render comes online
+        startAutoWakeupLoop();
         return false;
     }
 
@@ -2556,7 +2638,7 @@ async function checkBackendHealth() {
     if (statusText) statusText.textContent = isLocal ? "Backend: Offline" : "Backend: Disconnected";
     if (statusPill) {
         statusPill.className = "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border transition cursor-pointer bg-amber-500/10 border-amber-500/30 text-amber-300 hover:border-amber-500/50";
-        statusPill.title = "Click to configure backend URL in Cloud Config";
+        statusPill.title = "Backend is not responding. Will retry automatically.";
     }
     return false;
 }
@@ -2566,11 +2648,8 @@ async function testBackendUrl() {
     const statusEl = document.getElementById("cfgBackendPingStatus");
     if (!input || !statusEl) return;
 
-    let url = input.value.trim();
-    if (!url) {
-        statusEl.innerHTML = `<span class="text-amber-400">⚠️ Please enter a URL first.</span>`;
-        return;
-    }
+    let url = input.value.trim() || DEFAULT_REMOTE_BACKEND || "https://autoapply-backend-hvdm.onrender.com";
+    input.value = url;
     url = url.replace(/\/$/, "");
     statusEl.innerHTML = `<span class="text-indigo-400 animate-pulse">⟳ Pinging ${url}/api/health...</span>`;
 
