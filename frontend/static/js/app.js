@@ -712,7 +712,7 @@ async function directApplyRow(idx) {
         }
         const statApplied = document.getElementById("statApplied");
 
-        if (data.status === "applied_successfully") {
+        if (data.status === "applied_successfully" || data.status === "applied" || data.applied === true) {
             const appliedStatusHtml = `
                 <span class="inline-flex items-center gap-1.5 text-emerald-400 text-xs font-semibold">
                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Applied ✅
@@ -760,7 +760,7 @@ async function directApplyRow(idx) {
             if (actionCell) actionCell.innerHTML = alreadyProofHtml;
             if (actionCard) actionCard.innerHTML = alreadyProofHtml;
             alert(`ℹ️ You have already applied to ${job.title} on ${platformLabel}.`);
-        } else if (data.status === "external_portal") {
+        } else if (data.status === "external_portal" || data.status === "external_redirect") {
             const extHtml = `
                 <span class="inline-flex items-center gap-1.5 text-blue-400 text-xs font-semibold">
                     <span class="w-1.5 h-1.5 rounded-full bg-blue-400"></span> External Portal
@@ -777,7 +777,7 @@ async function directApplyRow(idx) {
             if (actionCell) actionCell.innerHTML = extActionHtml;
             if (actionCard) actionCard.innerHTML = extActionHtml;
 
-            openQuickApplyModal(idx, data.message || "External career portal application required.");
+            openQuickApplyModal(idx, data.message || "External career portal application required.", data.proof_image || data.proof_url, data.status);
         } else if (data.status === "job_expired") {
             const expHtml = `
                 <span class="inline-flex items-center gap-1.5 text-zinc-500 text-xs font-semibold">
@@ -809,7 +809,7 @@ async function directApplyRow(idx) {
         } else {
             if (actionCell) actionCell.innerHTML = originalContent;
             if (actionCard) actionCard.innerHTML = originalCardContent;
-            openQuickApplyModal(idx, data.message || "Application action needed");
+            openQuickApplyModal(idx, data.message || "Application action needed", data.proof_image || data.proof_url, data.status);
         }
     } catch (e) {
         if (actionCell) actionCell.innerHTML = originalContent;
@@ -2970,7 +2970,44 @@ async function handleInstant1ClickApply(idx) {
     showAppToast("⚡ Opened Naukri in new tab! Click Apply to complete.", "success");
 }
 
-function openQuickApplyModal(idx, reason) {
+async function handleExternalCompanyApply(idx) {
+    const job = foundJobs[idx];
+    if (!job) return;
+
+    try {
+        await assistantGeneratePitch();
+    } catch (_) {}
+
+    if (job.job_url) {
+        window.open(job.job_url, "_blank", "noopener,noreferrer");
+    }
+
+    const actionCell = document.getElementById(`action-cell-${idx}`);
+    const actionCard = document.getElementById(`action-card-${idx}`);
+    const statusCell = document.getElementById(`status-cell-${idx}`);
+    const statusCard = document.getElementById(`status-card-${idx}`);
+
+    const extHtml = `
+        <span class="inline-flex items-center gap-1.5 text-blue-400 text-xs font-semibold">
+            <span class="w-1.5 h-1.5 rounded-full bg-blue-400"></span> External Portal ↗
+        </span>
+    `;
+    if (statusCell) statusCell.innerHTML = extHtml;
+    if (statusCard) statusCard.innerHTML = extHtml;
+
+    const viewBtn = `
+        <a href="${escapeHtml(job.job_url)}" target="_blank" rel="noopener noreferrer" class="text-[11px] text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2.5 py-1.5 sm:py-1 rounded-lg font-bold hover:underline inline-flex items-center justify-center gap-1 w-full sm:w-auto cursor-pointer">
+            🌐 View Portal
+        </a>
+    `;
+    if (actionCell) actionCell.innerHTML = viewBtn;
+    if (actionCard) actionCard.innerHTML = viewBtn;
+
+    closeQuickApplyModal();
+    showAppToast("🌐 Opened external careers portal in new tab!", "info");
+}
+
+function openQuickApplyModal(idx, reason, proofImage, statusCode) {
     if (!requireAuth("use Quick Apply Assistant")) return;
     const job = foundJobs[idx];
     if (!job) return;
@@ -2991,8 +3028,24 @@ function openQuickApplyModal(idx, reason) {
 
     if (titleEl) titleEl.textContent = job.title;
     if (companyEl) companyEl.textContent = `${job.company} • ${platformDisplay}`;
+
+    const reasonText = (reason && String(reason).trim()) ? String(reason).trim() : `${platformDisplay} session check required.`;
+    const resolvedProofUrl = getProofUrl(proofImage || job.proof_image || job.proof_url || "");
+    const safeJobTitle = (job.title || "").replace(/['"\\]/g, " ");
+
+    const proofBtnHtml = resolvedProofUrl ? `
+        <div class="mt-2.5 pt-2 border-t border-zinc-800/80 flex items-center justify-between">
+            <span class="text-[11px] text-zinc-400">Diagnostic live DOM screenshot:</span>
+            <button type="button" onclick="openProofModal('${resolvedProofUrl}', '${safeJobTitle}')" class="px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold inline-flex items-center gap-1.5 transition cursor-pointer shadow-sm">
+                📸 View Diagnostic Screenshot
+            </button>
+        </div>
+    ` : "";
+
+    const statusKey = String(statusCode || "").toLowerCase();
+    const reasonLower = reasonText.toLowerCase();
+
     if (alertEl) {
-        const reasonText = (reason && reason.trim()) ? reason : `${platformDisplay} session not synced or cloud browser unavailable.`;
         if (reasonText.includes("Resume profile required") || reasonText.includes("resume first")) {
             alertEl.innerHTML = `
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
@@ -3005,7 +3058,61 @@ function openQuickApplyModal(idx, reason) {
                     </button>
                 </div>
             `;
-        } else if (currentAssistantPlatform === "naukri" || reasonText.includes("cloud") || reasonText.includes("reCAPTCHA") || reasonText.includes("challenge") || reasonText.includes("Direct apply")) {
+        } else if (statusKey === "login_required" || statusKey === "session_expired" || reasonLower.includes("login to apply") || reasonLower.includes("cookies are missing or expired") || reasonLower.includes("session cookies have expired") || reasonLower.includes("session prompt") || reasonLower.includes("redirected to login")) {
+            alertEl.innerHTML = `
+                <div class="space-y-2">
+                    <div class="flex items-center gap-1.5 text-amber-400 font-bold text-xs">
+                        <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                        ${platformDisplay} Authentication Required
+                    </div>
+                    <div class="text-[11px] text-zinc-300 leading-relaxed">
+                        ${escapeHtml(reasonText)}
+                    </div>
+                    <div class="text-[11px] text-zinc-400">
+                        Please update your active ${platformDisplay} cookies in Settings or upload fresh cookies below to resume automated applying.
+                    </div>
+                    ${proofBtnHtml}
+                </div>
+            `;
+        } else if (statusKey === "external_portal" || statusKey === "external_redirect" || reasonLower.includes("apply on company site") || reasonLower.includes("external company portal") || reasonLower.includes("company portal") || reasonLower.includes("employer website")) {
+            alertEl.innerHTML = `
+                <div class="space-y-2">
+                    <div class="flex items-center gap-1.5 text-blue-400 font-bold text-xs">
+                        <span class="w-2 h-2 rounded-full bg-blue-400"></span>
+                        Company Careers Portal (External Application)
+                    </div>
+                    <div class="text-[11px] text-zinc-300 leading-relaxed">
+                        ${escapeHtml(reasonText)}
+                    </div>
+                    <button type="button" onclick="handleExternalCompanyApply(${idx})" class="w-full py-2.5 px-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition flex items-center justify-center gap-1.5 shadow-md cursor-pointer">
+                        🌐 Open Company Portal & Submit ↗
+                    </button>
+                    ${proofBtnHtml}
+                </div>
+            `;
+            setTimeout(() => {
+                const btnGen = document.getElementById("btnAssistantGeneratePitch");
+                if (btnGen) btnGen.click();
+            }, 250);
+        } else if (statusKey === "apply_button_not_found" || reasonLower.includes("could not find naukri apply button")) {
+            alertEl.innerHTML = `
+                <div class="space-y-2">
+                    <div class="flex items-center gap-1.5 text-amber-400 font-bold text-xs">
+                        <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                        Apply Button Not Detected
+                    </div>
+                    <div class="text-[11px] text-zinc-300 leading-relaxed">
+                        ${escapeHtml(reasonText)}
+                    </div>
+                    <div class="flex flex-col sm:flex-row items-center gap-2 pt-1">
+                        <a href="${escapeHtml(job.job_url)}" target="_blank" rel="noopener noreferrer" class="w-full sm:flex-1 py-2 px-3 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-semibold text-xs transition flex items-center justify-center gap-1.5">
+                            🔗 Open Listing on ${platformDisplay} ↗
+                        </a>
+                    </div>
+                    ${proofBtnHtml}
+                </div>
+            `;
+        } else if (statusKey === "cloud_security_challenge" || reasonLower.includes("cloud bot challenge") || reasonLower.includes("recaptcha") || reasonLower.includes("challenge detected")) {
             alertEl.innerHTML = `
                 <div class="space-y-2">
                     <div class="flex items-center gap-1.5 text-emerald-400 font-bold text-xs">
@@ -3013,22 +3120,12 @@ function openQuickApplyModal(idx, reason) {
                         Direct 1-Click Apply Ready on Naukri
                     </div>
                     <div class="text-[11px] text-zinc-300 leading-relaxed">
-                        This job accepts direct 1-click applications on Naukri! Because Naukri requires human reCAPTCHA verification for cloud datacenter IPs, click below to submit instantly with your logged-in browser session:
+                        ${escapeHtml(reasonText)}
                     </div>
                     <button type="button" onclick="handleInstant1ClickApply(${idx})" class="w-full py-2.5 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-xs transition flex items-center justify-center gap-1.5 shadow-md cursor-pointer">
                         ⚡ 1-Click Apply on Naukri ↗
                     </button>
-                </div>
-            `;
-            setTimeout(() => {
-                const btnGen = document.getElementById("btnAssistantGeneratePitch");
-                if (btnGen) btnGen.click();
-            }, 250);
-        } else if (reasonText.includes("external")) {
-            alertEl.innerHTML = `
-                <div class="space-y-1">
-                    <span class="font-bold text-amber-300">Company Portal Application Required:</span>
-                    <div class="text-xs text-zinc-300">This recruiter requires application through their external careers portal. Your customized 1-Click AI Pitch has been generated below to submit directly!</div>
+                    ${proofBtnHtml}
                 </div>
             `;
             setTimeout(() => {
@@ -3036,7 +3133,15 @@ function openQuickApplyModal(idx, reason) {
                 if (btnGen) btnGen.click();
             }, 250);
         } else {
-            alertEl.innerHTML = `<span class="font-semibold">${reasonText}</span> Choose an option below to apply right now:`;
+            alertEl.innerHTML = `
+                <div class="space-y-2">
+                    <div class="text-xs text-zinc-200">
+                        <span class="font-semibold text-amber-300">${escapeHtml(reasonText)}</span>
+                    </div>
+                    <div class="text-[11px] text-zinc-400">Choose an option below to proceed:</div>
+                    ${proofBtnHtml}
+                </div>
+            `;
         }
     }
     if (sessionTitle) {

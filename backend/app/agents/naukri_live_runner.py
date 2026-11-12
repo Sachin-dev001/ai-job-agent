@@ -1030,202 +1030,268 @@ Which option index (0 to {len(options)-1}) is the most positive, qualified candi
 
                 page = await context.new_page()
                 try:
-                    await Stealth().apply_stealth_async(page)
-                except Exception:
-                    pass
-                
-                try:
-                    print(f"\n[Naukri Bot] Navigating to: {job_title} -> {job_url}")
-                    await page.goto(job_url, wait_until="domcontentloaded", timeout=25000)
-                    await page.wait_for_timeout(2500)
+                    # 1. Warm up domain cookies first so Naukri SPA recognizes the authenticated session
+                    print(f"\n[Naukri Bot] Warming up domain cookies on https://www.naukri.com ...")
+                    try:
+                        await page.goto("https://www.naukri.com", wait_until="domcontentloaded", timeout=20000)
+                        await asyncio.sleep(1.5)
+                    except Exception as warm_err:
+                        print(f"[Naukri Bot] Domain warmup notice: {warm_err}")
 
-                    # Check if page redirected to login
-                    curr_url = page.url.lower()
-                    if "nlogin" in curr_url or "login.naukri.com" in curr_url:
-                        await page.screenshot(path=proof_path)
-                        await browser.close()
-                        return {
-                            "status": "session_expired",
-                            "job_title": job_title,
-                            "job_url": job_url,
-                            "proof_image": proof_url,
-                            "message": "Naukri redirected to login page. Your session cookies have expired. Please connect fresh cookies in Settings."
-                        }
+                    # 2. Navigate to the target job_url
+                    print(f"[Naukri Bot] Navigating to: {job_title} -> {job_url}")
+                    await page.goto(job_url, wait_until="domcontentloaded", timeout=30000)
 
-                    # Check if already applied
-                    if await self._is_submission_confirmed(page):
-                        await page.screenshot(path=proof_path)
-                        await browser.close()
-                        return {
-                            "status": "already_applied",
-                            "job_title": job_title,
-                            "job_url": job_url,
-                            "proof_image": proof_url,
-                            "message": "Already applied to this job on Naukri."
-                        }
+                    # Wait for Naukri React SPA to hydrate job details OR search results
+                    try:
+                        await page.wait_for_selector(
+                            "#apply-button, #login-apply-button, .apply-button, "
+                            "[class*='styles_jhc__apply-button'], [class*='jd-header'], "
+                            ".srp-jobtuple-wrapper, article.jobTuple, #company-site-button",
+                            timeout=12000
+                        )
+                    except Exception:
+                        await asyncio.sleep(3.0)
 
-                    # Check page content for expired job or access denial
+                    # Check for cloud bot challenge or access denied
                     page_content = (await page.content()).lower()
-                    if "access denied" in page_content and "permission to access" in page_content:
-                        print(f"[Naukri Bot] Akamai bot challenge detected on {job_url}. Retrying with warmed session...")
-                        await page.goto("https://www.naukri.com/", wait_until="domcontentloaded", timeout=15000)
-                        await page.wait_for_timeout(2000)
-                        await page.goto(job_url, wait_until="domcontentloaded", timeout=25000)
-                        await page.wait_for_timeout(2500)
-                        page_content = (await page.content()).lower()
-
                     if "let us know you're human" in page_content or "recaptcha" in page_content or ("access denied" in page_content and "permission to access" in page_content):
-                        await page.screenshot(path=proof_path)
-                        await browser.close()
+                        await page.screenshot(path=str(proof_path), full_page=False)
                         return {
                             "status": "cloud_security_challenge",
+                            "applied": False,
                             "job_title": job_title,
-                            "job_url": job_url,
+                            "job_url": page.url,
+                            "proof_url": proof_url,
                             "proof_image": proof_url,
                             "message": "Naukri cloud bot challenge detected: Naukri requires verification for cloud server IPs. Use 1-Click Direct Apply to submit directly with your authenticated browser session."
                         }
 
+                    # Check if page redirected to login
+                    curr_url = page.url.lower()
+                    if "nlogin" in curr_url or "login.naukri.com" in curr_url:
+                        await page.screenshot(path=str(proof_path), full_page=False)
+                        return {
+                            "status": "session_expired",
+                            "applied": False,
+                            "job_title": job_title,
+                            "job_url": page.url,
+                            "proof_url": proof_url,
+                            "proof_image": proof_url,
+                            "message": "Naukri redirected to login page. Your session cookies have expired. Please connect fresh cookies in Settings."
+                        }
+
+                    # 3. If the URL redirected to a search page or 404/expired listing (no JD header found),
+                    # automatically search and open the first live direct-apply Naukri job for this role:
+                    has_jd_header = await page.locator(
+                        "#apply-button, #login-apply-button, .apply-button, "
+                        "[class*='styles_jhc__'], [class*='jd-header-title'], #company-site-button"
+                    ).count() > 0
+
+                    if not has_jd_header:
+                        card_links = page.locator("a.title[href*='job-listings-'], .srp-jobtuple-wrapper a.title")
+                        if await card_links.count() == 0:
+                            # Run a live search on Naukri for job_title
+                            slug = re.sub(r"[^a-z0-9]+", "-", job_title.lower()).strip("-")
+                            search_url = f"https://www.naukri.com/{slug}-jobs"
+                            await page.goto(search_url, wait_until="domcontentloaded", timeout=25000)
+                            try:
+                                await page.wait_for_selector("a.title[href*='job-listings-'], .srp-jobtuple-wrapper a.title", timeout=10000)
+                            except Exception:
+                                await asyncio.sleep(2.0)
+                        card_links = page.locator("a.title[href*='job-listings-'], .srp-jobtuple-wrapper a.title")
+                        if await card_links.count() > 0:
+                            first_href = await card_links.first.get_attribute("href")
+                            if first_href:
+                                if first_href.startswith("/"):
+                                    first_href = f"https://www.naukri.com{first_href}"
+                                job_url = first_href
+                                await page.goto(job_url, wait_until="domcontentloaded", timeout=30000)
+                                try:
+                                    await page.wait_for_selector(
+                                        "#apply-button, #login-apply-button, .apply-button, "
+                                        "[class*='styles_jhc__apply-button'], #company-site-button",
+                                        timeout=10000
+                                    )
+                                except Exception:
+                                    await asyncio.sleep(2.5)
+
+                    # 4. Check if already applied on Naukri
+                    already_applied = (await page.locator(
+                        "#already-applied, span:has-text('Applied'), button:has-text('Applied')"
+                    ).count() > 0) or (await self._is_submission_confirmed(page))
+
+                    if already_applied:
+                        await page.screenshot(path=str(proof_path), full_page=False)
+                        return {
+                            "status": "already_applied",
+                            "applied": True,
+                            "job_title": job_title,
+                            "job_url": page.url,
+                            "proof_url": proof_url,
+                            "proof_image": proof_url,
+                            "message": f"Already applied to {job_title} on Naukri.com."
+                        }
+
+                    # 5. Check if Naukri shows 'Login to apply' (cookies missing/expired)
+                    login_to_apply_btn = page.locator(
+                        "#login-apply-button, button:has-text('Login to apply'), a:has-text('Login to apply')"
+                    )
+                    if await login_to_apply_btn.count() > 0 and await login_to_apply_btn.first.is_visible():
+                        await page.screenshot(path=str(proof_path), full_page=False)
+                        return {
+                            "status": "login_required",
+                            "applied": False,
+                            "job_title": job_title,
+                            "job_url": page.url,
+                            "proof_url": proof_url,
+                            "proof_image": proof_url,
+                            "message": "Naukri displayed 'Login to apply' — your Naukri cookies are missing or expired. Please export fresh cookies from Naukri.com while logged in."
+                        }
+
+                    # Check if opening is closed/expired
+                    page_content = (await page.content()).lower()
                     if any(term in page_content for term in ["job is no longer available", "job posting has expired", "job has expired"]):
-                        await page.screenshot(path=proof_path)
-                        await browser.close()
+                        await page.screenshot(path=str(proof_path), full_page=False)
                         return {
                             "status": "job_expired",
+                            "applied": False,
                             "job_title": job_title,
-                            "job_url": job_url,
+                            "job_url": page.url,
+                            "proof_url": proof_url,
                             "proof_image": proof_url,
                             "message": "This job opening has expired or was closed by the recruiter on Naukri. Please choose another matched opening."
                         }
 
-                    # Check if external company ATS portal
-                    external_selectors = [
-                        ".company-site-button",
-                        "button:has-text('Apply on company site')",
-                        "a:has-text('Apply on company site')",
-                        "button:has-text('Apply on Employer Website')",
-                        "a:has-text('Apply on Employer Website')",
-                        "button:has-text('Apply on official website')",
-                        "a:has-text('Apply on official website')",
-                        "[class*='company-site']",
-                        "[class*='external-apply']"
-                    ]
-                    is_external = False
-                    for ext_sel in external_selectors:
-                        ext_loc = page.locator(ext_sel).first
-                        if await ext_loc.count() > 0 and await ext_loc.is_visible():
-                            is_external = True
-                            break
-
-                    if is_external:
-                        await page.screenshot(path=proof_path)
-                        await browser.close()
-                        return {
-                            "status": "external_portal",
-                            "job_title": job_title,
-                            "job_url": job_url,
-                            "proof_image": proof_url,
-                            "message": "This employer requires applying directly on their official company careers portal. Use the 1-Click AI Tailored Pitch in the Quick Apply Assistant to submit directly."
-                        }
-
-                    # Locate Direct Apply Button with comprehensive selector matrix
-                    apply_selectors = [
+                    # 6. First look for DIRECT Naukri Apply button (prioritize direct apply BEFORE checking external apply!)
+                    direct_apply_selectors = [
                         "#apply-button",
+                        "button#apply-button",
                         "button.apply-button",
-                        ".apply-button",
-                        "[id*='apply-button']",
-                        "[class*='apply-button']",
-                        "[class*='applyButton']",
-                        "[class*='styles_apply-button']",
-                        "button:has-text('Apply on Naukri')",
-                        "a:has-text('Apply on Naukri')",
-                        "button:has-text('Apply')",
-                        "button:has-text('I am interested')",
-                        "a:has-text('I am interested')",
-                        "button:has-text('Register to apply')",
-                        "button:has-text('Login to apply')",
-                        "a[href*='apply']",
+                        "[class*='styles_jhc__apply-button'] button:not(:has-text('Company Site'))",
+                        "button:has-text('Apply'):not(:has-text('Company Site')):not(:has-text('Login'))",
+                        "div.apply-button-container button",
                         ".apply-btn",
                         "#root .apply-button",
-                        "div[class*='apply'] button"
+                        "button:has-text('I am interested')",
+                        "a:has-text('I am interested')"
                     ]
                     apply_btn = None
-                    for sel in apply_selectors:
-                        loc = page.locator(sel).first
-                        if await loc.count() > 0 and await loc.is_visible():
-                            btn_text = (await loc.text_content() or "").strip().lower()
-                            if "already" in btn_text or "applied" in btn_text:
-                                await page.screenshot(path=proof_path)
-                                await browser.close()
-                                return {
-                                    "status": "already_applied",
-                                    "job_title": job_title,
-                                    "job_url": job_url,
-                                    "proof_image": proof_url,
-                                    "message": f"Already applied to {job_title} on Naukri."
-                                }
-                            apply_btn = loc
+                    for sel in direct_apply_selectors:
+                        loc = page.locator(sel)
+                        cnt = await loc.count()
+                        for i in range(cnt):
+                            candidate = loc.nth(i)
+                            if await candidate.is_visible():
+                                btn_text = (await candidate.inner_text() or "").strip().lower()
+                                if "company site" not in btn_text and "login" not in btn_text:
+                                    apply_btn = candidate
+                                    break
+                        if apply_btn:
                             break
 
+                    # 7. ONLY if no direct Apply button exists, check if the page genuinely has an "Apply on company site" button
                     if not apply_btn:
-                        print(f"[Naukri Bot] Direct apply button not visible on {job_url}.")
-                        await page.screenshot(path=proof_path)
+                        ext_btn = page.locator("#company-site-button, button:has-text('Apply on company site'), a:has-text('Apply on company site'), button:has-text('Apply on Employer Website'), a:has-text('Apply on Employer Website'), button:has-text('Apply on official website'), a:has-text('Apply on official website'), .company-site-button")
+                        if await ext_btn.count() > 0 and await ext_btn.first.is_visible():
+                            await page.screenshot(path=str(proof_path), full_page=False)
+                            return {
+                                "status": "external_portal",
+                                "applied": False,
+                                "job_title": job_title,
+                                "job_url": page.url,
+                                "proof_url": proof_url,
+                                "proof_image": proof_url,
+                                "message": "This listing uses an external company portal ('Apply on company site')."
+                            }
 
-                        # Check if login layer is active
                         if await page.locator("#login_Layer, .login-layer, .login-register").count() > 0:
-                            await browser.close()
+                            await page.screenshot(path=str(proof_path), full_page=False)
                             return {
                                 "status": "session_expired",
+                                "applied": False,
                                 "job_title": job_title,
-                                "job_url": job_url,
+                                "job_url": page.url,
+                                "proof_url": proof_url,
                                 "proof_image": proof_url,
                                 "message": "Naukri displayed login prompt. Please connect active session cookies from Settings or Quick Apply Assistant."
                             }
 
-                        await browser.close()
+                        # Otherwise, report the exact real diagnostic reason (never falsely blame 'direct company application'!)
+                        page_title = await page.title()
+                        await page.screenshot(path=str(proof_path), full_page=False)
                         return {
-                            "status": "apply_unavailable",
+                            "status": "apply_button_not_found",
+                            "applied": False,
                             "job_title": job_title,
-                            "job_url": job_url,
+                            "job_url": page.url,
+                            "proof_url": proof_url,
                             "proof_image": proof_url,
-                            "message": "Direct apply button was not found by the cloud runner. Click 1-Click Direct Apply to open the verified job listing and submit instantly."
+                            "message": f"Could not find Naukri Apply button on '{page_title}' ({page.url}). Check the proof screenshot or refresh your Naukri cookies."
                         }
 
-                    # Physical click on Apply
+                    # 8. Click the Direct Apply button using both standard click and JS fallback
                     print(f"[Naukri Bot] Physical click on Apply button for {job_title}...")
-                    await apply_btn.click()
-                    await page.wait_for_timeout(3500)
+                    try:
+                        await apply_btn.scroll_into_view_if_needed()
+                        await apply_btn.click(timeout=8000)
+                    except Exception:
+                        await apply_btn.evaluate("el => el.click()")
+
+                    await asyncio.sleep(3.5)
 
                     # Check if login popup appeared after click
                     if await page.locator("#login_Layer, .login-layer, .login-register").count() > 0:
-                        await page.screenshot(path=proof_path)
-                        await browser.close()
+                        await page.screenshot(path=str(proof_path), full_page=False)
                         return {
                             "status": "session_expired",
+                            "applied": False,
                             "job_title": job_title,
-                            "job_url": job_url,
+                            "job_url": page.url,
+                            "proof_url": proof_url,
                             "proof_image": proof_url,
                             "message": "Naukri requested login after clicking Apply. Please reconnect active session cookies."
                         }
 
-                    # Run questionnaire chatbot drawer handler
-                    applied_ok = await self._handle_chatbot_drawer(page, job_title=job_title, company=company, job_url=job_url, user_id=user_id)
-                    await page.wait_for_timeout(2500)
+                    # 9. Handle Naukri's Chatbot Questionnaire Drawer if it opens after clicking Apply
+                    drawer_selectors = ".chatbot_DrawerContentWrapper, [class*='chatbot_Drawer'], .ssrc__drawer, div[id*='chatBot']"
+                    if await page.locator(drawer_selectors).count() > 0:
+                        try:
+                            await self._handle_chatbot_drawer(page, job_title=job_title, company=company, job_url=job_url, user_id=user_id)
+                        except Exception as drawer_err:
+                            print(f"[Naukri Bot] Chatbot drawer fallback: {drawer_err}")
+                            for _ in range(8):
+                                text_inputs = page.locator(f"{drawer_selectors} input[type='text'], {drawer_selectors} input[type='number'], {drawer_selectors} textarea")
+                                if await text_inputs.count() > 0 and await text_inputs.first.is_visible():
+                                    await text_inputs.first.fill("3")
+                                radios = page.locator(f"{drawer_selectors} input[type='radio'], {drawer_selectors} label[class*='radio']")
+                                if await radios.count() > 0 and await radios.first.is_visible():
+                                    await radios.first.click()
+                                send_btn = page.locator(f"{drawer_selectors} .sendMsg, {drawer_selectors} button:has-text('Save'), {drawer_selectors} button:has-text('Submit'), {drawer_selectors} button:has-text('Next')")
+                                if await send_btn.count() > 0 and await send_btn.first.is_visible():
+                                    await send_btn.first.click()
+                                    await asyncio.sleep(1.8)
+                                else:
+                                    break
 
-                    # Capture definitive proof screenshot
-                    await page.screenshot(path=proof_path)
+                    await asyncio.sleep(2.5)
+                    await page.screenshot(path=str(proof_path), full_page=False)
 
                     # Final live DOM submission confirmation check
-                    is_confirmed = applied_ok or await self._is_submission_confirmed(page)
+                    is_confirmed = await self._is_submission_confirmed(page) or (await page.locator("#already-applied, span:has-text('Applied'), button:has-text('Applied')").count() > 0)
 
                     if is_confirmed:
                         print(f"[Naukri Bot] [SUCCESS] VERIFIED SUCCESS: Application submitted for {job_title}!")
-                        await browser.close()
                         return {
                             "status": "applied_successfully",
+                            "applied": True,
+                            "verified": True,
                             "job_title": job_title,
-                            "job_url": job_url,
+                            "job_url": page.url,
+                            "proof_url": proof_url,
                             "proof_image": proof_url,
                             "applied_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                            "message": f"Successfully applied to '{job_title}' on Naukri. Live DOM verified!"
+                            "message": f"Successfully applied to {job_title} on Naukri.com! Live DOM verified!"
                         }
                     else:
                         print(f"[Naukri Bot] [NOTICE] Incomplete submission: Questionnaire requires candidate action.")
@@ -1236,25 +1302,29 @@ Which option index (0 to {len(options)-1}) is the most positive, qualified candi
                             job_url=job_url,
                             reason="Recruiter screening questionnaire requires human verification."
                         )
-                        await browser.close()
                         return {
                             "status": "needs_human_action",
+                            "applied": False,
                             "job_title": job_title,
-                            "job_url": job_url,
+                            "job_url": page.url,
+                            "proof_url": proof_url,
                             "proof_image": proof_url,
                             "message": "Screening questionnaire requires manual review. Alert sent to your Telegram!"
                         }
 
                 except Exception as e:
-                    await page.screenshot(path=proof_path) if page else None
-                    await browser.close()
+                    await page.screenshot(path=str(proof_path), full_page=False) if page else None
                     return {
                         "status": "error",
                         "message": f"Error during application execution: {str(e)}",
                         "job_title": job_title,
                         "job_url": job_url,
-                        "proof_image": proof_url
+                        "proof_image": proof_url,
+                        "proof_url": proof_url
                     }
+                finally:
+                    await browser.close()
+
 
         except Exception as browser_err:
             clean_err = str(browser_err).splitlines()[0] if str(browser_err) else "Browser error"
