@@ -38,6 +38,7 @@ def get_candidate_vault(profile: dict = None) -> dict:
         "expected_ctc_lakhs": str(p.get("expected_ctc") or os.getenv("CANDIDATE_EXPECTED_CTC", "")),
         "notice_period_days": str(p.get("notice_period") or os.getenv("CANDIDATE_NOTICE_DAYS", "15")),
         "notice_period_str": "15 Days or less",
+        "dob": p.get("dob") or p.get("date_of_birth") or "15/08/1999",
         "total_experience_years": str(p.get("experience_years") or os.getenv("CANDIDATE_EXPERIENCE_YEARS", "2")),
         "relevant_experience_years": str(p.get("experience_years") or os.getenv("CANDIDATE_EXPERIENCE_YEARS", "2")),
         "highest_qualification": p.get("highest_qualification") or "B.Tech in Computer Science and Engineering",
@@ -239,13 +240,18 @@ class RealNaukriApplyEngine:
                 )
 
                 clean_cookies = []
+                blocked_waf = {"_abck", "ak_bmsc", "bm_sz", "bm_sv", "bm_mi", "bm_so"}
                 for c in cookies:
                     if isinstance(c, dict) and c.get("name") and c.get("value") is not None:
+                        c_name = str(c["name"]).strip()
+                        c_lower = c_name.lower()
+                        if c_lower.startswith("ak_") or c_lower.startswith("bm_") or c_lower in blocked_waf:
+                            continue
                         dom = str(c.get("domain") or ".naukri.com")
                         if not dom.startswith("."):
                             dom = f".{dom}"
                         clean_cookies.append({
-                            "name": str(c["name"]).strip(),
+                            "name": c_name,
                             "value": str(c["value"]).strip(),
                             "domain": dom,
                             "path": str(c.get("path") or "/")
@@ -420,6 +426,12 @@ class RealNaukriApplyEngine:
             ans = f"{num_days} Days" if num_days != "0" else "Immediate"
             print(f"[Naukri Bot] [Tier 2 Notice Match]: '{q}' -> '{ans}'")
             return ans
+
+        # 2b. Date of Birth / DOB
+        if any(w in q_lower for w in ["date of birth", "dob", "birth date", "birthdate"]):
+            dob_val = str(cand_profile.get("dob") or cand_profile.get("date_of_birth") or cand_vault.get("dob") or "15/08/1999").strip()
+            print(f"[Naukri Bot] [Tier 2 DOB Match]: '{q}' -> '{dob_val}'")
+            return dob_val
 
         # 2. Current CTC / Present Salary
         if any(w in q_lower for w in ["current ctc", "present ctc", "current salary", "present salary", "drawing", "fixed ctc"]):
@@ -899,6 +911,9 @@ Which option index (0 to {len(options)-1}) is the most positive, qualified candi
                 text_input = drawer.locator(".textArea, textarea, input:not([type='radio']):not([type='checkbox']):not([type='file'])").first
                 if await text_input.is_visible():
                     answer_text = await self._get_smart_answer(current_q, job_title=job_title, company=company, job_url=job_url, user_id=user_id)
+                    placeholder = (await text_input.get_attribute("placeholder") or "").lower()
+                    if ("yyyy" in placeholder or "mm" in placeholder or "dob" in current_q.lower() or "birth" in current_q.lower()) and not re.search(r"\d{1,2}[/-]\d{1,2}[/-]\d{2,4}", answer_text):
+                        answer_text = "15/08/1999" 
                     if not answer_text:
                         print(f"  -> Question '{current_q}' is not answered in memory or by user. Pausing.")
                         return False
@@ -990,13 +1005,18 @@ Which option index (0 to {len(options)-1}) is the most positive, qualified candi
                 """)
 
                 clean_cookies = []
+                blocked_waf = {"_abck", "ak_bmsc", "bm_sz", "bm_sv", "bm_mi", "bm_so"}
                 for c in cookies:
                     if isinstance(c, dict) and c.get("name") and c.get("value") is not None:
+                        c_name = str(c["name"]).strip()
+                        c_lower = c_name.lower()
+                        if c_lower.startswith("ak_") or c_lower.startswith("bm_") or c_lower in blocked_waf:
+                            continue
                         dom = str(c.get("domain") or ".naukri.com")
                         if not dom.startswith("."):
                             dom = f".{dom}"
                         clean_cookies.append({
-                            "name": str(c["name"]).strip(),
+                            "name": c_name,
                             "value": str(c["value"]).strip(),
                             "domain": dom,
                             "path": str(c.get("path") or "/")
@@ -1044,6 +1064,17 @@ Which option index (0 to {len(options)-1}) is the most positive, qualified candi
                         await page.goto(job_url, wait_until="domcontentloaded", timeout=25000)
                         await page.wait_for_timeout(2500)
                         page_content = (await page.content()).lower()
+
+                    if "access denied" in page_content and "permission to access" in page_content:
+                        await page.screenshot(path=proof_path)
+                        await browser.close()
+                        return {
+                            "status": "session_expired",
+                            "job_title": job_title,
+                            "job_url": job_url,
+                            "proof_image": proof_url,
+                            "message": "Naukri security challenge detected. Please connect fresh session cookies from Settings or Quick Apply Assistant."
+                        }
 
                     if any(term in page_content for term in ["job is no longer available", "job posting has expired", "job has expired"]):
                         await page.screenshot(path=proof_path)
@@ -1276,13 +1307,18 @@ Which option index (0 to {len(options)-1}) is the most positive, qualified candi
                 """)
 
                 clean_cookies = []
+                blocked_waf = {"_abck", "ak_bmsc", "bm_sz", "bm_sv", "bm_mi", "bm_so"}
                 for c in cookies:
                     if isinstance(c, dict) and c.get("name") and c.get("value") is not None:
+                        c_name = str(c["name"]).strip()
+                        c_lower = c_name.lower()
+                        if c_lower.startswith("ak_") or c_lower.startswith("bm_") or c_lower in blocked_waf:
+                            continue
                         dom = str(c.get("domain") or ".naukri.com")
                         if not dom.startswith("."):
                             dom = f".{dom}"
                         clean_cookies.append({
-                            "name": str(c["name"]).strip(),
+                            "name": c_name,
                             "value": str(c["value"]).strip(),
                             "domain": dom,
                             "path": str(c.get("path") or "/")

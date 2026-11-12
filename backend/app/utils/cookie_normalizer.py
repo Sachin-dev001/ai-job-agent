@@ -27,6 +27,24 @@ def _is_netscape_format(lines: List[str]) -> bool:
     return False
 
 
+
+def _filter_waf_cookies(cookies: List[Dict[str, Any]], platform: str) -> List[Dict[str, Any]]:
+    clean_p = (platform or "naukri").lower().strip()
+    if "naukri" not in clean_p:
+        return cookies
+    cleaned = []
+    blocked_names = {"_abck", "ak_bmsc", "bm_sz", "bm_sv", "bm_mi", "bm_so"}
+    for c in cookies:
+        if isinstance(c, dict):
+            name = str(c.get("name", "")).strip()
+            name_lower = name.lower()
+            if name_lower.startswith("ak_") or name_lower.startswith("bm_") or name_lower in blocked_names:
+                continue
+            cleaned.append(c)
+        else:
+            cleaned.append(c)
+    return cleaned
+
 def normalize_cookies(raw_data: Any, platform: str = "naukri") -> List[Dict[str, Any]]:
     """
     Transforms any valid cookie representation into a normalized list of Playwright-compatible cookie dictionaries:
@@ -93,7 +111,7 @@ def normalize_cookies(raw_data: Any, platform: str = "naukri") -> List[Dict[str,
                             "path": "/"
                         })
             if normalized:
-                return normalized
+                return _filter_waf_cookies(normalized, clean_platform)
 
         # Parse HTTP header cookie string format: 'name=val; name2=val2' or multi-line
         chunks = []
@@ -116,7 +134,7 @@ def normalize_cookies(raw_data: Any, platform: str = "naukri") -> List[Dict[str,
                         "domain": default_domain,
                         "path": "/"
                     })
-        return normalized
+        return _filter_waf_cookies(normalized, clean_platform)
 
     # Case 2: Dict input
     if isinstance(raw_data, dict):
@@ -147,7 +165,7 @@ def normalize_cookies(raw_data: Any, platform: str = "naukri") -> List[Dict[str,
                     "domain": default_domain,
                     "path": "/"
                 })
-        return normalized
+        return _filter_waf_cookies(normalized, clean_platform)
 
     # Case 3: List input
     if isinstance(raw_data, list):
@@ -176,6 +194,6 @@ def normalize_cookies(raw_data: Any, platform: str = "naukri") -> List[Dict[str,
                         "domain": default_domain,
                         "path": "/"
                     })
-        return normalized
+        return _filter_waf_cookies(normalized, clean_platform)
 
     return []

@@ -2677,7 +2677,14 @@ function saveCookiesToLocalStorage(platform, cookieData) {
     try {
         const platKey = (platform || "naukri").toLowerCase().trim().includes("wellfound") ? "wellfound" : "naukri";
         const storageKey = platKey === "wellfound" ? "autoapply_wellfound_cookies" : "autoapply_naukri_cookies";
-        const val = typeof cookieData === "string" ? cookieData : JSON.stringify(cookieData);
+        let cleanData = cookieData;
+        if (platKey === "naukri" && Array.isArray(cookieData)) {
+            cleanData = cookieData.filter(c => {
+                const n = (c?.name || "").toLowerCase();
+                return !(n.startsWith("ak_") || n.startsWith("bm_") || n === "_abck");
+            });
+        }
+        const val = typeof cleanData === "string" ? cleanData : JSON.stringify(cleanData);
         localStorage.setItem(storageKey, val);
         console.log(`[Cookies] Persisted session cookies for ${platKey} to localStorage '${storageKey}'`);
     } catch (e) {
