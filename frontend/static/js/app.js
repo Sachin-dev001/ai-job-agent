@@ -73,15 +73,13 @@ async function safeParseJson(res) {
         const isVercel = window.location.hostname.includes("vercel.app");
         const status = res.status;
         
-        if (status === 404 || text.includes("The page could not be found") || text.includes("DEPLOYMENT_NOT_FOUND")) {
+        if (status === 404 || text.includes("The page could not be found") || text.includes("DEPLOYMENT_NOT_FOUND") || status === 502 || status === 504) {
             if (isVercel) {
                 throw new Error(
-                    "Backend Server Not Connected (HTTP 404)\n\n" +
-                    "Your frontend is running on Vercel, but the Python backend is not connected yet.\n\n" +
-                    "QUICK FIX (20 seconds):\n" +
-                    "1. Click 'Backend Disconnected' or 'Cloud Config Keys' at the top right.\n" +
-                    "2. Enter your live backend URL (e.g. from Render.com or Railway).\n" +
-                    "3. Or run the local backend server at http://localhost:8000."
+                    "Backend Server is Waking Up (~45s)\n\n" +
+                    "Render's free tier spins down to sleep after 15 minutes of inactivity.\n" +
+                    "The server is booting up automatically now.\n\n" +
+                    "Please wait 20-30 seconds and try again — no manual connection is required!"
                 );
             }
             throw new Error("Endpoint not found (404). Please ensure the backend server is running.");
@@ -2523,7 +2521,8 @@ async function checkBackendHealth() {
 
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3500);
+        // Give Render enough time to answer without hanging UI (6s)
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
         const res = await originalFetch(targetUrl, { signal: controller.signal });
         clearTimeout(timeoutId);
 
@@ -2532,13 +2531,25 @@ async function checkBackendHealth() {
             if (statusText) statusText.textContent = "Backend: Connected";
             if (statusPill) {
                 statusPill.className = "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border transition cursor-pointer bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:border-emerald-500/50";
-                statusPill.title = `Connected to ${targetUrl}`;
+                statusPill.title = `Live Connected to ${targetUrl}`;
             }
             if (banner) banner.classList.add("hidden");
             return true;
         }
     } catch (e) {
-        // unreachable
+        // Cold start or temporary network delay
+    }
+
+    // Graceful handling for free-tier Render spin-down: show waking up instead of alarming disconnected state
+    if (!isLocal && DEFAULT_REMOTE_BACKEND) {
+        if (statusDot) statusDot.className = "w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse";
+        if (statusText) statusText.textContent = "Backend: Waking Up...";
+        if (statusPill) {
+            statusPill.className = "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border transition cursor-pointer bg-sky-500/10 border-sky-500/30 text-sky-300 hover:border-sky-500/50";
+            statusPill.title = "Render Free Tier backend is waking up from sleep (~45s). Automatic connection in progress...";
+        }
+        if (banner) banner.classList.add("hidden");
+        return false;
     }
 
     if (statusDot) statusDot.className = "w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse";
@@ -2546,9 +2557,6 @@ async function checkBackendHealth() {
     if (statusPill) {
         statusPill.className = "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border transition cursor-pointer bg-amber-500/10 border-amber-500/30 text-amber-300 hover:border-amber-500/50";
         statusPill.title = "Click to configure backend URL in Cloud Config";
-    }
-    if (!isLocal && banner) {
-        banner.classList.remove("hidden");
     }
     return false;
 }
