@@ -16,10 +16,9 @@ class GeminiService:
 
     def __init__(self):
         self.candidate_models = [
-            "gemini-2.5-flash",
-            "gemini-2.5-flash-lite",
+            "gemini-flash-lite-latest",
             "gemini-flash-latest",
-            "gemini-2.5-pro"
+            "gemini-pro-latest"
         ]
 
     def get_api_key(self) -> str:
