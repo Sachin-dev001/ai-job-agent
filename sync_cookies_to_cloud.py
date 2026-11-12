@@ -13,10 +13,20 @@ DEFAULT_BACKEND = "https://autoapply-backend-hvdm.onrender.com"
 
 def sync_platform(backend_url: str, platform: str, cookie_filename: str):
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    cookie_path = os.path.join(script_dir, "backend", "cookies", cookie_filename)
+    candidate_paths = [
+        os.path.join(script_dir, "backend", "data", "cookies", cookie_filename),
+        os.path.join(script_dir, "backend", "cookies", cookie_filename),
+        os.path.join(script_dir, "cookies", cookie_filename)
+    ]
     
-    if not os.path.exists(cookie_path):
-        print(f"[-] {platform}: Cookie file not found at {cookie_path}. Skipping.")
+    cookie_path = None
+    for cp in candidate_paths:
+        if os.path.exists(cp):
+            cookie_path = cp
+            break
+
+    if not cookie_path:
+        print(f"[-] {platform}: Cookie file not found in backend/data/cookies/ or backend/cookies/. Skipping.")
         return False
 
     try:

@@ -28,8 +28,8 @@ supabase>=2.0.0
 sqlalchemy>=2.0.0
 aiosqlite>=0.20.0
 
-# Browser Automation & Scraping
-playwright>=1.42.0
+# Browser Automation & Scraping (Pinned to match base container v1.49.0-noble)
+playwright==1.49.0
 playwright-stealth>=1.0.0
 beautifulsoup4>=4.12.0
 httpx>=0.27.0

@@ -13,18 +13,44 @@ USER_MEMORIES_FILE = os.path.join(DATA_DIR, "user_memories.json")
 LEGACY_MEMORY_FILE = os.path.join(DATA_DIR, "qa_memory.json")
 PENDING_FILE = os.path.join(DATA_DIR, "pending_questions.json")
 
+# Pure grammatical stop words: domain critical words like 'years', 'experience', 'per', 'annum', 'lacs',
+# 'current', 'expected', 'notice', 'fixed', 'variable' are preserved to avoid question collision.
 STOP_WORDS = {
     "what", "is", "your", "how", "many", "do", "you", "have", "with", "the", "in", "for",
-    "please", "specify", "years", "experience", "rate", "scale", "tell", "about", "give",
-    "briefly", "describe", "worked", "working", "any", "and", "per", "annum", "lacs", "level"
+    "please", "specify", "rate", "scale", "tell", "about", "give", "briefly", "describe",
+    "worked", "working", "any", "and", "level", "are"
 }
 
 def extract_distinctive_keywords(text: str) -> List[str]:
     words = [w for w in re.split(r"\W+", (text or "").lower()) if len(w) > 2 and w not in STOP_WORDS]
     return words
 
-# Default verified template screening questions (without any personal candidate data)
-# Each candidate maintains their own private answers in their account vault.
+def questions_have_semantic_conflict(q1: str, q2: str) -> bool:
+    """
+    Prevents false-positive Q&A matching when questions differ on polarity or key modifiers
+    (e.g., current CTC vs expected CTC, React Native vs React.js, fixed vs variable pay).
+    """
+    q1_words = set(re.split(r"\W+", (q1 or "").lower()))
+    q2_words = set(re.split(r"\W+", (q2 or "").lower()))
+
+    conflict_pairs = [
+        ("current", "expected"),
+        ("fixed", "variable"),
+        ("notice", "salary"),
+        ("notice", "ctc"),
+        ("minimum", "maximum"),
+        ("relocate", "remote")
+    ]
+    for w1, w2 in conflict_pairs:
+        if (w1 in q1_words and w2 in q2_words) or (w2 in q1_words and w1 in q2_words):
+            return True
+
+    # Modifier differentiation (e.g., React Native vs React)
+    if ("native" in q1_words and "native" not in q2_words) or ("native" in q2_words and "native" not in q1_words):
+        return True
+
+    return False
+
 DEFAULT_MEMORIES = []
 
 class QAMemoryVault:
@@ -32,15 +58,14 @@ class QAMemoryVault:
     Persistent multi-tenant memory vault for recruiter screening questions and candidate answers.
     - Each candidate (or guest session) has isolated memories partitioned by user_id.
     - Zero cross-account data leakage.
-    - If question is known in candidate's memory -> returns verified candidate answer.
-    - If question is UNKNOWN -> does NOT make up answers; prompts user (via Telegram & UI),
-      waits for user reply, and saves the answer permanently to that user's memory.
+    - Atomic JSON writes to eliminate corruption during container restarts or concurrent updates.
+    - Strict polarity/modifier guardrails prevent false-positive answer lookups.
     """
     def __init__(self):
-        # user_id -> List of memory dicts
         self._user_memories: Dict[str, List[Dict]] = {}
         self._pending_questions: Dict[str, Dict] = {} # question_id -> question details
         self._waiting_events: Dict[str, asyncio.Event] = {} # question_id -> Event
+        self._lock = asyncio.Lock()
         self._load()
         self._load_pending()
 
@@ -50,7 +75,6 @@ class QAMemoryVault:
         return str(user_id).strip()
 
     def _load(self):
-        # 1. Load multi-tenant storage if available
         if os.path.exists(USER_MEMORIES_FILE):
             try:
                 with open(USER_MEMORIES_FILE, "r", encoding="utf-8") as f:
@@ -64,7 +88,6 @@ class QAMemoryVault:
             self._user_memories = {}
             self._save()
 
-        # Sanitize legacy file so no hardcoded personal details remain on disk
         if os.path.exists(LEGACY_MEMORY_FILE):
             try:
                 with open(LEGACY_MEMORY_FILE, "w", encoding="utf-8") as f:
@@ -73,12 +96,15 @@ class QAMemoryVault:
                 pass
 
     def _save(self):
+        """Atomic write using temporary file replacement to avoid corruption."""
         try:
-            with open(USER_MEMORIES_FILE, "w", encoding="utf-8") as f:
+            temp_file = f"{USER_MEMORIES_FILE}.tmp"
+            with open(temp_file, "w", encoding="utf-8") as f:
                 json.dump({
                     "users": self._user_memories,
                     "updated_at": datetime.now().isoformat()
                 }, f, indent=2)
+            os.replace(temp_file, USER_MEMORIES_FILE)
         except Exception as e:
             print(f"[QA Vault] Save error: {e}")
 
@@ -94,9 +120,12 @@ class QAMemoryVault:
             self._pending_questions = {}
 
     def _save_pending(self):
+        """Atomic write for pending questions."""
         try:
-            with open(PENDING_FILE, "w", encoding="utf-8") as f:
+            temp_file = f"{PENDING_FILE}.tmp"
+            with open(temp_file, "w", encoding="utf-8") as f:
                 json.dump(self._pending_questions, f, indent=2)
+            os.replace(temp_file, PENDING_FILE)
         except Exception as e:
             print(f"[QA Vault] Pending save error: {e}")
 
@@ -105,7 +134,6 @@ class QAMemoryVault:
         return list(self._user_memories.get(uid, []))
 
     def get_all_memories(self, user_id: str = "guest-candidate") -> List[Dict]:
-        """Backward-compatible alias for get_user_memories."""
         return self.get_user_memories(user_id)
 
     def get_pending_questions(self, user_id: Optional[str] = None) -> List[Dict]:
@@ -117,9 +145,6 @@ class QAMemoryVault:
         return all_pending
 
     def learn(self, question: str, answer: str, category: str = "custom", user_id: str = "guest-candidate") -> Dict:
-        """
-        Learns and persists a new question & answer pair permanently for a specific candidate account.
-        """
         uid = self._sanitize_user_id(user_id)
         clean_q = question.strip()
         clean_ans = answer.strip()
@@ -127,13 +152,12 @@ class QAMemoryVault:
 
         user_list = self._user_memories.setdefault(uid, [])
 
-        # Check if already exists in this user's vault; if so, update answer
         for item in user_list:
             if item.get("id") == q_id or item.get("question", "").lower() == clean_q.lower():
                 item["answer"] = clean_ans
                 item["updated_at"] = datetime.now().isoformat()
                 self._save()
-                self._resolve_pending_event(clean_q, clean_ans)
+                self._resolve_pending_event(clean_q, clean_ans, uid)
                 print(f"[QA Vault] [{uid}] Updated existing Q&A: '{clean_q}' -> '{clean_ans}'")
                 return item
 
@@ -141,14 +165,14 @@ class QAMemoryVault:
         new_entry = {
             "id": q_id,
             "question": clean_q,
-            "keywords": distinct_kw[:6],
+            "keywords": distinct_kw[:8],
             "answer": clean_ans,
             "category": category,
             "learned_at": datetime.now().isoformat()
         }
         user_list.append(new_entry)
         self._save()
-        self._resolve_pending_event(clean_q, clean_ans)
+        self._resolve_pending_event(clean_q, clean_ans, uid)
         print(f"[QA Vault] [{uid}] Successfully learned new Q&A: '{clean_q}' -> '{clean_ans}'")
         return new_entry
 
@@ -164,8 +188,8 @@ class QAMemoryVault:
 
     def find_answer(self, question: str, user_id: str = "guest-candidate") -> Optional[str]:
         """
-        Looks up an answer from this specific user's memory vault using exact match and keyword heuristics.
-        Returns None if not found (strictly avoids hallucinating or leaking other users' answers).
+        Looks up an answer from this specific user's memory vault using exact match,
+        keyword heuristics, and strict conflict detection.
         """
         if not question:
             return None
@@ -174,24 +198,28 @@ class QAMemoryVault:
         user_list = self._user_memories.get(uid, [])
         q_clean = question.lower().strip()
 
-        # 1. Exact or substring match in stored question
+        # 1. Exact or high-precision substring match in stored question
         for item in user_list:
             stored_q = item.get("question", "").lower()
             if stored_q and (stored_q in q_clean or q_clean in stored_q):
-                return item.get("answer")
+                if not questions_have_semantic_conflict(q_clean, stored_q):
+                    return item.get("answer")
 
-        # 2. Distinctive Keyword matching (filtered with STOP_WORDS)
+        # 2. Distinctive Keyword matching with semantic conflict filtering
         q_distinct = set(extract_distinctive_keywords(q_clean))
         if q_distinct:
             best_match = None
             max_matches = 0
             for item in user_list:
+                stored_q = item.get("question", "")
+                if questions_have_semantic_conflict(q_clean, stored_q):
+                    continue
+
                 item_kw = set(item.get("keywords", []))
-                item_distinct = set(extract_distinctive_keywords(item.get("question", "")))
+                item_distinct = set(extract_distinctive_keywords(stored_q))
                 combined = item_kw.union(item_distinct)
                 overlap = len(q_distinct.intersection(combined))
 
-                # Require at least 2 distinctive words overlap, or 100% of distinctive words if short
                 min_required = 1 if len(q_distinct) == 1 else 2
                 if overlap >= min_required and overlap > max_matches:
                     max_matches = overlap
@@ -203,9 +231,6 @@ class QAMemoryVault:
         return None
 
     def register_pending_question(self, question: str, job_title: str, company: str, job_url: str, options: List[str] = None, user_id: str = "guest-candidate") -> str:
-        """
-        Registers an unanswered question into the pending queue and prepares an async wait event.
-        """
         self._load_pending()
         q_id = re.sub(r"[^a-zA-Z0-9]+", "_", question.lower())[:30].strip("_")
         entry = {
@@ -225,21 +250,24 @@ class QAMemoryVault:
             self._waiting_events[q_id] = asyncio.Event()
         return q_id
 
-    def _resolve_pending_event(self, question: str, answer: str):
-        """Wakes up any coroutine waiting for an answer to this question and updates disk storage."""
+    def _resolve_pending_event(self, question: str, answer: str, user_id: Optional[str] = None):
         self._load_pending()
         matched_id = None
         for q_id, item in list(self._pending_questions.items()):
             if item.get("status") == "pending":
+                if user_id and item.get("user_id") != user_id:
+                    continue
                 if item["question"].lower() in question.lower() or question.lower() in item["question"].lower():
                     matched_id = q_id
                     item["status"] = "answered"
                     item["answer"] = answer
                     break
 
-        # If no specific string match, resolve the latest pending item
         if not matched_id:
-            pending_ids = [k for k, v in self._pending_questions.items() if v.get("status") == "pending"]
+            pending_ids = [
+                k for k, v in self._pending_questions.items() 
+                if v.get("status") == "pending" and (not user_id or v.get("user_id") == user_id)
+            ]
             if pending_ids:
                 matched_id = pending_ids[-1]
                 self._pending_questions[matched_id]["status"] = "answered"
@@ -251,7 +279,6 @@ class QAMemoryVault:
             self._waiting_events[matched_id].set()
 
     def skip_pending_question(self, q_id: str, user_id: Optional[str] = None) -> bool:
-        """Marks a pending question as skipped/dismissed and resolves any waiting coroutine."""
         self._load_pending()
         if q_id in self._pending_questions:
             if user_id:
@@ -267,10 +294,6 @@ class QAMemoryVault:
         return False
 
     async def wait_for_user_answer(self, q_id: str, timeout_seconds: int = 35) -> Optional[str]:
-        """
-        Waits for the user to answer via Telegram or Web UI.
-        Returns the user's answer if provided within timeout, else None.
-        """
         if q_id not in self._waiting_events:
             self._waiting_events[q_id] = asyncio.Event()
 

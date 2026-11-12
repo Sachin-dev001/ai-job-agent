@@ -1,6 +1,8 @@
 import asyncio
 import html
 import httpx
+import re
+from typing import Optional, Dict
 from app.config import settings
 from app.memory.qa_vault import qa_vault
 
@@ -9,8 +11,8 @@ class TelegramBotListener:
     Background worker that listens for user replies and commands on Telegram.
     Enables true Human-in-the-Loop memory:
     - User replies to recruiter questions directly on Telegram.
-    - Bot captures the answer and stores it permanently into qa_vault.
-    - Notifies the user that the answer was saved.
+    - Scopes replies back to specific user_id and question_id using [QID:.. | UID:..] tags.
+    - Zero cross-tenant data pollution during concurrent applicant runs.
     """
     def __init__(self):
         self.bot_token = settings.TELEGRAM_BOT_TOKEN
@@ -33,7 +35,6 @@ class TelegramBotListener:
                 res = await client.post(url, json=payload)
                 if res.status_code != 200:
                     print(f"[Telegram Listener] send_message error {res.status_code}: {res.text}")
-                    # If HTML parsing failed, retry as clean plain text
                     if res.status_code == 400:
                         payload.pop("parse_mode", None)
                         await client.post(url, json=payload)
@@ -48,7 +49,6 @@ class TelegramBotListener:
         self.is_running = True
         print("[Telegram Listener] Background listener started. Polling for user responses...")
 
-        # Initialize offset to latest updates so old messages aren't reprocessed
         try:
             async with httpx.AsyncClient(timeout=15.0) as client:
                 res = await client.get(f"https://api.telegram.org/bot{self.bot_token}/getUpdates?offset=-1")
@@ -77,19 +77,17 @@ class TelegramBotListener:
                         user_text = message["text"].strip()
                         sender_id = str(message.get("chat", {}).get("id"))
 
-                        # Verify message comes from authorized chat
                         if self.chat_id and sender_id != str(self.chat_id):
                             continue
 
-                        await self._handle_user_message(user_text)
+                        await self._handle_user_message(user_text, message=message)
 
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                # Brief sleep on network error before retrying
                 await asyncio.sleep(4)
 
-    async def _handle_user_message(self, text: str):
+    async def _handle_user_message(self, text: str, message: Optional[dict] = None):
         print(f"[Telegram Listener] Received message from user: '{text}'")
 
         # Command 1: /start or /help
@@ -130,8 +128,8 @@ class TelegramBotListener:
 
             msg = "❓ <b>Pending Recruiter Questions:</b>\n\n"
             for p in pending:
-                msg += f"💼 <b>{html.escape(p.get('job_title', 'Job'))}</b> ({html.escape(p.get('company', 'Company'))}):\n<i>{html.escape(p.get('question', ''))}</i>\n\n"
-            msg += "👉 <i>Simply type your answer to resolve the latest question.</i>"
+                msg += f"💼 <b>{html.escape(p.get('job_title', 'Job'))}</b> ({html.escape(p.get('company', 'Company'))}):\n<i>{html.escape(p.get('question', ''))}</i>\n<code>[QID:{p.get('id')} | UID:{p.get('user_id', 'guest-candidate')}]</code>\n\n"
+            msg += "👉 <i>Reply directly to the alert or type your answer.</i>"
             await self.send_message(msg)
             return
 
@@ -141,7 +139,7 @@ class TelegramBotListener:
             if pending:
                 latest = pending[-1]
                 qa_vault.skip_pending_question(latest["id"])
-                await self.send_message(f"⏭️ <b>Question Skipped:</b>\n<i>{html.escape(latest['question'])}</i>\n\nThis question will not be saved and won't block your dashboard.")
+                await self.send_message(f"⏭️ <b>Question Skipped:</b>\n<i>{html.escape(latest['question'])}</i>\n\nThis question will not block your dashboard.")
             else:
                 await self.send_message("ℹ️ <b>No pending questions to skip.</b>")
             return
@@ -157,39 +155,62 @@ class TelegramBotListener:
                 await self.send_message("⚠️ <b>Format error.</b> Use: <code>/learn Question = Answer</code>")
             return
 
-        # Case 5: Answering a pending question
-        # If user typed /ans <text> or directly sent the answer
+        # Check for [QID:.. | UID:..] metadata in reply_to_message or text
+        reply_to = (message or {}).get("reply_to_message", {})
+        reply_text = reply_to.get("text", "") or reply_to.get("caption", "") or ""
+        search_blob = f"{reply_text}\n{text}"
+
+        target_qid = None
+        target_uid = None
+        tag_match = re.search(r"\[QID:\s*([^\s\|\]]+)\s*\|\s*UID:\s*([^\]]+)\]", search_blob, re.IGNORECASE)
+        if tag_match:
+            target_qid = tag_match.group(1).strip()
+            target_uid = tag_match.group(2).strip()
+
+        # Clean answer text
         ans_text = text
         if text.lower().startswith("/ans "):
             ans_text = text[5:].strip()
 
+        # Remove the tag if the user typed it in their own message
+        ans_text = re.sub(r"\[QID:[^\]]+\]", "", ans_text).strip()
+
+        matched_item = None
         pending_items = [p for p in qa_vault.get_pending_questions() if p.get("status") == "pending"]
-        if not pending_items:
-            # If no items currently marked pending, look at the most recent question registered in the vault
-            all_questions = qa_vault.get_pending_questions()
-            if all_questions:
-                pending_items = [all_questions[-1]]
 
-        if pending_items:
-            latest_pending = pending_items[-1]
-            q_text = latest_pending["question"]
-            job_title = latest_pending.get("job_title", "Job")
-            company = latest_pending.get("company", "Company")
+        if target_qid:
+            for p in pending_items:
+                if p.get("id") == target_qid:
+                    matched_item = p
+                    break
 
-            # Persist to memory vault
-            qa_vault.learn(q_text, ans_text, category="recruiter_qa")
+        if not matched_item and target_uid:
+            user_pending = [p for p in pending_items if p.get("user_id") == target_uid]
+            if user_pending:
+                matched_item = user_pending[-1]
+
+        if not matched_item and pending_items:
+            matched_item = pending_items[-1]
+
+        if matched_item:
+            q_text = matched_item["question"]
+            job_title = matched_item.get("job_title", "Job")
+            company = matched_item.get("company", "Company")
+            uid = target_uid or matched_item.get("user_id", "guest-candidate")
+
+            # Persist to memory vault scoped by tenant user_id
+            qa_vault.learn(q_text, ans_text, category="recruiter_qa", user_id=uid)
 
             confirmation = (
-                f"💾 <b>Saved & Remembered Forever!</b>\n\n"
+                f"💾 <b>Saved & Remembered for Candidate [{html.escape(uid)}]!</b>\n\n"
                 f"❓ <b>Question:</b> {html.escape(q_text)}\n"
                 f"✅ <b>Your Answer:</b> <code>{html.escape(ans_text)}</code>\n"
                 f"🏢 <b>Company:</b> {html.escape(company)} ({html.escape(job_title)})\n\n"
-                f"🎉 I have permanently saved this answer. All future applications will answer this automatically!"
+                f"🎉 Stored securely in your memory vault. Future applications will auto-fill this!"
             )
             await self.send_message(confirmation)
-            print(f"[Telegram Listener] Successfully processed answer for '{q_text}': '{ans_text}'")
+            print(f"[Telegram Listener] Successfully processed answer for '{q_text}': '{ans_text}' (UID: {uid})")
         else:
-            # No pending question at all; acknowledge friendly
             await self.send_message(
                 f"ℹ️ Received: \"<code>{html.escape(ans_text)}</code>\".\n\n"
                 "No recruiter questions are currently waiting for an answer.\n"

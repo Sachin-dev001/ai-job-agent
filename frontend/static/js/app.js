@@ -6,14 +6,16 @@ const originalFetch = window.fetch.bind(window);
 window.fetch = async function(input, init = {}) {
     init = { ...init };
     let targetUrl = typeof input === "string" ? input : (input?.url || "");
-    const isLocal = ["localhost", "127.0.0.1"].includes(window.location.hostname);
-    if (targetUrl.startsWith("/api/") && !isLocal) {
-        const remoteBackend = localStorage.getItem("backend_api_url") || DEFAULT_REMOTE_BACKEND;
-        if (remoteBackend && typeof remoteBackend === "string") {
-            targetUrl = `${remoteBackend.replace(/\/$/, "")}${targetUrl}`;
-            input = typeof input === "string" ? targetUrl : new Request(targetUrl, input);
-        }
+    
+    // Only rewrite to remote origin if explicitly configured in settings (e.g. custom Hugging Face Space);
+    // otherwise use same-origin relative paths to route cleanly through Vercel edge rewrites without CORS preflights
+    const customBackend = localStorage.getItem("backend_api_url");
+    if (targetUrl.startsWith("/api/") && customBackend && customBackend.trim()) {
+        const cleanCustom = customBackend.trim().replace(/\/$/, "");
+        targetUrl = `${cleanCustom}${targetUrl}`;
+        input = typeof input === "string" ? targetUrl : new Request(targetUrl, input);
     }
+    
     const headers = new Headers(init.headers || (input instanceof Request ? input.headers : undefined));
     const token = localStorage.getItem("autoapply_auth_token") || localStorage.getItem("supabase_jwt_token");
     if (token && !headers.has("Authorization")) {
@@ -31,11 +33,8 @@ function getBackendApiUrl() {
     if (custom && custom.trim()) {
         return custom.trim().replace(/\/$/, "");
     }
-    const isLocal = ["localhost", "127.0.0.1"].includes(window.location.hostname);
-    if (isLocal) {
-        return window.location.origin;
-    }
-    return (DEFAULT_REMOTE_BACKEND || "https://autoapply-backend-hvdm.onrender.com").replace(/\/$/, "");
+    // On Vercel and local environments, leverage same-origin proxy rewrites
+    return window.location.origin;
 }
 
 function getProofUrl(proofPath) {

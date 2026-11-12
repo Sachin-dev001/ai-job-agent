@@ -78,15 +78,16 @@ if os.path.exists(STATIC_DIR):
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # Robust static mount for /proofs (unconditionally ensure directory exists & mount)
+# Static proofs mount removed for tenant privacy isolation
 os.makedirs(PROOF_DIR, exist_ok=True)
-app.mount("/proofs", StaticFiles(directory=PROOF_DIR), name="proofs")
 
 
 # ==============================================================================
 # Dedicated Safe Proof Serving Endpoints (CORS, Lightbox & Caching)
 # ==============================================================================
 @app.get("/api/proofs/{user_id}/{filename}")
-async def get_proof_screenshot(user_id: str, filename: str):
+@app.get("/proofs/{user_id}/{filename}")
+async def get_proof_screenshot(user_id: str, filename: str, user: Optional[CurrentUser] = Depends(get_current_user)):
     """
     Safely serves an application proof screenshot for a given tenant user.
     Includes security protection against path traversal, explicit CORS headers, and caching.
@@ -95,6 +96,13 @@ async def get_proof_screenshot(user_id: str, filename: str):
     safe_filename = os.path.basename(filename.strip())
     if not safe_user_id or not safe_filename or ".." in user_id or ".." in filename:
         raise HTTPException(status_code=400, detail="Invalid proof path parameters")
+
+    # Tenant privacy isolation: verify ownership for registered tenant accounts
+    if safe_user_id not in ("guest-candidate", "default", "demo"):
+        if not user:
+            raise HTTPException(status_code=401, detail="Authentication required to view tenant proof screenshots")
+        if user.id != safe_user_id and getattr(user, "email", None) != safe_user_id:
+            raise HTTPException(status_code=403, detail="Unauthorized access to tenant proof screenshot")
 
     candidate_paths = [
         os.path.join(PROOF_DIR, safe_user_id, safe_filename),

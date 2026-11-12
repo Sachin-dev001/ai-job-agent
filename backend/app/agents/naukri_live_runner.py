@@ -599,7 +599,7 @@ Provide a concise, direct, professional answer in 1 or 2 sentences max (or just 
             f"🌐 *Platform:* Naukri\n\n"
             f"📋 *Question Asked:*\n_{q}_\n\n"
             f"👉 *Reply to this message with your answer or answer in the dashboard popup.*\n"
-            f"I will fill it immediately, submit the application, and remember it for future jobs!"
+            f"I will fill it immediately, submit the application, and remember it for future jobs!\n\n[QID:{q_id} | UID:{uid}]"
         )
         try:
             await telegram_listener.send_message(telegram_msg)
@@ -753,7 +753,7 @@ Which option index (0 to {len(options)-1}) is the most positive, qualified candi
             f"🏢 *Company:* {company}\n\n"
             f"📋 *Question Asked:*\n_{question}_\n\n"
             f"🔢 *Options:*\n{opts_list}\n\n"
-            f"👉 *Reply with option number or text. I will save it permanently in your memory vault!*"
+            f"👉 *Reply with option number or text. I will save it permanently in your memory vault!*\n\n[QID:{q_id} | UID:{uid}]"
         )
         try:
             await telegram_listener.send_message(telegram_msg)
