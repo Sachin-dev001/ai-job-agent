@@ -6,6 +6,7 @@ import httpx
 from datetime import datetime
 from typing import Optional, List, Dict, Tuple, Any
 from playwright.async_api import async_playwright
+from playwright_stealth import Stealth
 from pathlib import Path
 from app.config import settings
 from app.notifications.notifier import notifier
@@ -259,6 +260,10 @@ class RealNaukriApplyEngine:
                 await context.add_cookies(clean_cookies)
 
                 page = await context.new_page()
+                try:
+                    await Stealth().apply_stealth_async(page)
+                except Exception:
+                    pass
                 
                 api_count = None
                 async def handle_response(response):
@@ -1024,6 +1029,10 @@ Which option index (0 to {len(options)-1}) is the most positive, qualified candi
                 await context.add_cookies(clean_cookies)
 
                 page = await context.new_page()
+                try:
+                    await Stealth().apply_stealth_async(page)
+                except Exception:
+                    pass
                 
                 try:
                     print(f"\n[Naukri Bot] Navigating to: {job_title} -> {job_url}")
@@ -1065,15 +1074,15 @@ Which option index (0 to {len(options)-1}) is the most positive, qualified candi
                         await page.wait_for_timeout(2500)
                         page_content = (await page.content()).lower()
 
-                    if "access denied" in page_content and "permission to access" in page_content:
+                    if "let us know you're human" in page_content or "recaptcha" in page_content or ("access denied" in page_content and "permission to access" in page_content):
                         await page.screenshot(path=proof_path)
                         await browser.close()
                         return {
-                            "status": "session_expired",
+                            "status": "cloud_security_challenge",
                             "job_title": job_title,
                             "job_url": job_url,
                             "proof_image": proof_url,
-                            "message": "Naukri security challenge detected. Please connect fresh session cookies from Settings or Quick Apply Assistant."
+                            "message": "Naukri cloud bot challenge detected: Naukri requires verification for cloud server IPs. Use 1-Click Direct Apply to submit directly with your authenticated browser session."
                         }
 
                     if any(term in page_content for term in ["job is no longer available", "job posting has expired", "job has expired"]):
@@ -1177,7 +1186,7 @@ Which option index (0 to {len(options)-1}) is the most positive, qualified candi
                             "job_title": job_title,
                             "job_url": job_url,
                             "proof_image": proof_url,
-                            "message": "This specific listing requires direct company application. The Quick Apply Assistant has generated your tailored AI pitch below."
+                            "message": "Direct apply button was not found by the cloud runner. Click 1-Click Direct Apply to open the verified job listing and submit instantly."
                         }
 
                     # Physical click on Apply
@@ -1326,6 +1335,10 @@ Which option index (0 to {len(options)-1}) is the most positive, qualified candi
                 await context.add_cookies(clean_cookies)
 
                 page = await context.new_page()
+                try:
+                    await Stealth().apply_stealth_async(page)
+                except Exception:
+                    pass
                 
                 clean_query = query.replace(" ", "-").lower()
                 search_url = f"https://www.naukri.com/{clean_query}-jobs"
@@ -1375,6 +1388,10 @@ Which option index (0 to {len(options)-1}) is the most positive, qualified candi
                         print(f"\n[Naukri Live Runner] [{processed_count+1}/{limit}] Opening: {job_title}")
 
                         job_page = await context.new_page()
+                        try:
+                            await Stealth().apply_stealth_async(job_page)
+                        except Exception:
+                            pass
                         
                         try:
                             await job_page.goto(job_url, wait_until="domcontentloaded", timeout=25000)

@@ -313,6 +313,30 @@ async def update_user_profile(updates: dict, user: CurrentUser = Depends(require
     success = await cloud_db.update_profile(user.id, updates)
     return {"success": success}
 
+
+class RecordApplicationRequest(BaseModel):
+    platform: str = "naukri"
+    job_title: str
+    company_name: str
+    job_url: str
+    status: str = "applied"
+    match_score: Optional[float] = 95.0
+    proof_url: Optional[str] = None
+
+@app.post("/api/user/applications")
+async def record_user_application(req: RecordApplicationRequest, user: CurrentUser = Depends(require_authenticated_user)):
+    app_data = {
+        "platform": req.platform,
+        "job_title": req.job_title,
+        "company_name": req.company_name,
+        "job_url": req.job_url,
+        "status": req.status,
+        "match_score": req.match_score,
+        "proof_url": req.proof_url
+    }
+    created = await cloud_db.create_application(user.id, app_data)
+    return {"status": "success", "application": created}
+
 @app.get("/api/user/applications")
 async def get_user_applications(limit: int = 50, user: CurrentUser = Depends(require_authenticated_user)):
     """Retrieves tracked job applications for the authenticated tenant."""
