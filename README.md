@@ -19,28 +19,36 @@
 
 Running the agent locally on your PC bypasses datacenter IP blocks (Akamai / Cloudflare bot challenges) completely and allows full native control over Chrome, file uploads, and screening questions.
 
-### 1. Launch the Agent (1-Click)
-Simply double-click **`start_agent.bat`** on your desktop, or run:
+### 🌟 1. Launch the Local Web Dashboard (Recommended)
+Simply double-click **`start_ui.bat`** or run:
 ```bash
-python -m local_agent.cli
+python -m local_agent.server
 ```
+Your browser will automatically open **`http://localhost:8000`** with the full interactive UI:
+- **Status Badges:** Live connection status for Naukri and Wellfound.
+- **1-Click Connect Accounts:** Launches Chrome so you can log into Naukri and Wellfound once.
+- **1-Click Direct Auto-Apply:** Paste any job link, toggle live headed Chrome view, and click Launch!
+- **Smart Job Scout:** Search live tech roles on Naukri and click "Auto-Apply" row by row.
+- **Live Playwright Execution Console:** Real-time terminal streaming of browser actions, button clicks, and questionnaire answering.
+- **Submission Proof Gallery:** View and zoom full-resolution DOM confirmation screenshots.
 
-### 2. One-Time Setup (Log In Once)
-From the menu, choose `1` (or run `python -m local_agent.cli --setup`):
-- A Google Chrome window will open on your screen.
-- Log into your **Naukri.com** and **Wellfound.com** accounts.
-- Press **ENTER** in the terminal. Your login session is permanently saved to your disk (`local_browser_profile/`).
+---
 
-### 3. Run Auto-Apply
-- **Apply to a specific job URL:**
-  ```bash
-  python -m local_agent.cli --apply "https://www.naukri.com/job-listings-..."
-  ```
-- **Auto-scout and apply to matching roles:**
-  ```bash
-  python -m local_agent.cli --auto --keyword "Python Developer" --limit 5
-  ```
-- You will watch Chrome open on your screen, click Apply, answer screening questions (availability, notice period, CTC, experience), attach your resume PDF, and submit! All screenshot proofs are saved to `proofs/`.
+### 💻 2. Command-Line Interface (Alternative)
+You can also run the agent directly in terminal or double-click **`start_agent.bat`**:
+```bash
+# Launch interactive menu
+python -m local_agent.cli
+
+# One-time login setup
+python -m local_agent.cli --setup
+
+# Apply to a specific job URL
+python -m local_agent.cli --apply "https://www.naukri.com/job-listings-..."
+
+# Auto-scout and apply to matching roles
+python -m local_agent.cli --auto --keyword "Python Developer" --limit 5
+```
 
 ---
 

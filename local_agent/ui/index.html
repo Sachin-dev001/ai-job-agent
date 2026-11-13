@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚡ AutoApply Local AI Agent | Personal Playwright Dashboard</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
+    
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        obsidian: '#090a0f',
+                        surface: '#11131a',
+                        card: '#161922',
+                        cardBorder: '#232838',
+                        accent: {
+                            blue: '#3b82f6',
+                            emerald: '#10b981',
+                            amber: '#f59e0b',
+                            purple: '#8b5cf6',
+                            red: '#ef4444'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body {
+            background-color: #090a0f;
+            color: #f1f5f9;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #090a0f;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #232838;
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3b82f6;
+        }
+        .terminal-glow {
+            box-shadow: 0 0 25px rgba(59, 130, 246, 0.08);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col font-sans antialiased text-slate-100">
+
+    <!-- Header Navigation -->
+    <header class="border-b border-cardBorder bg-surface/80 backdrop-blur sticky top-0 z-50 px-6 py-4">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                    <span class="text-xl font-bold">⚡</span>
+                </div>
+                <div>
+                    <div class="flex items-center space-x-2">
+                        <h1 class="text-lg font-bold tracking-tight text-white">AutoApply Local Agent</h1>
+                        <span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">v2.0 Native</span>
+                    </div>
+                    <p class="text-xs text-slate-400">Autonomous Playwright Runner • Residential Home IP (Zero Bot Blocks)</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-4">
+                <button onclick="launchSessionSetup()" class="px-4 py-2 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-500 text-white flex items-center space-x-2 transition shadow-md shadow-blue-600/20">
+                    <i data-lucide="key" class="w-3.5 h-3.5"></i>
+                    <span>Connect Accounts (1-Time)</span>
+                </button>
+                <button onclick="fetchStatus()" class="p-2 rounded-lg bg-card hover:bg-cardBorder text-slate-300 transition" title="Refresh Status">
+                    <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-6 space-y-6">
+
+        <!-- Status Cards Row -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <!-- Naukri Status -->
+            <div class="bg-card border border-cardBorder rounded-xl p-4 flex items-center justify-between">
+                <div>
+                    <p class="text-xs text-slate-400 font-medium">Naukri.com Status</p>
+                    <div class="flex items-center space-x-2 mt-1">
+                        <span id="naukri-dot" class="w-2.5 h-2.5 rounded-full bg-slate-500"></span>
+                        <span id="naukri-text" class="text-sm font-semibold text-slate-200">Checking...</span>
+                    </div>
+                </div>
+                <div class="p-2.5 rounded-lg bg-blue-500/10 text-blue-400">
+                    <i data-lucide="briefcase" class="w-5 h-5"></i>
+                </div>
+            </div>
+
+            <!-- Wellfound Status -->
+            <div class="bg-card border border-cardBorder rounded-xl p-4 flex items-center justify-between">
+                <div>
+                    <p class="text-xs text-slate-400 font-medium">Wellfound Status</p>
+                    <div class="flex items-center space-x-2 mt-1">
+                        <span id="wf-dot" class="w-2.5 h-2.5 rounded-full bg-slate-500"></span>
+                        <span id="wf-text" class="text-sm font-semibold text-slate-200">Checking...</span>
+                    </div>
+                </div>
+                <div class="p-2.5 rounded-lg bg-purple-500/10 text-purple-400">
+                    <i data-lucide="rocket" class="w-5 h-5"></i>
+                </div>
+            </div>
+
+            <!-- Active Resume -->
+            <div class="bg-card border border-cardBorder rounded-xl p-4 flex items-center justify-between">
+                <div>
+                    <p class="text-xs text-slate-400 font-medium">Active Resume</p>
+                    <p id="resume-text" class="text-sm font-semibold text-slate-200 mt-1 truncate max-w-[140px]">sample_resume.pdf</p>
+                </div>
+                <label class="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 cursor-pointer transition" title="Upload New Resume">
+                    <i data-lucide="upload" class="w-5 h-5"></i>
+                    <input type="file" id="resumeFileInput" class="hidden" accept=".pdf,.docx,.txt" onchange="uploadResume(event)">
+                </label>
+            </div>
+
+            <!-- Verified Proofs Count -->
+            <div class="bg-card border border-cardBorder rounded-xl p-4 flex items-center justify-between">
+                <div>
+                    <p class="text-xs text-slate-400 font-medium">Proof Screenshots</p>
+                    <div class="flex items-center space-x-2 mt-1">
+                        <span id="proofs-count" class="text-lg font-bold text-white">0</span>
+                        <span class="text-xs text-emerald-400 font-medium">Verified DOM</span>
+                    </div>
+                </div>
+                <div class="p-2.5 rounded-lg bg-amber-500/10 text-amber-400">
+                    <i data-lucide="shield-check" class="w-5 h-5"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Workspace: Split View (Controls + Live Terminal) -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            <!-- Left Controls: 7 Columns -->
+            <div class="lg:col-span-7 space-y-6">
+
+                <!-- Navigation Tabs -->
+                <div class="flex space-x-2 border-b border-cardBorder pb-2">
+                    <button onclick="switchTab('tab-apply')" id="tab-btn-apply" class="tab-btn active px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600/20 text-blue-400 border border-blue-500/30 flex items-center space-x-2">
+                        <i data-lucide="zap" class="w-4 h-4"></i>
+                        <span>1-Click Apply</span>
+                    </button>
+                    <button onclick="switchTab('tab-scout')" id="tab-btn-scout" class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:text-white flex items-center space-x-2">
+                        <i data-lucide="search" class="w-4 h-4"></i>
+                        <span>Smart Job Scout</span>
+                    </button>
+                    <button onclick="switchTab('tab-profile')" id="tab-btn-profile" class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:text-white flex items-center space-x-2">
+                        <i data-lucide="user" class="w-4 h-4"></i>
+                        <span>Candidate Profile</span>
+                    </button>
+                    <button onclick="switchTab('tab-proofs')" id="tab-btn-proofs" class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:text-white flex items-center space-x-2">
+                        <i data-lucide="camera" class="w-4 h-4"></i>
+                        <span>Proof Gallery</span>
+                    </button>
+                </div>
+
+                <!-- TAB 1: 1-Click Direct Apply -->
+                <div id="tab-apply" class="tab-content bg-card border border-cardBorder rounded-2xl p-6 space-y-5">
+                    <div>
+                        <h2 class="text-base font-bold text-white flex items-center space-x-2">
+                            <i data-lucide="crosshair" class="w-5 h-5 text-blue-400"></i>
+                            <span>Direct Job URL Auto-Apply</span>
+                        </h2>
+                        <p class="text-xs text-slate-400 mt-1">Paste any job listing link from Naukri or Wellfound. Playwright will launch Google Chrome, click Apply, answer screening questions, and submit.</p>
+                    </div>
+
+                    <div class="space-y-3">
+                        <label class="text-xs font-semibold text-slate-300">Job Posting URL</label>
+                        <input type="text" id="targetJobUrl" placeholder="https://www.naukri.com/job-listings-python-developer-..." 
+                               class="w-full bg-surface border border-cardBorder rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition">
+                    </div>
+
+                    <div class="flex items-center justify-between pt-2">
+                        <label class="flex items-center space-x-3 cursor-pointer">
+                            <input type="checkbox" id="headedModeToggle" checked class="w-4 h-4 rounded text-blue-600 bg-surface border-cardBorder focus:ring-0">
+                            <span class="text-xs font-medium text-slate-300">Show Chrome Window on Desktop (Headed Mode)</span>
+                        </label>
+
+                        <button onclick="executeDirectApply()" id="applyBtn" class="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold text-sm flex items-center space-x-2 shadow-lg shadow-blue-600/30 transition">
+                            <i data-lucide="play" class="w-4 h-4"></i>
+                            <span>Launch Auto-Apply</span>
+                        </button>
+                    </div>
+
+                    <!-- Fast Quick Test Presets -->
+                    <div class="border-t border-cardBorder pt-4">
+                        <p class="text-xs font-medium text-slate-400 mb-2">⚡ Quick Test Link Presets:</p>
+                        <div class="flex flex-wrap gap-2">
+                            <button onclick="setTestUrl('https://www.naukri.com/job-listings-python-developer-genai-llm-rag-infosys-limited-bengaluru-3-to-8-years-110826000068')" 
+                                    class="text-xs px-3 py-1.5 rounded-lg bg-surface border border-cardBorder hover:border-blue-500 text-slate-300 transition">
+                                Infosys GenAI (Naukri)
+                            </button>
+                            <button onclick="setTestUrl('https://wellfound.com/jobs')" 
+                                    class="text-xs px-3 py-1.5 rounded-lg bg-surface border border-cardBorder hover:border-purple-500 text-slate-300 transition">
+                                Wellfound Jobs Feed
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 2: Smart Job Scout -->
+                <div id="tab-scout" class="tab-content hidden bg-card border border-cardBorder rounded-2xl p-6 space-y-5">
+                    <div>
+                        <h2 class="text-base font-bold text-white flex items-center space-x-2">
+                            <i data-lucide="compass" class="w-5 h-5 text-indigo-400"></i>
+                            <span>Live Job Scout & Auto-Apply</span>
+                        </h2>
+                        <p class="text-xs text-slate-400 mt-1">Search live tech roles directly on Naukri & Wellfound and apply in 1-click.</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div>
+                            <label class="text-xs font-semibold text-slate-400">Role / Keyword</label>
+                            <input type="text" id="scoutKeyword" value="Python Developer" class="w-full bg-surface border border-cardBorder rounded-xl px-3 py-2 text-sm text-slate-100 mt-1 focus:outline-none focus:border-blue-500">
+                        </div>
+                        <div>
+                            <label class="text-xs font-semibold text-slate-400">Location</label>
+                            <input type="text" id="scoutLocation" value="Bengaluru" class="w-full bg-surface border border-cardBorder rounded-xl px-3 py-2 text-sm text-slate-100 mt-1 focus:outline-none focus:border-blue-500">
+                        </div>
+                        <div class="flex items-end">
+                            <button onclick="scoutJobs()" id="scoutBtn" class="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm flex items-center justify-center space-x-2 transition">
+                                <i data-lucide="search" class="w-4 h-4"></i>
+                                <span>Scout Jobs</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Job Results Container -->
+                    <div id="scoutResultsContainer" class="space-y-3 pt-2">
+                        <div class="text-center py-8 text-slate-500 text-xs">Click "Scout Jobs" above to fetch matching opportunities.</div>
+                    </div>
+                </div>
+
+                <!-- TAB 3: Candidate Profile & Q&A Rules -->
+                <div id="tab-profile" class="tab-content hidden bg-card border border-cardBorder rounded-2xl p-6 space-y-5">
+                    <div>
+                        <h2 class="text-base font-bold text-white flex items-center space-x-2">
+                            <i data-lucide="user-check" class="w-5 h-5 text-emerald-400"></i>
+                            <span>Candidate Profile & Screening Answers</span>
+                        </h2>
+                        <p class="text-xs text-slate-400 mt-1">The agent uses these exact values when answering recruiter screening drawers, CTC questions, and notice period radios.</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-xs font-medium text-slate-400">Full Name</label>
+                            <input type="text" id="profFullName" class="w-full bg-surface border border-cardBorder rounded-xl px-3 py-2 text-sm text-slate-100 mt-1">
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-slate-400">Email Address</label>
+                            <input type="email" id="profEmail" class="w-full bg-surface border border-cardBorder rounded-xl px-3 py-2 text-sm text-slate-100 mt-1">
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-slate-400">Total Experience (Years)</label>
+                            <input type="number" step="0.5" id="profExp" class="w-full bg-surface border border-cardBorder rounded-xl px-3 py-2 text-sm text-slate-100 mt-1">
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-slate-400">Notice Period</label>
+                            <select id="profNotice" class="w-full bg-surface border border-cardBorder rounded-xl px-3 py-2 text-sm text-slate-100 mt-1">
+                                <option value="15 Days or less">15 Days or less (Immediate)</option>
+                                <option value="30 Days">30 Days</option>
+                                <option value="Serving Notice Period">Serving Notice Period</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-slate-400">Current CTC (LPA)</label>
+                            <input type="number" id="profCurrentCtc" class="w-full bg-surface border border-cardBorder rounded-xl px-3 py-2 text-sm text-slate-100 mt-1">
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-slate-400">Expected CTC (LPA)</label>
+                            <input type="number" id="profExpectedCtc" class="w-full bg-surface border border-cardBorder rounded-xl px-3 py-2 text-sm text-slate-100 mt-1">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="text-xs font-medium text-slate-400">Skills (Comma-separated)</label>
+                        <input type="text" id="profSkills" class="w-full bg-surface border border-cardBorder rounded-xl px-3 py-2 text-sm text-slate-100 mt-1">
+                    </div>
+
+                    <div class="flex justify-end pt-2">
+                        <button onclick="saveCandidateProfile()" class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs flex items-center space-x-2 transition">
+                            <i data-lucide="check" class="w-4 h-4"></i>
+                            <span>Save Profile</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- TAB 4: Proof Gallery -->
+                <div id="tab-proofs" class="tab-content hidden bg-card border border-cardBorder rounded-2xl p-6 space-y-5">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h2 class="text-base font-bold text-white flex items-center space-x-2">
+                                <i data-lucide="image" class="w-5 h-5 text-amber-400"></i>
+                                <span>Verified Screenshot Proofs</span>
+                            </h2>
+                            <p class="text-xs text-slate-400 mt-1">Full-resolution DOM screenshots captured upon successful submission.</p>
+                        </div>
+                        <button onclick="loadProofs()" class="text-xs px-3 py-1.5 rounded-lg bg-surface border border-cardBorder text-slate-300 hover:text-white transition flex items-center space-x-1">
+                            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                            <span>Reload</span>
+                        </button>
+                    </div>
+
+                    <div id="proofsGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[500px] overflow-y-auto pr-1">
+                        <!-- Proof items injected dynamically -->
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Right Column: Live Playwright Terminal (5 Columns) -->
+            <div class="lg:col-span-5 flex flex-col space-y-3">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300">Live Agent Execution Console</h3>
+                    </div>
+                    <button onclick="clearTerminal()" class="text-xs text-slate-500 hover:text-slate-300 transition">Clear</button>
+                </div>
+
+                <!-- Terminal Container -->
+                <div class="flex-1 bg-obsidian border border-cardBorder rounded-2xl p-4 font-mono text-xs flex flex-col terminal-glow h-[560px]">
+                    <div id="terminalLogs" class="flex-1 overflow-y-auto space-y-2 pr-2 text-slate-300">
+                        <div class="text-slate-600">// Agent ready. Actions and Playwright DOM events will stream here live.</div>
+                    </div>
+
+                    <!-- Latest Proof Preview (if any) -->
+                    <div id="proofPreviewBox" class="hidden mt-3 p-2 bg-surface rounded-xl border border-cardBorder flex items-center space-x-3">
+                        <img id="proofPreviewImg" src="" alt="Proof Preview" class="w-16 h-12 object-cover rounded border border-cardBorder cursor-pointer" onclick="openLightbox(this.src)">
+                        <div class="flex-1 min-w-0">
+                            <p class="text-xs font-semibold text-emerald-400 truncate">Application Verified ✅</p>
+                            <p class="text-[10px] text-slate-400">Click image to enlarge proof</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Lightbox Modal for Proof Viewing -->
+    <div id="lightbox" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-6" onclick="closeLightbox()">
+        <div class="relative max-w-5xl w-full bg-surface border border-cardBorder rounded-2xl overflow-hidden shadow-2xl" onclick="event.stopPropagation()">
+            <div class="p-4 border-b border-cardBorder flex items-center justify-between">
+                <h4 class="text-sm font-semibold text-white">Full-Resolution Submission Proof</h4>
+                <button onclick="closeLightbox()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="p-4 flex items-center justify-center bg-obsidian max-h-[80vh] overflow-auto">
+                <img id="lightboxImg" src="" alt="Submission Proof" class="max-w-full max-h-full object-contain rounded-lg border border-cardBorder">
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Logic -->
+    <script>
+        // Tab Switching
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(el => {
+                el.classList.remove('bg-blue-600/20', 'text-blue-400', 'border', 'border-blue-500/30');
+                el.classList.add('text-slate-400');
+            });
+
+            document.getElementById(tabId).classList.remove('hidden');
+            const activeBtn = document.getElementById(tabId.replace('tab-', 'tab-btn-'));
+            if (activeBtn) {
+                activeBtn.classList.add('bg-blue-600/20', 'text-blue-400', 'border', 'border-blue-500/30');
+                activeBtn.classList.remove('text-slate-400');
+            }
+
+            if (tabId === 'tab-proofs') loadProofs();
+            if (tabId === 'tab-profile') loadCandidateProfile();
+        }
+
+        function setTestUrl(url) {
+            document.getElementById('targetJobUrl').value = url;
+        }
+
+        // Live Log Terminal Stream (SSE)
+        function initLogStream() {
+            const evtSource = new EventSource('/api/logs/stream');
+            evtSource.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    appendLog(data.time, data.level, data.message, data.meta);
+                } catch (e) {}
+            };
+            evtSource.onerror = function() {
+                setTimeout(initLogStream, 4000);
+            };
+        }
+
+        function appendLog(time, level, message, meta) {
+            const logs = document.getElementById('terminalLogs');
+            const div = document.createElement('div');
+            div.className = 'flex items-start space-x-2 leading-relaxed';
+
+            let badgeColor = 'text-blue-400';
+            if (level === 'success') badgeColor = 'text-emerald-400 font-semibold';
+            if (level === 'error') badgeColor = 'text-red-400 font-semibold';
+            if (level === 'warn') badgeColor = 'text-amber-400';
+
+            div.innerHTML = `
+                <span class="text-slate-600 select-none">[${time}]</span>
+                <span class="${badgeColor} flex-1 break-words">${escapeHtml(message)}</span>
+            `;
+            logs.appendChild(div);
+            logs.scrollTop = logs.scrollHeight;
+
+            if (meta && meta.proof_url) {
+                const box = document.getElementById('proofPreviewBox');
+                const img = document.getElementById('proofPreviewImg');
+                img.src = meta.proof_url;
+                box.classList.remove('hidden');
+            }
+        }
+
+        function clearTerminal() {
+            document.getElementById('terminalLogs').innerHTML = '<div class="text-slate-600">// Terminal cleared.</div>';
+            document.getElementById('proofPreviewBox').classList.add('hidden');
+        }
+
+        function escapeHtml(text) {
+            const map = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'};
+            return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+        }
+
+        // Fetch Status
+        async function fetchStatus() {
+            try {
+                const res = await fetch('/api/status');
+                const data = await res.json();
+
+                // Naukri
+                const nDot = document.getElementById('naukri-dot');
+                const nText = document.getElementById('naukri-text');
+                if (data.naukri_connected) {
+                    nDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
+                    nText.textContent = `Connected (${data.naukri_cookies_count} cookies)`;
+                } else {
+                    nDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400';
+                    nText.textContent = 'Not Logged In';
+                }
+
+                // Wellfound
+                const wfDot = document.getElementById('wf-dot');
+                const wfText = document.getElementById('wf-text');
+                if (data.wellfound_connected) {
+                    wfDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
+                    wfText.textContent = `Connected (${data.wellfound_cookies_count} cookies)`;
+                } else {
+                    wfDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400';
+                    wfText.textContent = 'Not Logged In';
+                }
+
+                document.getElementById('resume-text').textContent = data.active_resume || 'None';
+                document.getElementById('proofs-count').textContent = data.proofs_count || '0';
+            } catch (e) {
+                console.error("Status fetch error", e);
+            }
+        }
+
+        // 1-Click Launch Session Setup
+        async function launchSessionSetup() {
+            const btn = event.currentTarget;
+            btn.disabled = true;
+            btn.innerHTML = `<i data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i><span>Opening Chrome...</span>`;
+            lucide.createIcons();
+
+            try {
+                await fetch('/api/setup-session', { method: 'POST' });
+            } catch (e) {
+                alert("Error launching session setup: " + e);
+            } finally {
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = `<i data-lucide="key" class="w-3.5 h-3.5"></i><span>Connect Accounts (1-Time)</span>`;
+                    lucide.createIcons();
+                }, 3000);
+            }
+        }
+
+        // Direct Apply
+        async function executeDirectApply() {
+            const urlInput = document.getElementById('targetJobUrl');
+            const url = urlInput.value.trim();
+            if (!url) {
+                alert("Please paste a Naukri or Wellfound job URL first!");
+                return;
+            }
+
+            const isHeaded = document.getElementById('headedModeToggle').checked;
+            const btn = document.getElementById('applyBtn');
+            btn.disabled = true;
+            btn.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin"></i><span>Applying...</span>`;
+            lucide.createIcons();
+
+            try {
+                const res = await fetch('/api/apply', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url, headless: !isHeaded })
+                });
+                const result = await res.json();
+                fetchStatus();
+            } catch (e) {
+                alert("Apply error: " + e);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `<i data-lucide="play" class="w-4 h-4"></i><span>Launch Auto-Apply</span>`;
+                lucide.createIcons();
+            }
+        }
+
+        // Scout Jobs
+        async function scoutJobs() {
+            const keyword = document.getElementById('scoutKeyword').value.trim() || 'Python Developer';
+            const location = document.getElementById('scoutLocation').value.trim() || 'Bengaluru';
+            const container = document.getElementById('scoutResultsContainer');
+
+            const btn = document.getElementById('scoutBtn');
+            btn.disabled = true;
+            btn.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin"></i><span>Searching...</span>`;
+            lucide.createIcons();
+
+            container.innerHTML = `<div class="text-center py-8 text-blue-400 text-xs">Scanning portal for '${keyword}' in '${location}'...</div>`;
+
+            try {
+                const res = await fetch('/api/scout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ keyword: keyword, location: location, limit: 5 })
+                });
+                const data = await res.json();
+                const jobs = data.jobs || [];
+
+                if (jobs.length === 0) {
+                    container.innerHTML = `<div class="text-center py-8 text-slate-500 text-xs">No matching jobs found or portal rate limited. Try another keyword.</div>`;
+                    return;
+                }
+
+                container.innerHTML = '';
+                jobs.forEach((j, idx) => {
+                    const row = document.createElement('div');
+                    row.className = 'bg-surface border border-cardBorder rounded-xl p-4 flex items-center justify-between hover:border-slate-600 transition';
+                    row.innerHTML = `
+                        <div class="flex-1 min-w-0 pr-4">
+                            <div class="flex items-center space-x-2">
+                                <span class="px-2 py-0.5 text-[10px] font-bold uppercase rounded ${j.platform === 'naukri' ? 'bg-blue-500/10 text-blue-400' : 'bg-purple-500/10 text-purple-400'}">${j.platform}</span>
+                                <h4 class="text-sm font-semibold text-white truncate">${escapeHtml(j.title)}</h4>
+                            </div>
+                            <p class="text-xs text-slate-400 mt-0.5 truncate">${escapeHtml(j.company)}</p>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <a href="${j.url}" target="_blank" class="p-2 rounded-lg bg-card hover:bg-cardBorder text-slate-400 hover:text-white transition" title="Open Job Link">
+                                <i data-lucide="external-link" class="w-4 h-4"></i>
+                            </a>
+                            <button onclick="applyScoutedJob('${j.url}', this)" class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition flex items-center space-x-1">
+                                <i data-lucide="zap" class="w-3.5 h-3.5"></i>
+                                <span>Auto-Apply</span>
+                            </button>
+                        </div>
+                    `;
+                    container.appendChild(row);
+                });
+                lucide.createIcons();
+            } catch (e) {
+                container.innerHTML = `<div class="text-center py-8 text-red-400 text-xs">Scout failed: ${e}</div>`;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `<i data-lucide="search" class="w-4 h-4"></i><span>Scout Jobs</span>`;
+                lucide.createIcons();
+            }
+        }
+
+        async function applyScoutedJob(url, btn) {
+            btn.disabled = true;
+            btn.innerHTML = `<i data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i><span>Applying...</span>`;
+            lucide.createIcons();
+
+            try {
+                const res = await fetch('/api/apply', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url, headless: false })
+                });
+                const result = await res.json();
+                if (result.status === 'applied_successfully') {
+                    btn.className = 'px-3 py-1.5 rounded-lg bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 text-xs font-semibold';
+                    btn.innerHTML = `<span>Applied ✅</span>`;
+                } else {
+                    btn.className = 'px-3 py-1.5 rounded-lg bg-amber-600/20 text-amber-400 text-xs font-semibold';
+                    btn.innerHTML = `<span>Notice ⚠️</span>`;
+                }
+                fetchStatus();
+            } catch (e) {
+                btn.disabled = false;
+                btn.innerHTML = `<span>Retry</span>`;
+            }
+        }
+
+        // Candidate Profile
+        async function loadCandidateProfile() {
+            try {
+                const res = await fetch('/api/profile');
+                const p = await res.json();
+                document.getElementById('profFullName').value = p.full_name || '';
+                document.getElementById('profEmail').value = p.email || '';
+                document.getElementById('profExp').value = p.total_experience_years || 3.5;
+                document.getElementById('profNotice').value = p.notice_period_str || '15 Days or less';
+                document.getElementById('profCurrentCtc').value = p.current_ctc_lakhs || 12;
+                document.getElementById('profExpectedCtc').value = p.expected_ctc_lakhs || 18;
+                document.getElementById('profSkills').value = (p.skills || []).join(', ');
+            } catch (e) {}
+        }
+
+        async function saveCandidateProfile() {
+            const skillsArr = document.getElementById('profSkills').value.split(',').map(s => s.trim()).filter(Boolean);
+            const payload = {
+                full_name: document.getElementById('profFullName').value.trim(),
+                email: document.getElementById('profEmail').value.trim(),
+                total_experience_years: parseFloat(document.getElementById('profExp').value) || 3.5,
+                notice_period_str: document.getElementById('profNotice').value,
+                notice_period_days: 15,
+                current_ctc_lakhs: parseFloat(document.getElementById('profCurrentCtc').value) || 12,
+                expected_ctc_lakhs: parseFloat(document.getElementById('profExpectedCtc').value) || 18,
+                skills: skillsArr
+            };
+
+            try {
+                await fetch('/api/profile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                alert("Profile saved successfully!");
+            } catch (e) {
+                alert("Error saving profile: " + e);
+            }
+        }
+
+        // Resume Upload
+        async function uploadResume(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const res = await fetch('/api/upload-resume', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                document.getElementById('resume-text').textContent = data.filename;
+                alert(`Resume ${data.filename} uploaded and activated!`);
+            } catch (e) {
+                alert("Upload failed: " + e);
+            }
+        }
+
+        // Proofs Gallery
+        async function loadProofs() {
+            const grid = document.getElementById('proofsGrid');
+            grid.innerHTML = '<div class="text-xs text-slate-500 col-span-2 text-center py-6">Loading verified proofs...</div>';
+
+            try {
+                const res = await fetch('/api/proofs');
+                const data = await res.json();
+                const proofs = data.proofs || [];
+
+                if (proofs.length === 0) {
+                    grid.innerHTML = '<div class="text-xs text-slate-500 col-span-2 text-center py-6">No submission screenshots yet. Run an auto-apply to generate one.</div>';
+                    return;
+                }
+
+                grid.innerHTML = '';
+                proofs.forEach(p => {
+                    const card = document.createElement('div');
+                    card.className = 'bg-surface border border-cardBorder rounded-xl overflow-hidden cursor-pointer hover:border-blue-500 transition group';
+                    card.onclick = () => openLightbox(p.url);
+                    card.innerHTML = `
+                        <div class="h-36 bg-obsidian overflow-hidden">
+                            <img src="${p.url}" alt="${p.filename}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
+                        </div>
+                        <div class="p-3">
+                            <div class="flex items-center justify-between">
+                                <span class="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-blue-500/10 text-blue-400">${p.portal}</span>
+                                <span class="text-[10px] text-slate-500">${p.size_kb} KB</span>
+                            </div>
+                            <p class="text-xs font-semibold text-slate-200 mt-1 truncate">${p.filename}</p>
+                            <p class="text-[10px] text-slate-400">${p.timestamp}</p>
+                        </div>
+                    `;
+                    grid.appendChild(card);
+                });
+            } catch (e) {
+                grid.innerHTML = '<div class="text-xs text-red-400 col-span-2 text-center py-6">Failed to load proofs.</div>';
+            }
+        }
+
+        // Lightbox
+        function openLightbox(url) {
+            document.getElementById('lightboxImg').src = url;
+            document.getElementById('lightbox').classList.remove('hidden');
+        }
+
+        function closeLightbox() {
+            document.getElementById('lightbox').classList.add('hidden');
+        }
+
+        // Init
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            initLogStream();
+            fetchStatus();
+        });
+    </script>
+</body>
+</html>
