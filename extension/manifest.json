@@ -1,0 +1,63 @@
+{
+  "manifest_version": 3,
+  "name": "AI Auto-Apply Agent for Naukri & Wellfound",
+  "version": "1.0.0",
+  "description": "Autonomous AI Job Application Agent. Auto-clicks apply, auto-answers screening questions, and submits on Naukri and Wellfound.",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "tabs",
+    "scripting"
+  ],
+  "host_permissions": [
+    "*://*.naukri.com/*",
+    "*://*.wellfound.com/*",
+    "*://ai-job-agent-frontend-mauve.vercel.app/*",
+    "http://localhost:*/*",
+    "http://127.0.0.1:*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://ai-job-agent-frontend-mauve.vercel.app/*",
+        "http://localhost:*/*",
+        "http://127.0.0.1:*/*"
+      ],
+      "js": ["content_dashboard.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "*://*.naukri.com/job-listings-*",
+        "*://*.naukri.com/*jobs*"
+      ],
+      "js": ["content_naukri.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "*://wellfound.com/jobs/*",
+        "*://*.wellfound.com/jobs/*"
+      ],
+      "js": ["content_wellfound.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "AI Auto-Apply Agent",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

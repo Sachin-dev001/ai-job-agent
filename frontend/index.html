@@ -1402,6 +1402,72 @@
         </div>
     </div>
 
+    <!-- ========================================================================= -->
+    <!-- MODAL: CHROME EXTENSION AUTO-RUNNER SETUP                                 -->
+    <!-- ========================================================================= -->
+    <div id="extensionSetupModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-4 hidden">
+        <div class="bg-card hairline-border rounded-2xl w-[94vw] sm:w-full max-w-lg p-5 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+            <div class="flex items-center justify-between border-b border-zinc-800 pb-3">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+                        <i data-lucide="puzzle" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-zinc-100">Activate Hands-Free Chrome Extension</h3>
+                        <p class="text-xs text-zinc-400">100% Automated Apply on Naukri & Wellfound (Simplify Model)</p>
+                    </div>
+                </div>
+                <button onclick="toggleExtensionSetupModal(false)" class="text-zinc-500 hover:text-zinc-300 p-1 text-xs font-bold">✕</button>
+            </div>
+
+            <div class="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 leading-relaxed">
+                <span class="font-bold">⚡ Zero Human Clicks:</span> The extension runs inside Naukri to auto-click Apply, auto-select Notice Period, fill CTC, and submit autonomously!
+            </div>
+
+            <div class="space-y-3 text-xs">
+                <div class="flex items-start gap-3 p-3 rounded-lg bg-zinc-900 border border-zinc-800">
+                    <span class="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold flex items-center justify-center shrink-0 text-[11px]">1</span>
+                    <div>
+                        <strong class="text-zinc-200">Open Chrome Extensions:</strong>
+                        <p class="text-zinc-400 text-[11px] mt-0.5">Open a new tab and navigate to <code class="bg-zinc-950 px-1 py-0.5 rounded text-indigo-300">chrome://extensions</code></p>
+                    </div>
+                </div>
+
+                <div class="flex items-start gap-3 p-3 rounded-lg bg-zinc-900 border border-zinc-800">
+                    <span class="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold flex items-center justify-center shrink-0 text-[11px]">2</span>
+                    <div>
+                        <strong class="text-zinc-200">Turn on Developer Mode:</strong>
+                        <p class="text-zinc-400 text-[11px] mt-0.5">Toggle the switch in the top-right corner to <strong>ON</strong>.</p>
+                    </div>
+                </div>
+
+                <div class="flex items-start gap-3 p-3 rounded-lg bg-zinc-900 border border-zinc-800">
+                    <span class="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold flex items-center justify-center shrink-0 text-[11px]">3</span>
+                    <div>
+                        <strong class="text-zinc-200">Click "Load Unpacked":</strong>
+                        <p class="text-zinc-400 text-[11px] mt-0.5">Select the folder: <code class="bg-zinc-950 px-1 py-0.5 rounded text-amber-300">D:\ai-job-agent\extension</code> (or extract the zip below)</p>
+                    </div>
+                </div>
+
+                <div class="flex flex-col sm:flex-row items-center justify-between p-3 rounded-lg bg-indigo-950/40 border border-indigo-500/30 gap-2">
+                    <span class="text-zinc-300 text-xs">Direct download for Chrome, Edge & Brave:</span>
+                    <a href="/static/autoapply-chrome-extension.zip" download="autoapply-chrome-extension.zip" class="w-full sm:w-auto px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs inline-flex items-center justify-center gap-1.5 transition shadow cursor-pointer">
+                        📦 Download Extension (.zip)
+                    </a>
+                </div>
+            </div>
+
+            <div class="flex flex-col sm:flex-row items-center gap-2 pt-2 border-t border-zinc-800">
+                <button type="button" onclick="continueWithManual1ClickFallback()" class="w-full sm:flex-1 py-2 px-3 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold transition">
+                    Use 1-Click Browser Apply Instead
+                </button>
+                <button type="button" onclick="toggleExtensionSetupModal(false)" class="w-full sm:flex-1 py-2 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-zinc-950 text-xs font-bold transition">
+                    Done, I Loaded It!
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal: Recruiter Q&A Memory Vault -->
     <div id="memoryVaultModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 hidden">
         <div class="bg-card hairline-border rounded-2xl w-[94vw] sm:w-full max-w-2xl p-4 sm:p-5 shadow-2xl space-y-4 max-h-[88vh] flex flex-col">

@@ -625,7 +625,66 @@ async function analyzeSelectedResumeFile(file) {
     }
 }
 
-async function executeClientAutoApply(idx) {
+let pendingExtensionApplyIdx = null;
+
+function toggleExtensionSetupModal(show) {
+    const m = document.getElementById("extensionSetupModal");
+    if (m) {
+        if (show) m.classList.remove("hidden");
+        else m.classList.add("hidden");
+    }
+}
+
+async function continueWithManual1ClickFallback() {
+    toggleExtensionSetupModal(false);
+    if (pendingExtensionApplyIdx !== null) {
+        const idx = pendingExtensionApplyIdx;
+        pendingExtensionApplyIdx = null;
+        await executeDirectBrowser1Click(idx);
+    }
+}
+
+// Global Extension Message Listener
+window.addEventListener("message", (event) => {
+    if (!event.data || typeof event.data !== "object") return;
+    if (event.data.type === "EXTENSION_APPLY_SUCCESS") {
+        console.log("[Extension Bridge] Received apply success:", event.data.job?.title);
+        const job = event.data.job;
+        const targetTitle = job ? (job.title || "").toLowerCase() : "";
+        const idx = foundJobs.findIndex(j => (j.title || "").toLowerCase() === targetTitle || (job && j.job_url === job.job_url));
+        if (idx !== -1) {
+            const actionCell = document.getElementById(`action-cell-${idx}`);
+            const actionCard = document.getElementById(`action-card-${idx}`);
+            const statusCell = document.getElementById(`status-cell-${idx}`);
+            const statusCard = document.getElementById(`status-card-${idx}`);
+
+            const appliedStatusHtml = `
+                <span class="inline-flex items-center gap-1.5 text-emerald-400 text-xs font-semibold">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Applied by Robot ✅
+                </span>
+            `;
+            if (statusCell) statusCell.innerHTML = appliedStatusHtml;
+            if (statusCard) statusCard.innerHTML = appliedStatusHtml;
+
+            const targetJob = foundJobs[idx];
+            const viewBtnHtml = `
+                <a href="${escapeHtml(targetJob.job_url)}" target="_blank" rel="noopener noreferrer" class="text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1.5 sm:py-1 rounded-lg font-bold hover:underline inline-flex items-center justify-center gap-1 w-full sm:w-auto cursor-pointer">
+                    🔗 View Job
+                </a>
+            `;
+            if (actionCell) actionCell.innerHTML = viewBtnHtml;
+            if (actionCard) actionCard.innerHTML = viewBtnHtml;
+
+            const statApplied = document.getElementById("statApplied");
+            if (statApplied) {
+                statApplied.textContent = parseInt(statApplied.textContent || "0") + 1;
+            }
+            showAppToast(`🎉 Extension auto-applied to ${targetJob.title} on Naukri!`, "success");
+        }
+    }
+});
+
+async function executeDirectBrowser1Click(idx) {
     const job = foundJobs[idx];
     if (!job) return;
 
@@ -636,20 +695,15 @@ async function executeClientAutoApply(idx) {
 
     const originalContent = actionCell ? actionCell.innerHTML : "";
     const originalCardContent = actionCard ? actionCard.innerHTML : "";
-    const isWellfound = job.platform === "Wellfound";
-    const platformLabel = isWellfound ? "Wellfound" : "Naukri";
 
     if (actionCell) actionCell.innerHTML = `<span class="text-xs text-emerald-400 animate-spin mr-1">⟳</span> <span class="text-xs text-emerald-300 font-medium">Launching 1-Click Apply...</span>`;
     if (actionCard) actionCard.innerHTML = `<div class="w-full text-center py-2 text-emerald-300 text-xs font-medium"><span class="animate-spin mr-1 inline-block">⟳</span> Launching 1-Click Apply...</div>`;
 
     try {
-        // Auto-analyze resume if unanalyzed
         if (!currentAnalysis) {
             const resumeFileInput = document.getElementById("resumeFileInput");
             if (resumeFileInput && resumeFileInput.files && resumeFileInput.files.length > 0) {
-                try {
-                    await analyzeSelectedResumeFile(resumeFileInput.files[0]);
-                } catch (_) {}
+                try { await analyzeSelectedResumeFile(resumeFileInput.files[0]); } catch (_) {}
             } else if (currentAuthUser) {
                 await loadUserProfile();
             }
@@ -658,7 +712,6 @@ async function executeClientAutoApply(idx) {
         const candidateName = currentAnalysis?.candidate_name || currentAuthUser?.name || "Candidate";
         const token = getAuthToken();
 
-        // 1. Generate tailored application pitch via Gemini/Groq
         let tailoredPitch = "";
         try {
             const res = await fetch("/api/jobs/prepare-application", {
@@ -685,17 +738,9 @@ async function executeClientAutoApply(idx) {
             tailoredPitch = `Dear Hiring Team at ${job.company},\n\nI am writing to express my strong interest in the ${job.title} position at ${job.company}.\n\nBest regards,\n${candidateName}`;
         }
 
-        // 2. Copy tailored pitch to clipboard
-        try {
-            await navigator.clipboard.writeText(tailoredPitch);
-        } catch (_) {}
+        try { await navigator.clipboard.writeText(tailoredPitch); } catch (_) {}
+        if (job.job_url) { window.open(job.job_url, "_blank", "noopener,noreferrer"); }
 
-        // 3. Open job URL in new browser tab with candidate's residential IP
-        if (job.job_url) {
-            window.open(job.job_url, "_blank", "noopener,noreferrer");
-        }
-
-        // 4. Update UI row state to Applied ✅
         const appliedStatusHtml = `
             <span class="inline-flex items-center gap-1.5 text-emerald-400 text-xs font-semibold">
                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Applied ✅
@@ -712,13 +757,11 @@ async function executeClientAutoApply(idx) {
         if (actionCell) actionCell.innerHTML = viewBtnHtml;
         if (actionCard) actionCard.innerHTML = viewBtnHtml;
 
-        // 5. Increment applied stat counter
         const statApplied = document.getElementById("statApplied");
         if (statApplied) {
             statApplied.textContent = parseInt(statApplied.textContent || "0") + 1;
         }
 
-        // 6. Record application in cloud database
         try {
             await fetch("/api/user/applications", {
                 method: "POST",
@@ -743,6 +786,33 @@ async function executeClientAutoApply(idx) {
         if (actionCard) actionCard.innerHTML = originalCardContent;
         alert("Error launching 1-Click apply: " + e.message);
     }
+}
+
+async function executeClientAutoApply(idx) {
+    const job = foundJobs[idx];
+    if (!job) return;
+
+    // 1. If Chrome Extension is active, trigger full hands-free DOM robot:
+    if (window.__AUTOAPPLY_EXTENSION_INSTALLED__) {
+        const actionCell = document.getElementById(`action-cell-${idx}`);
+        const actionCard = document.getElementById(`action-card-${idx}`);
+        if (actionCell) actionCell.innerHTML = `<span class="text-xs text-indigo-400 animate-spin mr-1">⟳</span> <span class="text-xs text-indigo-300 font-medium">Extension Automating...</span>`;
+        if (actionCard) actionCard.innerHTML = `<div class="w-full text-center py-2 text-indigo-300 text-xs font-medium"><span class="animate-spin mr-1 inline-block">⟳</span> Extension Automating...</div>`;
+
+        window.postMessage({
+            type: "TRIGGER_EXTENSION_APPLY",
+            job: job,
+            profile: currentAnalysis,
+            autoClose: true
+        }, "*");
+
+        showAppToast(`🤖 AI Chrome Extension launched for ${job.title}! Auto-clicking Apply on Naukri...`, "info");
+        return;
+    }
+
+    // 2. If Chrome Extension is not installed, prompt user to activate it for hands-free automation
+    pendingExtensionApplyIdx = idx;
+    toggleExtensionSetupModal(true);
 }
 
 async function directApplyRow(idx) {
