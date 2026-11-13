@@ -1584,7 +1584,7 @@
                 </div>
 
                 <!-- High-Res Screenshot Image -->
-                <img id="proofModalImg" src="" alt="Application Proof Screenshot" class="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg opacity-0 transition-opacity duration-300" onload="handleProofImageLoad()" onerror="handleProofImageError()" />
+                <img id="proofModalImg" alt="Application Proof Screenshot" class="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg opacity-0 transition-opacity duration-300" onload="if (typeof handleProofImageLoad === 'function') handleProofImageLoad()" onerror="if (typeof handleProofImageError === 'function') handleProofImageError()" />
             </div>
 
             <!-- Modal Footer -->
