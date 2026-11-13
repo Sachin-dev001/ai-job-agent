@@ -1,21 +1,46 @@
 <div align="center">
 
-# ⚡ AutoApply: Autonomous AI Job Application Agent
+# ⚡ AutoApply: Personal Autonomous Playwright Job Agent
 
-**Enterprise-grade, multi-platform autonomous agent that scouts, matches, and applies to tech jobs on Naukri.com and Wellfound with verified DOM execution, zero-hallucination recruiter Q&A memory, and live screenshot proofs.**
+**Personal, multi-platform autonomous AI agent that scouts, matches, and automatically applies to tech jobs on Naukri.com and Wellfound using local Playwright automation with your genuine residential IP, zero bot challenges, intelligent screening Q&A answering, and timestamped screenshot proofs.**
 
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![Playwright](https://img.shields.io/badge/Playwright-v1.49.0-2EAD33?style=for-the-badge&logo=playwright&logoColor=white)](https://playwright.dev)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![Google Gemini](https://img.shields.io/badge/Google%20Gemini-Flash%20%7C%20Pro-8E75C2?style=for-the-badge&logo=google&logoColor=white)](https://ai.google.dev/)
-[![Groq](https://img.shields.io/badge/Groq-LPU%20Inference-F55036?style=for-the-badge)](https://groq.com/)
-[![Supabase](https://img.shields.io/badge/Supabase-Auth%20%26%20Postgres-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com/)
-[![Vercel](https://img.shields.io/badge/Vercel-Edge%20Frontend-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com/)
-[![Render](https://img.shields.io/badge/Render-Cloud%20Runner-46E3B7?style=for-the-badge&logo=render&logoColor=black)](https://render.com/)
+[![Google Chrome](https://img.shields.io/badge/Google%20Chrome-Headed%20Execution-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white)](https://www.google.com/chrome/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 
-[Live Dashboard](https://ai-job-agent-frontend-mauve.vercel.app/) • [Backend API](https://autoapply-backend-hvdm.onrender.com/docs) • [Architecture](#-architecture) • [Quick Start](#-quick-start)
+[🚀 1-Click Quickstart](#-quick-start---personal-local-agent) • [Architecture](#-architecture) • [Features](#-key-features)
 
 </div>
+
+---
+
+## 🚀 Quick Start - Personal Local Agent
+
+Running the agent locally on your PC bypasses datacenter IP blocks (Akamai / Cloudflare bot challenges) completely and allows full native control over Chrome, file uploads, and screening questions.
+
+### 1. Launch the Agent (1-Click)
+Simply double-click **`start_agent.bat`** on your desktop, or run:
+```bash
+python -m local_agent.cli
+```
+
+### 2. One-Time Setup (Log In Once)
+From the menu, choose `1` (or run `python -m local_agent.cli --setup`):
+- A Google Chrome window will open on your screen.
+- Log into your **Naukri.com** and **Wellfound.com** accounts.
+- Press **ENTER** in the terminal. Your login session is permanently saved to your disk (`local_browser_profile/`).
+
+### 3. Run Auto-Apply
+- **Apply to a specific job URL:**
+  ```bash
+  python -m local_agent.cli --apply "https://www.naukri.com/job-listings-..."
+  ```
+- **Auto-scout and apply to matching roles:**
+  ```bash
+  python -m local_agent.cli --auto --keyword "Python Developer" --limit 5
+  ```
+- You will watch Chrome open on your screen, click Apply, answer screening questions (availability, notice period, CTC, experience), attach your resume PDF, and submit! All screenshot proofs are saved to `proofs/`.
 
 ---
 

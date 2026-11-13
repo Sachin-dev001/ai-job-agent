@@ -19,10 +19,12 @@ venv.bak/
 **/cookies/*.json
 backend/cookies/
 backend/browser_profile/
+local_browser_profile/
 *.session
 
 # Playwright & Runtime Artifacts
 backend/proofs/*.png
+proofs/*.png
 backend/*.png
 *.log
 

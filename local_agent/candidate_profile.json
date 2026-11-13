@@ -1,0 +1,35 @@
+{
+  "full_name": "Sachin Sharma",
+  "first_name": "Sachin",
+  "last_name": "Sharma",
+  "email": "sachin.sharma.engineer@gmail.com",
+  "phone": "+91 9876543210",
+  "current_location": "Bengaluru",
+  "preferred_location": "Bengaluru / Remote / Hybrid",
+  "total_experience_years": 3.5,
+  "notice_period_days": 15,
+  "notice_period_str": "15 Days or less",
+  "current_ctc_lakhs": 12,
+  "expected_ctc_lakhs": 18,
+  "highest_qualification": "B.Tech in Computer Science",
+  "skills": [
+    "Python",
+    "FastAPI",
+    "Generative AI",
+    "LLMs",
+    "LangChain",
+    "Docker",
+    "React",
+    "PostgreSQL",
+    "AI Agents"
+  ],
+  "answers": {
+    "interview_availability": "Yes",
+    "willing_to_relocate": "Yes",
+    "ready_to_join_immediately": "Yes",
+    "visa_sponsorship_required": "No",
+    "authorized_to_work": "Yes"
+  },
+  "recruiter_pitch": "Hi Hiring Team,\n\nI am deeply excited to apply for this role! With 3.5+ years of experience building high-performance Python backends, GenAI systems, and autonomous agent pipelines, I am ready to make an immediate impact on your product. I am immediately available for interviews.\n\nBest regards,\nSachin Sharma",
+  "resume_path": "sample_resume.pdf"
+}
