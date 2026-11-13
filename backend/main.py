@@ -903,37 +903,39 @@ async def generate_demo_cookies(req: GenerateDemoCookiesRequest, user: CurrentUs
     sanitized_id = user.id[:16]
     sanitized_email = user.email or "candidate@example.com"
 
-    if platform == "naukri":
-        demo_cookies = [
-            {"name": "_naukri_id", "value": f"nk_usr_{sanitized_id}", "domain": ".naukri.com", "path": "/"},
-            {"name": "naukri_session", "value": f"auth_sess_live_{sanitized_id}_verified", "domain": ".naukri.com", "path": "/"},
-            {"name": "user_type", "value": "candidate_verified", "domain": ".naukri.com", "path": "/"},
-            {"name": "AppEnv", "value": "production", "domain": ".naukri.com", "path": "/"},
-            {"name": "logged_in_user", "value": sanitized_email, "domain": ".naukri.com", "path": "/"}
-        ]
-    else:
-        demo_cookies = [
-            {"name": "_wellfound_session", "value": f"wf_sess_{sanitized_id}_token", "domain": ".wellfound.com", "path": "/"},
-            {"name": "remember_user_token", "value": f"wf_rem_tok_{sanitized_id}", "domain": ".wellfound.com", "path": "/"},
-            {"name": "ajs_user_id", "value": user.id, "domain": ".wellfound.com", "path": "/"},
-            {"name": "_angellist_logged_in", "value": "true", "domain": ".wellfound.com", "path": "/"},
-            {"name": "user_email", "value": sanitized_email, "domain": ".wellfound.com", "path": "/"}
-        ]
+    # 1. First look for real verified system/default cookies
+    verified_cookies = await cloud_db.get_cookies("default", platform)
+    if not verified_cookies or len(verified_cookies) == 0:
+        fallback_file = Path(__file__).resolve().parent / "cookies" / f"{platform}_cookies.json"
+        if fallback_file.exists():
+            try:
+                with open(fallback_file, "r", encoding="utf-8") as f:
+                    verified_cookies = json.load(f)
+            except Exception:
+                pass
 
-    user_cookies_dir = os.path.join(DATA_COOKIES_DIR, user.id)
-    os.makedirs(user_cookies_dir, exist_ok=True)
-    cookie_file = os.path.join(user_cookies_dir, f"{platform}_cookies.json")
-    with open(cookie_file, "w", encoding="utf-8") as f:
-        json.dump(demo_cookies, f, indent=2)
+    if verified_cookies and len(verified_cookies) > 0:
+        norm_verified = normalize_cookies(verified_cookies, platform)
+        if norm_verified and len(norm_verified) > 0:
+            user_cookies_dir = os.path.join(DATA_COOKIES_DIR, user.id)
+            os.makedirs(user_cookies_dir, exist_ok=True)
+            cookie_file = os.path.join(user_cookies_dir, f"{platform}_cookies.json")
+            with open(cookie_file, "w", encoding="utf-8") as f:
+                json.dump(norm_verified, f, indent=2)
+            await cloud_db.save_cookies(user.id, platform, norm_verified)
+            return {
+                "status": "success",
+                "platform": platform,
+                "cookies_count": len(norm_verified),
+                "message": f"Successfully activated verified session for {platform.capitalize()} ({len(norm_verified)} cookies)!"
+            }
 
-    # Persist demo cookies to cloud_db
-    await cloud_db.save_cookies(user.id, platform, demo_cookies)
-
+    # 2. If no verified cookies are available in backend store, provide clear manual connect guidance
     return {
-        "status": "success",
+        "status": "manual_connect_required",
         "platform": platform,
-        "cookies_count": len(demo_cookies),
-        "message": f"Successfully activated verified test session for {platform.capitalize()} ({len(demo_cookies)} cookies)!"
+        "cookies_count": 0,
+        "message": f"No pre-configured session cookies found for {platform.capitalize()}. Please export your cookies from your logged-in browser using Cookie-Editor (JSON) and click 'Upload JSON' or 'Paste'."
     }
 
 @app.on_event("startup")

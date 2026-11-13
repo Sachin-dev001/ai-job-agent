@@ -85,15 +85,43 @@ class WellfoundLiveApplyEngine:
         except Exception as e:
             print(f"[Wellfound Bot] Cloud cookies restoration note for user {uid}: {e}")
 
-        # Tier 3: Global project fallback: backend/cookies/wellfound_cookies.json
-        try:
-            fallback_file = Path(__file__).resolve().parent.parent.parent / "cookies" / "wellfound_cookies.json"
-            if fallback_file.exists():
-                with open(fallback_file, "r", encoding="utf-8") as f:
-                    raw = json.load(f)
-                norm = normalize_cookies(raw, "wellfound")
+        # Tier 2b: Fallback to default shared verified session if user hasn't connected personal cookies
+        if str(uid) != "default":
+            try:
+                def_cookies = cloud_db.get_cookies_sync("default", "wellfound")
+                if def_cookies and len(def_cookies) > 0:
+                    norm = normalize_cookies(def_cookies, "wellfound")
+                    if norm and len(norm) > 0:
+                        print(f"[Wellfound Bot] Using verified default session ({len(norm)} cookies) for user {uid}")
+                        return norm
+            except Exception as e:
+                print(f"[Wellfound Bot] Default cloud cookies note: {e}")
+
+        # Tier 2c: Environment variable seed
+        env_raw = os.getenv("WELLFOUND_DEFAULT_COOKIES_JSON")
+        if env_raw:
+            try:
+                env_cookies = json.loads(env_raw)
+                norm = normalize_cookies(env_cookies, "wellfound")
                 if norm and len(norm) > 0:
                     return norm
+            except Exception as e:
+                print(f"[Wellfound Bot] Env cookies parse note: {e}")
+
+        # Tier 3: Global project fallback files
+        try:
+            fallback_candidates = [
+                Path(__file__).resolve().parent.parent.parent / "cookies" / "wellfound_cookies.json",
+                DATA_COOKIES_DIR / "wellfound_cookies.json",
+                DATA_COOKIES_DIR / "default" / "wellfound_cookies.json"
+            ]
+            for fallback_file in fallback_candidates:
+                if fallback_file.exists():
+                    with open(fallback_file, "r", encoding="utf-8") as f:
+                        raw = json.load(f)
+                    norm = normalize_cookies(raw, "wellfound")
+                    if norm and len(norm) > 0:
+                        return norm
         except Exception as e:
             print(f"[Wellfound Bot] Fallback cookies load note: {e}")
 

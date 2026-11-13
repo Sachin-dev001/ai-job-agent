@@ -805,6 +805,31 @@ async function directApplyRow(idx) {
             if (actionCell) actionCell.innerHTML = reviewBtnHtml;
             if (actionCard) actionCard.innerHTML = reviewBtnHtml;
             alert(`⚠️ Recruiter Question Needed:\n\n${data.message}`);
+        } else if (data.status === "cloud_security_challenge") {
+            const challengeBtnHtml = `
+                <button type="button" onclick="handleInstant1ClickApply(${idx})" class="w-full sm:w-auto px-2.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-[11px] transition shadow flex items-center justify-center gap-1 cursor-pointer">
+                    ⚡ 1-Click Apply ↗
+                </button>
+            `;
+            const challengeStatusHtml = `
+                <span class="inline-flex items-center gap-1.5 text-amber-400 text-xs font-semibold" title="Naukri cloud bot challenge detected on datacenter server. Click 1-Click Apply to submit directly via your browser.">
+                    <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span> Cloud Bot Gate
+                </span>
+            `;
+            if (actionCell) actionCell.innerHTML = challengeBtnHtml;
+            if (actionCard) actionCard.innerHTML = challengeBtnHtml;
+            if (statusCell) statusCell.innerHTML = challengeStatusHtml;
+            if (statusCard) statusCard.innerHTML = challengeStatusHtml;
+            openQuickApplyModal(idx, data.message, data.proof_image || data.proof_url, data.status);
+        } else if (data.status === "session_required") {
+            const sessBtnHtml = `
+                <button type="button" onclick="openQuickApplyModal(${idx}, 'Session connection required', null, 'session_required')" class="w-full sm:w-auto px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-[11px] border border-amber-500/40 transition flex items-center justify-center gap-1 cursor-pointer">
+                    🔑 Connect Session
+                </button>
+            `;
+            if (actionCell) actionCell.innerHTML = sessBtnHtml;
+            if (actionCard) actionCard.innerHTML = sessBtnHtml;
+            openQuickApplyModal(idx, data.message || "Session connection required", data.proof_image || data.proof_url, data.status);
         } else {
             if (actionCell) actionCell.innerHTML = originalContent;
             if (actionCard) actionCard.innerHTML = originalCardContent;
@@ -3055,6 +3080,27 @@ function openQuickApplyModal(idx, reason, proofImage, statusCode) {
                     <button type="button" onclick="autoAnalyzeAndRetryCurrentJob()" class="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-emerald-500 text-black font-bold text-xs rounded-lg shadow hover:opacity-90 transition whitespace-nowrap cursor-pointer">
                         ⚡ Auto-Analyze & Apply Now
                     </button>
+                </div>
+            `;
+        } else if (statusKey === "session_required" || reasonLower.includes("no active session cookies") || reasonLower.includes("connect your cookies")) {
+            alertEl.innerHTML = `
+                <div class="space-y-2">
+                    <div class="flex items-center gap-1.5 text-amber-400 font-bold text-xs">
+                        <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                        ${platformDisplay} Session Connection Required
+                    </div>
+                    <div class="text-[11px] text-zinc-300 leading-relaxed">
+                        To auto-apply in the background, connect your active ${platformDisplay} session cookies below, or apply directly from your browser.
+                    </div>
+                    <div class="flex flex-col sm:flex-row items-center gap-2 pt-1">
+                        <button type="button" onclick="promptPasteCookies('${currentAssistantPlatform}')" class="w-full sm:flex-1 py-2 px-3 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-semibold text-xs transition flex items-center justify-center gap-1.5 border border-zinc-700 cursor-pointer">
+                            📋 Paste Cookies
+                        </button>
+                        <button type="button" onclick="handleInstant1ClickApply(${idx})" class="w-full sm:flex-1 py-2 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-xs transition flex items-center justify-center gap-1.5 shadow cursor-pointer">
+                            ⚡ 1-Click Browser Apply ↗
+                        </button>
+                    </div>
+                    ${proofBtnHtml}
                 </div>
             `;
         } else if (statusKey === "login_required" || statusKey === "session_expired" || reasonLower.includes("login to apply") || reasonLower.includes("cookies are missing or expired") || reasonLower.includes("session cookies have expired") || reasonLower.includes("session prompt") || reasonLower.includes("redirected to login")) {

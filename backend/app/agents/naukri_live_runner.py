@@ -139,15 +139,43 @@ class RealNaukriApplyEngine:
         except Exception as e:
             print(f"[Naukri Bot] Cloud cookies restoration note for user {uid}: {e}")
 
-        # Tier 3: Global project fallback: backend/cookies/naukri_cookies.json
-        try:
-            fallback_file = Path(__file__).resolve().parent.parent.parent / "cookies" / "naukri_cookies.json"
-            if fallback_file.exists():
-                with open(fallback_file, "r", encoding="utf-8") as f:
-                    raw = json.load(f)
-                norm = normalize_cookies(raw, "naukri")
+        # Tier 2b: Fallback to default shared verified session if user hasn't connected personal cookies
+        if str(uid) != "default":
+            try:
+                def_cookies = cloud_db.get_cookies_sync("default", "naukri")
+                if def_cookies and len(def_cookies) > 0:
+                    norm = normalize_cookies(def_cookies, "naukri")
+                    if norm and len(norm) > 0:
+                        print(f"[Naukri Bot] Using verified default session ({len(norm)} cookies) for user {uid}")
+                        return norm
+            except Exception as e:
+                print(f"[Naukri Bot] Default cloud cookies note: {e}")
+
+        # Tier 2c: Environment variable seed (e.g. on Render container)
+        env_raw = os.getenv("NAUKRI_DEFAULT_COOKIES_JSON")
+        if env_raw:
+            try:
+                env_cookies = json.loads(env_raw)
+                norm = normalize_cookies(env_cookies, "naukri")
                 if norm and len(norm) > 0:
                     return norm
+            except Exception as e:
+                print(f"[Naukri Bot] Env cookies parse note: {e}")
+
+        # Tier 3: Global project fallback files
+        try:
+            fallback_candidates = [
+                Path(__file__).resolve().parent.parent.parent / "cookies" / "naukri_cookies.json",
+                DATA_COOKIES_DIR / "naukri_cookies.json",
+                DATA_COOKIES_DIR / "default" / "naukri_cookies.json"
+            ]
+            for fallback_file in fallback_candidates:
+                if fallback_file.exists():
+                    with open(fallback_file, "r", encoding="utf-8") as f:
+                        raw = json.load(f)
+                    norm = normalize_cookies(raw, "naukri")
+                    if norm and len(norm) > 0:
+                        return norm
         except Exception as e:
             print(f"[Naukri Bot] Fallback cookies load note: {e}")
 
@@ -1190,20 +1218,29 @@ Which option index (0 to {len(options)-1}) is the most positive, qualified candi
                         if apply_btn:
                             break
 
-                    # 7. ONLY if no direct Apply button exists, check if the page genuinely has an "Apply on company site" button
+                    # 7. ONLY if no direct Apply button exists, check if the main header genuinely has an "Apply on company site" button
                     if not apply_btn:
-                        ext_btn = page.locator("#company-site-button, button:has-text('Apply on company site'), a:has-text('Apply on company site'), button:has-text('Apply on Employer Website'), a:has-text('Apply on Employer Website'), button:has-text('Apply on official website'), a:has-text('Apply on official website'), .company-site-button")
+                        ext_btn = page.locator(
+                            ".apply-button-container #company-site-button, "
+                            "[class*='styles_jhc__apply-button'] #company-site-button, "
+                            ".jd-header #company-site-button, "
+                            "#company-site-button, "
+                            ".apply-button-container button:has-text('Apply on company site'), "
+                            "[class*='styles_jhc__'] button:has-text('Apply on company site')"
+                        )
                         if await ext_btn.count() > 0 and await ext_btn.first.is_visible():
-                            await page.screenshot(path=str(proof_path), full_page=False)
-                            return {
-                                "status": "external_portal",
-                                "applied": False,
-                                "job_title": job_title,
-                                "job_url": page.url,
-                                "proof_url": proof_url,
-                                "proof_image": proof_url,
-                                "message": "This listing uses an external company portal ('Apply on company site')."
-                            }
+                            btn_text = (await ext_btn.first.inner_text() or "").strip().lower()
+                            if "company site" in btn_text or "employer website" in btn_text or "official website" in btn_text:
+                                await page.screenshot(path=str(proof_path), full_page=False)
+                                return {
+                                    "status": "external_portal",
+                                    "applied": False,
+                                    "job_title": job_title,
+                                    "job_url": page.url,
+                                    "proof_url": proof_url,
+                                    "proof_image": proof_url,
+                                    "message": "This listing uses an external company portal ('Apply on company site')."
+                                }
 
                         if await page.locator("#login_Layer, .login-layer, .login-register").count() > 0:
                             await page.screenshot(path=str(proof_path), full_page=False)

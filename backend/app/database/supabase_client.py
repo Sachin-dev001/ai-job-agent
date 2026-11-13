@@ -259,13 +259,20 @@ class CloudDatabaseService:
         self._save_local_profiles(local_profiles)
 
         # 3. If cloud enabled, persist to Supabase profiles table
-        if self.is_cloud_enabled() and is_valid_uuid(user_id):
+        if self.is_cloud_enabled():
             try:
-                _supabase_client.table("profiles").update({
-                    cookie_key: cookies,
-                    "updated_at": datetime.utcnow().isoformat()
-                }).eq("id", user_id).execute()
-                logger.info(f"[Supabase] Persisted {plat} cookies to cloud DB for user {user_id}")
+                if is_valid_uuid(user_id):
+                    _supabase_client.table("profiles").update({
+                        cookie_key: cookies,
+                        "updated_at": datetime.utcnow().isoformat()
+                    }).eq("id", user_id).execute()
+                    logger.info(f"[Supabase] Persisted {plat} cookies to cloud DB for UUID {user_id}")
+                elif "@" in str(user_id):
+                    _supabase_client.table("profiles").update({
+                        cookie_key: cookies,
+                        "updated_at": datetime.utcnow().isoformat()
+                    }).eq("email", user_id).execute()
+                    logger.info(f"[Supabase] Persisted {plat} cookies to cloud DB for email {user_id}")
             except Exception as e:
                 logger.warning(f"[Supabase] Cloud table cookie save note: {e}")
 
@@ -292,10 +299,15 @@ class CloudDatabaseService:
                 logger.warning(f"[Supabase] Error reading local user cookie file: {e}")
 
         # Tier B: Supabase cloud DB profile
-        if self.is_cloud_enabled() and is_valid_uuid(user_id):
+        if self.is_cloud_enabled():
             try:
-                res = _supabase_client.table("profiles").select(cookie_key).eq("id", user_id).execute()
-                if res.data and len(res.data) > 0:
+                res = None
+                if is_valid_uuid(user_id):
+                    res = _supabase_client.table("profiles").select(cookie_key).eq("id", user_id).execute()
+                elif "@" in str(user_id):
+                    res = _supabase_client.table("profiles").select(cookie_key).eq("email", user_id).execute()
+                
+                if res and res.data and len(res.data) > 0:
                     cloud_cookies = res.data[0].get(cookie_key)
                     if cloud_cookies and isinstance(cloud_cookies, list) and len(cloud_cookies) > 0:
                         # Auto-cache back to local disk
@@ -323,7 +335,27 @@ class CloudDatabaseService:
                 pass
             return prof_cookies
 
-        # Tier D: Global/project-level cookies fallback
+        # Tier D: Environment Variable Seed
+        env_var_name = f"{plat.upper()}_DEFAULT_COOKIES_JSON"
+        env_raw = os.getenv(env_var_name)
+        if env_raw:
+            try:
+                env_cookies = json.loads(env_raw)
+                if env_cookies and isinstance(env_cookies, list) and len(env_cookies) > 0:
+                    return env_cookies
+            except Exception as e:
+                logger.warning(f"[Supabase] Error parsing {env_var_name}: {e}")
+
+        # Tier E: System default cookies from disk or database fallback
+        if str(user_id) != "default":
+            try:
+                default_cookies = self.get_cookies_sync("default", platform)
+                if default_cookies and len(default_cookies) > 0:
+                    return default_cookies
+            except Exception:
+                pass
+
+        # Tier F: Global/project-level cookies fallback
         project_fallback = BACKEND_DIR / "cookies" / f"{plat}_cookies.json"
         if project_fallback.exists():
             try:
@@ -331,6 +363,17 @@ class CloudDatabaseService:
                     fb_data = json.load(f)
                 if fb_data and isinstance(fb_data, list) and len(fb_data) > 0:
                     return fb_data
+            except Exception:
+                pass
+
+        # Tier G: Top-level data cookies dir
+        shared_cookie_file = DATA_COOKIES_DIR / f"{plat}_cookies.json"
+        if shared_cookie_file.exists():
+            try:
+                with open(shared_cookie_file, "r", encoding="utf-8") as f:
+                    s_data = json.load(f)
+                if s_data and isinstance(s_data, list) and len(s_data) > 0:
+                    return s_data
             except Exception:
                 pass
 
