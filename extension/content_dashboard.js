@@ -3,25 +3,17 @@
 
 console.log("[Auto-Apply Extension] Dashboard Bridge initialized on:", window.location.href);
 
-// Inject global marker and dispatch events
+// Inject global marker and dispatch events WITHOUT creating inline <script> tags (100% CSP-Safe)
 function notifyExtensionReady() {
     try {
-        const script = document.createElement("script");
-        script.textContent = `
-            window.__AUTOAPPLY_EXTENSION_INSTALLED__ = true;
-            window.__AUTOAPPLY_EXTENSION_VERSION__ = "1.0.0";
-            window.dispatchEvent(new CustomEvent("AutoApplyExtensionReady", { detail: { version: "1.0.0" } }));
-        `;
-        (document.head || document.documentElement).appendChild(script);
-        script.remove();
+        document.documentElement.setAttribute("data-autoapply-extension", "true");
+        window.postMessage({
+            type: "PONG_AUTOAPPLY_EXTENSION",
+            installed: true,
+            version: "1.0.0"
+        }, "*");
+        window.dispatchEvent(new CustomEvent("AutoApplyExtensionReady", { detail: { version: "1.0.0" } }));
     } catch (_) {}
-
-    document.documentElement.setAttribute("data-autoapply-extension", "true");
-    window.postMessage({
-        type: "PONG_AUTOAPPLY_EXTENSION",
-        installed: true,
-        version: "1.0.0"
-    }, "*");
 }
 
 notifyExtensionReady();

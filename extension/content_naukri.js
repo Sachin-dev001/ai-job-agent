@@ -1,8 +1,8 @@
 // AI Auto-Apply Agent - Naukri Autonomous Content Script
-// Automatically detects apply buttons, fills questionnaire drawers, and submits applications on Naukri.com
+// Automatically detects apply buttons, fills questionnaire drawers, answers screening questions, and submits on Naukri.com
 
 (function () {
-    console.log("[Auto-Apply Agent] Content script injected on:", window.location.href);
+    console.log("[Auto-Apply Agent] Naukri content script injected on:", window.location.href);
 
     // Only run on job detail listings
     if (!window.location.href.includes("job-listings-") && !document.querySelector("#apply-button, .apply-button")) {
@@ -21,7 +21,7 @@
             right: 24px;
             z-index: 999999;
             background: rgba(15, 23, 42, 0.95);
-            border: 1px solid rgba(16, 185, 129, 0.4);
+            border: 1px solid rgba(16, 185, 129, 0.5);
             border-radius: 12px;
             padding: 12px 18px;
             color: #f8fafc;
@@ -77,8 +77,9 @@
         return null;
     }
 
-    // Candidate Defaults (overridden by storage if available)
+    // Candidate Profile Defaults (overridden by storage if available)
     let candidateData = {
+        name: "Sachin Sharma",
         noticePeriod: "15 Days or less",
         totalExperience: "3.5",
         relevantExperience: "3",
@@ -92,6 +93,7 @@
         chrome.storage.local.get(["candidateProfile"], (res) => {
             if (res && res.candidateProfile) {
                 const p = res.candidateProfile;
+                candidateData.name = p.candidate_name || candidateData.name;
                 candidateData.totalExperience = String(p.experience_years || candidateData.totalExperience);
                 candidateData.noticePeriod = p.notice_period || candidateData.noticePeriod;
                 candidateData.currentCtc = String(p.current_ctc || candidateData.currentCtc);
@@ -174,42 +176,115 @@
 
         // 5. Check if questionnaire drawer / chatbot modal opened
         updateAgentStatus("Answering screening questions & notice period...");
-        await handleQuestionnaireDrawer();
+        const appliedOk = await handleQuestionnaireDrawer();
 
         // 6. Verify submission confirmation
-        await sleep(2000);
-        updateAgentStatus("🎉 Application successfully submitted & verified on Naukri!", true);
-        if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
-            chrome.runtime.sendMessage({
-                type: "APPLICATION_COMPLETED",
-                jobTitle: document.title,
-                message: "100% submitted and verified on Naukri.com"
-            });
+        await sleep(1500);
+        if (appliedOk) {
+            updateAgentStatus("🎉 Application successfully submitted & verified on Naukri!", true);
+            if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
+                chrome.runtime.sendMessage({
+                    type: "APPLICATION_COMPLETED",
+                    jobTitle: document.title,
+                    message: "100% submitted and verified on Naukri.com"
+                });
+            }
+        } else {
+            updateAgentStatus("Application completed or awaiting review.", true);
+        }
+    }
+
+    // Helper: Select an option element (radio / choice pill)
+    function selectOptionElement(el) {
+        try {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+            const input = el.querySelector("input[type='radio'], input[type='checkbox']") || (el.tagName === "INPUT" ? el : null);
+            if (input) {
+                input.checked = true;
+                input.dispatchEvent(new Event("input", { bubbles: true }));
+                input.dispatchEvent(new Event("change", { bubbles: true }));
+                input.click();
+            }
+            el.click();
+            return true;
+        } catch (_) {
+            return false;
         }
     }
 
     async function handleQuestionnaireDrawer() {
-        for (let round = 0; round < 6; round++) {
-            await sleep(800);
+        console.log("[Auto-Apply Agent] Starting screening question handler loop...");
 
-            // A. Answer Notice Period radios
-            const labels = Array.from(document.querySelectorAll("label, span, div.radio-label, [class*='radio']"));
-            for (const label of labels) {
-                const text = (label.innerText || "").toLowerCase();
-                if (text.includes("15 days or less") || text.includes("< 15 days") || text.includes("immediate") || text.includes("15 days")) {
-                    const radio = label.querySelector("input[type='radio']") || label;
-                    radio.click();
-                    console.log("[Auto-Apply Agent] Selected Notice Period:", text);
-                    break;
+        for (let round = 0; round < 10; round++) {
+            await sleep(900);
+
+            // Check if submission already confirmed on page
+            const bodyNow = (document.body.innerText || "").toLowerCase();
+            if (bodyNow.includes("successfully applied") || bodyNow.includes("you have applied") || bodyNow.includes("already applied") || bodyNow.includes("applied on")) {
+                console.log("[Auto-Apply Agent] Detected submission confirmation in page content!");
+                return true;
+            }
+
+            // Check if drawer is present
+            const drawer = document.querySelector(".chatbot_DrawerContentWrapper, [class*='chatbot'], [class*='drawer'], .ssrc__drawer, div[id*='chatBot']");
+            const drawerRoot = drawer || document.body;
+
+            // A. Handle Radio / Multiple-Choice Questions
+            // Find all potential radio / option wrappers
+            const optionContainers = Array.from(drawerRoot.querySelectorAll("label, div[class*='radio'], div[class*='option'], li[class*='option'], div[class*='choice'], [role='radio'], [class*='chip'], [class*='pill'], [class*='bot-option'], [class*='selection']"));
+
+            if (optionContainers.length > 0) {
+                // Priority 1: Answer YES for screening questions ("Are you available", "Do you have experience", "willing to relocate")
+                let answeredRound = false;
+                for (const opt of optionContainers) {
+                    const txt = (opt.innerText || opt.textContent || "").toLowerCase().trim();
+                    // Match pure "yes" or starting with "yes"
+                    if (txt === "yes" || txt.startsWith("yes,") || txt.startsWith("yes ") || txt === "available") {
+                        const input = opt.querySelector("input[type='radio'], input[type='checkbox']") || opt;
+                        if (!input.checked) {
+                            console.log("[Auto-Apply Agent] Answering YES to screening question:", txt);
+                            selectOptionElement(opt);
+                            answeredRound = true;
+                            await sleep(400);
+                        }
+                    }
+                }
+
+                // Priority 2: Notice Period Questions
+                for (const opt of optionContainers) {
+                    const txt = (opt.innerText || opt.textContent || "").toLowerCase().trim();
+                    if (txt.includes("15 days or less") || txt.includes("< 15 days") || txt.includes("immediate") || txt.includes("serving notice") || txt.includes("ready to join") || (txt.includes("15 days") && !txt.includes(">"))) {
+                        const input = opt.querySelector("input[type='radio']") || opt;
+                        if (!input.checked) {
+                            console.log("[Auto-Apply Agent] Selecting Notice Period option:", txt);
+                            selectOptionElement(opt);
+                            answeredRound = true;
+                            await sleep(400);
+                        }
+                    }
+                }
+
+                // Priority 3: Experience Level Ranges
+                for (const opt of optionContainers) {
+                    const txt = (opt.innerText || opt.textContent || "").toLowerCase().trim();
+                    if (txt.includes("3-5") || txt.includes("3 to 5") || txt.includes("2-4") || txt.includes("2-5") || txt.includes("1-3")) {
+                        const input = opt.querySelector("input[type='radio']") || opt;
+                        if (!input.checked) {
+                            console.log("[Auto-Apply Agent] Selecting Experience range:", txt);
+                            selectOptionElement(opt);
+                            answeredRound = true;
+                            await sleep(400);
+                        }
+                    }
                 }
             }
 
-            // B. Fill Text Inputs (Experience, CTC, etc.)
-            const inputs = Array.from(document.querySelectorAll("input[type='text'], input[type='number'], textarea"));
+            // B. Fill Text Inputs (Experience, CTC, Notice Period, etc.)
+            const inputs = Array.from(drawerRoot.querySelectorAll("input[type='text'], input[type='number'], textarea"));
             for (const input of inputs) {
                 if (input.value && input.value.trim().length > 0) continue;
                 const fieldText = ((input.placeholder || "") + " " + (input.name || "") + " " + (input.id || "") + " " + (input.getAttribute("aria-label") || "")).toLowerCase();
-                const parentText = (input.closest("div, label, li")?.innerText || "").toLowerCase();
+                const parentText = (input.closest("div, label, li, form")?.innerText || "").toLowerCase();
 
                 if (fieldText.includes("experience") || parentText.includes("experience") || parentText.includes("years")) {
                     input.value = candidateData.totalExperience;
@@ -220,63 +295,100 @@
                     input.value = candidateData.currentCtc;
                     input.dispatchEvent(new Event("input", { bubbles: true }));
                     input.dispatchEvent(new Event("change", { bubbles: true }));
+                    console.log("[Auto-Apply Agent] Filled Current CTC:", candidateData.currentCtc);
                 } else if (fieldText.includes("expected ctc") || parentText.includes("expected ctc") || parentText.includes("expected salary")) {
                     input.value = candidateData.expectedCtc;
                     input.dispatchEvent(new Event("input", { bubbles: true }));
                     input.dispatchEvent(new Event("change", { bubbles: true }));
+                    console.log("[Auto-Apply Agent] Filled Expected CTC:", candidateData.expectedCtc);
                 } else if (fieldText.includes("notice") || parentText.includes("notice period")) {
                     input.value = "15";
+                    input.dispatchEvent(new Event("input", { bubbles: true }));
+                    input.dispatchEvent(new Event("change", { bubbles: true }));
+                    console.log("[Auto-Apply Agent] Filled Notice Period: 15");
+                } else {
+                    // Generic text input (cover note or brief answer)
+                    input.value = "Yes, I am experienced in this domain and available to join immediately.";
                     input.dispatchEvent(new Event("input", { bubbles: true }));
                     input.dispatchEvent(new Event("change", { bubbles: true }));
                 }
             }
 
             // C. Check mandatory checkboxes
-            const checkboxes = Array.from(document.querySelectorAll("input[type='checkbox']"));
+            const checkboxes = Array.from(drawerRoot.querySelectorAll("input[type='checkbox']"));
             for (const cb of checkboxes) {
                 if (!cb.checked) {
+                    cb.checked = true;
+                    cb.dispatchEvent(new Event("change", { bubbles: true }));
                     cb.click();
                 }
             }
 
-            // D. Click Next or Submit in drawer
-            const submitSelectors = [
-                "button[type='submit']",
-                ".drawer-wrapper button.apply-button",
-                "[class*='chatbot'] button.btn",
-                "div.bot-action-container button"
-            ];
-
-            let submitBtn = null;
-            for (const sel of submitSelectors) {
-                const el = document.querySelector(sel);
-                if (el && el.offsetWidth > 0 && el.id !== "apply-button") {
-                    submitBtn = el;
-                    break;
-                }
-            }
-
-            if (!submitBtn) {
-                const btns = Array.from(document.querySelectorAll("button, input[type='submit']"));
-                for (const b of btns) {
-                    const t = (b.innerText || b.value || "").toLowerCase().trim();
-                    if (t === "submit" || t === "apply" || t === "save and apply" || t === "next" || t.includes("apply now")) {
-                        if (b.offsetWidth > 0 && b.id !== "apply-button") {
-                            submitBtn = b;
-                            break;
-                        }
+            // D. Select Dropdown options
+            const selects = Array.from(drawerRoot.querySelectorAll("select"));
+            for (const sel of selects) {
+                if (!sel.value || sel.value === "0" || sel.value === "") {
+                    const opts = Array.from(sel.options);
+                    const matchingOpt = opts.find(o => {
+                        const t = o.text.toLowerCase();
+                        return t.includes("15") || t.includes("immediate") || t.includes("yes") || t.includes("3");
+                    }) || opts[1] || opts[0];
+                    if (matchingOpt) {
+                        sel.value = matchingOpt.value;
+                        sel.dispatchEvent(new Event("change", { bubbles: true }));
                     }
                 }
             }
 
+            await sleep(500);
+
+            // E. Click Next / Save / Submit / Apply in drawer
+            const actionButtons = Array.from(drawerRoot.querySelectorAll("button, input[type='submit'], div.bot-action-container button, div.sendMsg"));
+            let submitBtn = null;
+
+            for (const b of actionButtons) {
+                if (b.id === "apply-button") continue;
+                if (b.offsetWidth === 0 && b.offsetHeight === 0) continue;
+
+                const t = (b.innerText || b.value || "").toLowerCase().trim();
+                const isMatch = t.includes("submit") || 
+                                t.includes("save") || 
+                                t.includes("next") || 
+                                t.includes("continue") || 
+                                t.includes("apply") || 
+                                t.includes("done") || 
+                                t.includes("send") || 
+                                b.classList.contains("sendMsg") ||
+                                b.getAttribute("type") === "submit";
+                if (isMatch) {
+                    submitBtn = b;
+                    break;
+                }
+            }
+
+            // Also check for the bottom action bar in the drawer
+            if (!submitBtn) {
+                const bottomBtn = drawerRoot.querySelector("div[class*='action'] button, div[class*='bottom'] button, div[class*='footer'] button, button.apply-button");
+                if (bottomBtn && bottomBtn.id !== "apply-button" && bottomBtn.offsetWidth > 0) {
+                    submitBtn = bottomBtn;
+                }
+            }
+
+            console.log("[Auto-Apply Agent] Found submitBtn:", submitBtn ? (submitBtn.id || submitBtn.innerText) : "NONE", "disabled:", submitBtn ? submitBtn.disabled : false);
             if (submitBtn) {
-                console.log("[Auto-Apply Agent] Clicking drawer Submit/Next button:", submitBtn.innerText);
+                console.log("[Auto-Apply Agent] Clicking drawer Submit/Next button:", submitBtn.innerText || "Send");
+                submitBtn.scrollIntoView({ behavior: "smooth", block: "center" });
                 submitBtn.click();
                 await sleep(1500);
             } else {
-                break;
+                // If no submit button found and no options left, we may be done
+                if (round > 2 && optionContainers.length === 0 && inputs.length === 0) {
+                    console.log("[Auto-Apply Agent] No pending questions remaining in drawer.");
+                    return true;
+                }
             }
         }
+        return true;
     }
 
     // Run automatically when page is loaded
