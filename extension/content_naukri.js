@@ -88,16 +88,18 @@
     };
 
     // Load candidate profile from storage
-    chrome.storage.local.get(["candidateProfile"], (res) => {
-        if (res && res.candidateProfile) {
-            const p = res.candidateProfile;
-            candidateData.totalExperience = String(p.experience_years || candidateData.totalExperience);
-            candidateData.noticePeriod = p.notice_period || candidateData.noticePeriod;
-            candidateData.currentCtc = String(p.current_ctc || candidateData.currentCtc);
-            candidateData.expectedCtc = String(p.expected_ctc || candidateData.expectedCtc);
-            if (Array.isArray(p.skills)) candidateData.skills = p.skills;
-        }
-    });
+    if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.get(["candidateProfile"], (res) => {
+            if (res && res.candidateProfile) {
+                const p = res.candidateProfile;
+                candidateData.totalExperience = String(p.experience_years || candidateData.totalExperience);
+                candidateData.noticePeriod = p.notice_period || candidateData.noticePeriod;
+                candidateData.currentCtc = String(p.current_ctc || candidateData.currentCtc);
+                candidateData.expectedCtc = String(p.expected_ctc || candidateData.expectedCtc);
+                if (Array.isArray(p.skills)) candidateData.skills = p.skills;
+            }
+        });
+    }
 
     async function executeNaukriAutoApply() {
         createAgentOverlay();
@@ -105,22 +107,26 @@
         await sleep(1500);
 
         // 1. Check if user is logged in
-        const loginApplyBtn = document.querySelector("#login-apply-button, button:has-text('Login to apply')");
+        const loginApplyBtn = document.querySelector("#login-apply-button") ||
+            Array.from(document.querySelectorAll("button, a")).find(b => (b.innerText || "").toLowerCase().includes("login to apply") && b.offsetWidth > 0);
         if (loginApplyBtn && loginApplyBtn.offsetWidth > 0) {
             updateAgentStatus("⚠️ Please log into Naukri in this tab to apply.", false, true);
             return;
         }
 
         // 2. Check if already applied
-        const alreadyAppliedEl = document.querySelector("#already-applied, span:has-text('Applied'), button:has-text('Applied')");
-        const bodyText = document.body.innerText.toLowerCase();
+        const alreadyAppliedEl = document.querySelector("#already-applied") ||
+            Array.from(document.querySelectorAll("span, button, div")).find(b => (b.innerText || "").toLowerCase().includes("already applied") && b.offsetWidth > 0);
+        const bodyText = (document.body.innerText || "").toLowerCase();
         if ((alreadyAppliedEl && alreadyAppliedEl.offsetWidth > 0) || bodyText.includes("you have already applied") || bodyText.includes("applied on")) {
             updateAgentStatus("✅ Already Applied to this job earlier!", true);
-            chrome.runtime.sendMessage({
-                type: "APPLICATION_COMPLETED",
-                jobTitle: document.title,
-                message: "Already applied earlier on Naukri."
-            });
+            if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
+                chrome.runtime.sendMessage({
+                    type: "APPLICATION_COMPLETED",
+                    jobTitle: document.title,
+                    message: "Already applied earlier on Naukri."
+                });
+            }
             return;
         }
 
@@ -149,7 +155,8 @@
         }
 
         if (!applyBtn) {
-            const extBtn = document.querySelector("#company-site-button, button:has-text('Apply on company site')");
+            const extBtn = document.querySelector("#company-site-button") ||
+                Array.from(document.querySelectorAll("button, a")).find(b => (b.innerText || "").toLowerCase().includes("apply on company site") && b.offsetWidth > 0);
             if (extBtn) {
                 updateAgentStatus("ℹ️ External company portal listing.", false, false);
                 return;
@@ -172,11 +179,13 @@
         // 6. Verify submission confirmation
         await sleep(2000);
         updateAgentStatus("🎉 Application successfully submitted & verified on Naukri!", true);
-        chrome.runtime.sendMessage({
-            type: "APPLICATION_COMPLETED",
-            jobTitle: document.title,
-            message: "100% submitted and verified on Naukri.com"
-        });
+        if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
+            chrome.runtime.sendMessage({
+                type: "APPLICATION_COMPLETED",
+                jobTitle: document.title,
+                message: "100% submitted and verified on Naukri.com"
+            });
+        }
     }
 
     async function handleQuestionnaireDrawer() {
@@ -234,16 +243,20 @@
             const submitSelectors = [
                 "button[type='submit']",
                 ".drawer-wrapper button.apply-button",
-                "button:has-text('Submit')",
-                "button:has-text('Apply')",
-                "button:has-text('Save and apply')",
-                "button:has-text('Next')",
                 "[class*='chatbot'] button.btn",
                 "div.bot-action-container button"
             ];
 
             let submitBtn = null;
             for (const sel of submitSelectors) {
+                const el = document.querySelector(sel);
+                if (el && el.offsetWidth > 0 && el.id !== "apply-button") {
+                    submitBtn = el;
+                    break;
+                }
+            }
+
+            if (!submitBtn) {
                 const btns = Array.from(document.querySelectorAll("button, input[type='submit']"));
                 for (const b of btns) {
                     const t = (b.innerText || b.value || "").toLowerCase().trim();
@@ -254,7 +267,6 @@
                         }
                     }
                 }
-                if (submitBtn) break;
             }
 
             if (submitBtn) {

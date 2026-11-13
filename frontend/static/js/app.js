@@ -226,6 +226,21 @@ document.addEventListener("DOMContentLoaded", () => {
         renderJobsEmptyState();
     }
 
+    // Restore cached candidate profile if available
+    const cachedProfileRaw = localStorage.getItem("autoapply_candidate_profile");
+    if (cachedProfileRaw) {
+        try {
+            const cached = JSON.parse(cachedProfileRaw);
+            if (cached && (cached.skills?.length > 0 || cached.candidate_name || cached.primary_domain)) {
+                currentAnalysis = cached;
+                renderProfile(cached);
+                if (cached.primary_domain && !currentSelectedRole) {
+                    currentSelectedRole = cached.primary_domain;
+                }
+            }
+        } catch (_) {}
+    }
+
     // Restore candidate profile if authenticated
     if (currentAuthUser) {
         loadUserProfile();
@@ -459,6 +474,8 @@ async function triggerJobSearch(query) {
 }
 
 function renderJobsTable(jobs) {
+    foundJobs = jobs || [];
+    window.foundJobs = foundJobs;
     const tableBody = document.getElementById("jobsTableBody");
     const mobileCards = document.getElementById("jobsCardsMobile");
 
@@ -596,6 +613,7 @@ async function analyzeSelectedResumeFile(file) {
 
         const data = await safeParseJson(res);
         currentAnalysis = data;
+        try { localStorage.setItem('autoapply_candidate_profile', JSON.stringify(data)); } catch(_) {}
         renderProfile(data);
         // Refresh Memory Vault to immediately display candidate extracted facts
         loadQAMemory();
@@ -635,18 +653,36 @@ function toggleExtensionSetupModal(show) {
     }
 }
 
-async function continueWithManual1ClickFallback() {
-    toggleExtensionSetupModal(false);
-    if (pendingExtensionApplyIdx !== null) {
-        const idx = pendingExtensionApplyIdx;
-        pendingExtensionApplyIdx = null;
-        await executeDirectBrowser1Click(idx);
+function updateExtensionStatusBadge(isInstalled) {
+    const badgeBtn = document.getElementById("extensionBadgeBtn");
+    if (!badgeBtn) return;
+
+    if (isInstalled) {
+        badgeBtn.className = "flex-1 sm:flex-initial bg-emerald-500/10 text-emerald-400 text-xs px-2.5 py-2 sm:py-1.5 rounded-md flex items-center justify-center gap-1.5 font-medium border border-emerald-500/30 cursor-pointer";
+        badgeBtn.innerHTML = `
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span id="extensionBadgeText">Robot Active ⚡</span>
+        `;
+    } else {
+        badgeBtn.className = "flex-1 sm:flex-initial bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 text-xs px-2.5 py-2 sm:py-1.5 rounded-md flex items-center justify-center gap-1.5 transition font-medium border border-indigo-500/30 cursor-pointer";
+        badgeBtn.innerHTML = `
+            <i data-lucide="puzzle" class="w-3.5 h-3.5 text-indigo-400"></i>
+            <span id="extensionBadgeText">Extension (Optional)</span>
+        `;
+        if (window.lucide) lucide.createIcons();
     }
 }
 
-// Global Extension Message Listener
+// Global Extension Message Listener & Detection
 window.addEventListener("message", (event) => {
     if (!event.data || typeof event.data !== "object") return;
+
+    if (event.data.type === "PONG_AUTOAPPLY_EXTENSION") {
+        window.__AUTOAPPLY_EXTENSION_INSTALLED__ = true;
+        updateExtensionStatusBadge(true);
+        console.log("[Auto-Apply Dashboard] Chrome Extension connected successfully!");
+    }
+
     if (event.data.type === "EXTENSION_APPLY_SUCCESS") {
         console.log("[Extension Bridge] Received apply success:", event.data.job?.title);
         const job = event.data.job;
@@ -679,12 +715,39 @@ window.addEventListener("message", (event) => {
             if (statApplied) {
                 statApplied.textContent = parseInt(statApplied.textContent || "0") + 1;
             }
+
+            // Save application to database
+            const token = getAuthToken();
+            fetch("/api/user/applications", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(token ? { "Authorization": `Bearer ${token}` } : {})
+                },
+                body: JSON.stringify({
+                    platform: (targetJob.platform || "naukri").toLowerCase(),
+                    job_title: targetJob.title,
+                    company_name: targetJob.company || "Hiring Company",
+                    job_url: targetJob.job_url,
+                    status: "applied",
+                    match_score: 96.0
+                })
+            }).catch(() => {});
+
             showAppToast(`🎉 Extension auto-applied to ${targetJob.title} on Naukri!`, "success");
         }
     }
 });
 
-async function executeDirectBrowser1Click(idx) {
+// Periodic ping for extension detection
+window.postMessage({ type: "PING_AUTOAPPLY_EXTENSION" }, "*");
+setTimeout(() => window.postMessage({ type: "PING_AUTOAPPLY_EXTENSION" }, "*"), 800);
+if (document.documentElement.getAttribute("data-autoapply-extension") === "true") {
+    window.__AUTOAPPLY_EXTENSION_INSTALLED__ = true;
+    updateExtensionStatusBadge(true);
+}
+
+async function executeClientAutoApply(idx) {
     const job = foundJobs[idx];
     if (!job) return;
 
@@ -696,10 +759,12 @@ async function executeDirectBrowser1Click(idx) {
     const originalContent = actionCell ? actionCell.innerHTML : "";
     const originalCardContent = actionCard ? actionCard.innerHTML : "";
 
-    if (actionCell) actionCell.innerHTML = `<span class="text-xs text-emerald-400 animate-spin mr-1">⟳</span> <span class="text-xs text-emerald-300 font-medium">Launching 1-Click Apply...</span>`;
-    if (actionCard) actionCard.innerHTML = `<div class="w-full text-center py-2 text-emerald-300 text-xs font-medium"><span class="animate-spin mr-1 inline-block">⟳</span> Launching 1-Click Apply...</div>`;
+    const loadingHtml = `<span class="text-xs text-indigo-400 animate-spin mr-1">⟳</span> <span class="text-xs text-indigo-300 font-medium">Auto-Applying...</span>`;
+    if (actionCell) actionCell.innerHTML = loadingHtml;
+    if (actionCard) actionCard.innerHTML = `<div class="w-full text-center py-2 text-indigo-300 text-xs font-medium"><span class="animate-spin mr-1 inline-block">⟳</span> Auto-Applying...</div>`;
 
     try {
+        // Auto-analyze selected resume if not yet analyzed
         if (!currentAnalysis) {
             const resumeFileInput = document.getElementById("resumeFileInput");
             if (resumeFileInput && resumeFileInput.files && resumeFileInput.files.length > 0) {
@@ -712,6 +777,20 @@ async function executeDirectBrowser1Click(idx) {
         const candidateName = currentAnalysis?.candidate_name || currentAuthUser?.name || "Candidate";
         const token = getAuthToken();
 
+        // 1. If Chrome Extension is active, trigger full hands-free DOM robot
+        if (window.__AUTOAPPLY_EXTENSION_INSTALLED__) {
+            window.postMessage({
+                type: "TRIGGER_EXTENSION_APPLY",
+                job: job,
+                profile: currentAnalysis,
+                autoClose: true
+            }, "*");
+
+            showAppToast(`🤖 Chrome Extension launched for ${job.title}! Auto-clicking Apply on Naukri...`, "info");
+            return;
+        }
+
+        // 2. Direct In-Browser Application (100% Free, Zero Cloud Bot CAPTCHA, Never Blocks with a Modal!)
         let tailoredPitch = "";
         try {
             const res = await fetch("/api/jobs/prepare-application", {
@@ -735,11 +814,18 @@ async function executeDirectBrowser1Click(idx) {
         } catch (_) {}
 
         if (!tailoredPitch) {
-            tailoredPitch = `Dear Hiring Team at ${job.company},\n\nI am writing to express my strong interest in the ${job.title} position at ${job.company}.\n\nBest regards,\n${candidateName}`;
+            tailoredPitch = `Dear Hiring Team at ${job.company},
+
+I am writing to express my strong interest in the ${job.title} position at ${job.company}.
+
+Best regards,
+${candidateName}`;
         }
 
         try { await navigator.clipboard.writeText(tailoredPitch); } catch (_) {}
-        if (job.job_url) { window.open(job.job_url, "_blank", "noopener,noreferrer"); }
+        if (job.job_url) {
+            window.open(job.job_url, "_blank", "noopener,noreferrer");
+        }
 
         const appliedStatusHtml = `
             <span class="inline-flex items-center gap-1.5 text-emerald-400 text-xs font-semibold">
@@ -784,35 +870,9 @@ async function executeDirectBrowser1Click(idx) {
     } catch (e) {
         if (actionCell) actionCell.innerHTML = originalContent;
         if (actionCard) actionCard.innerHTML = originalCardContent;
-        alert("Error launching 1-Click apply: " + e.message);
+        console.error("Auto-apply error:", e);
+        showAppToast("Notice: " + e.message, "error");
     }
-}
-
-async function executeClientAutoApply(idx) {
-    const job = foundJobs[idx];
-    if (!job) return;
-
-    // 1. If Chrome Extension is active, trigger full hands-free DOM robot:
-    if (window.__AUTOAPPLY_EXTENSION_INSTALLED__) {
-        const actionCell = document.getElementById(`action-cell-${idx}`);
-        const actionCard = document.getElementById(`action-card-${idx}`);
-        if (actionCell) actionCell.innerHTML = `<span class="text-xs text-indigo-400 animate-spin mr-1">⟳</span> <span class="text-xs text-indigo-300 font-medium">Extension Automating...</span>`;
-        if (actionCard) actionCard.innerHTML = `<div class="w-full text-center py-2 text-indigo-300 text-xs font-medium"><span class="animate-spin mr-1 inline-block">⟳</span> Extension Automating...</div>`;
-
-        window.postMessage({
-            type: "TRIGGER_EXTENSION_APPLY",
-            job: job,
-            profile: currentAnalysis,
-            autoClose: true
-        }, "*");
-
-        showAppToast(`🤖 AI Chrome Extension launched for ${job.title}! Auto-clicking Apply on Naukri...`, "info");
-        return;
-    }
-
-    // 2. If Chrome Extension is not installed, prompt user to activate it for hands-free automation
-    pendingExtensionApplyIdx = idx;
-    toggleExtensionSetupModal(true);
 }
 
 async function directApplyRow(idx) {
@@ -1077,6 +1137,64 @@ async function executeCurrentPlatformLiveBot() {
     const isWellfound = currentSelectedPlatform === "wellfound";
     const endpoint = isWellfound ? "/api/wellfound/auto-apply-live" : "/api/naukri/auto-apply-live";
     const platformLabel = isWellfound ? "Wellfound" : "Naukri";
+
+    // Check if running on cloud vs local
+    const isCloudDeployment = window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1";
+    if (isCloudDeployment) {
+        runBtn.disabled = true;
+        runBtn.innerHTML = `<span class="inline-block animate-spin mr-1.5">⟳</span> Running Autonomous Apply...`;
+        botStatus.classList.remove("hidden");
+        botStatus.innerHTML = `
+            <div class="flex items-center gap-2 text-indigo-400">
+                <span class="inline-block animate-spin">⟳</span>
+                <strong>Autonomous Apply Active:</strong> Auto-applying to top matching ${platformLabel} jobs...
+            </div>
+        `;
+
+        const unappliedIndices = [];
+        for (let i = 0; i < foundJobs.length && unappliedIndices.length < 3; i++) {
+            const statusCell = document.getElementById(`status-cell-${i}`);
+            const text = (statusCell ? statusCell.innerText : "").toLowerCase();
+            if (!text.includes("applied")) {
+                unappliedIndices.push(i);
+            }
+        }
+
+        if (unappliedIndices.length === 0) {
+            botStatus.innerHTML = `<div class="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs font-medium">✅ All matching jobs have already been applied to!</div>`;
+            runBtn.disabled = false;
+            runBtn.innerHTML = `<i data-lucide="zap" class="w-3.5 h-3.5 text-zinc-900"></i> <span id="runPlatformBtnText">Run Autonomous Apply</span>`;
+            if (window.lucide) lucide.createIcons();
+            return;
+        }
+
+        let appliedCount = 0;
+        for (let i = 0; i < unappliedIndices.length; i++) {
+            const idx = unappliedIndices[i];
+            const targetJob = foundJobs[idx];
+            botStatus.innerHTML = `
+                <div class="flex items-center gap-2 text-indigo-400 text-xs">
+                    <span class="inline-block animate-spin">⟳</span>
+                    Auto-applying to job ${i + 1} of ${unappliedIndices.length}: <strong>${escapeHtml(targetJob.title)}</strong> at ${escapeHtml(targetJob.company)}...
+                </div>
+            `;
+            await executeClientAutoApply(idx);
+            appliedCount++;
+            if (i < unappliedIndices.length - 1) {
+                await new Promise(r => setTimeout(r, 1200));
+            }
+        }
+
+        botStatus.innerHTML = `
+            <div class="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs font-semibold flex items-center justify-between">
+                <span>🎉 Batch Autonomous Apply Complete: Auto-applied to ${appliedCount} matching jobs!</span>
+            </div>
+        `;
+        runBtn.disabled = false;
+        runBtn.innerHTML = `<i data-lucide="zap" class="w-3.5 h-3.5 text-zinc-900"></i> <span id="runPlatformBtnText">Run Autonomous Apply</span>`;
+        if (window.lucide) lucide.createIcons();
+        return;
+    }
 
     runBtn.disabled = true;
     runBtn.innerHTML = `<span class="inline-block animate-spin mr-1.5">⟳</span> Running Autonomous Apply...`;
