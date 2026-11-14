@@ -1,10 +1,11 @@
 @echo off
-title Personal Local Job Agent (Naukri ^& Wellfound)
+title Personal Local Job Agent (Naukri, Wellfound, LinkedIn, YC)
 color 0A
 cd /d "%~dp0"
 
 echo ==================================================================
-echo   Starting Personal Local Job Agent...
+echo   🚀 Starting Autonomous Job Agent (4 Platforms Supported)
+echo   Platforms: Naukri | Wellfound | LinkedIn | Y Combinator
 echo ==================================================================
 
 if exist "backend\venv\Scripts\python.exe" (

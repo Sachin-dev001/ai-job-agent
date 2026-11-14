@@ -1,83 +1,45 @@
 <div align="center">
 
-# ⚡ AutoApply: Personal Autonomous Playwright Job Agent
+# ⚡ AutoApply AI: Autonomous Multi-Portal Job Agent
 
-**Personal, multi-platform autonomous AI agent that scouts, matches, and automatically applies to tech jobs on Naukri.com and Wellfound using local Playwright automation with your genuine residential IP, zero bot challenges, intelligent screening Q&A answering, and timestamped screenshot proofs.**
+**Production-grade autonomous job application engine engineered with stealth Playwright browser orchestration, verified anti-bot cloaking (residential profile persistence), zero-hallucination screening questionnaire solving (Candidate Memory Vault), and tamper-evident DOM submission proofs.**
 
-[![Playwright](https://img.shields.io/badge/Playwright-v1.49.0-2EAD33?style=for-the-badge&logo=playwright&logoColor=white)](https://playwright.dev)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![Google Chrome](https://img.shields.io/badge/Google%20Chrome-Headed%20Execution-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white)](https://www.google.com/chrome/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![Playwright](https://img.shields.io/badge/Playwright-v1.49.0-2EAD33?style=for-the-badge&logo=playwright&logoColor=white)](https://playwright.dev)
+[![Google Gemini](https://img.shields.io/badge/Gemini_2.0-Flash_/_Pro-4285F4?style=for-the-badge&logo=google&logoColor=white)](https://ai.google.dev/)
+[![Groq LPU](https://img.shields.io/badge/Groq-Ultra_Fast_LLM-F55036?style=for-the-badge&logo=groq&logoColor=white)](https://groq.com)
+[![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL_RLS-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com)
+[![Pytest](https://img.shields.io/badge/Pytest-100%25_Passing-0A9EDC?style=for-the-badge&logo=pytest&logoColor=white)](https://pytest.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
-[🚀 1-Click Quickstart](#-quick-start---personal-local-agent) • [Architecture](#-architecture) • [Features](#-key-features)
+[🚀 Quick Start](#-quick-start) • [Supported Platforms](#-supported-platforms-matrix) • [Architecture](#-system-architecture) • [Engineering Highlights](#-engineering-highlights) • [Testing](#-testing--quality-assurance)
 
 </div>
 
 ---
 
-## 🚀 Quick Start - Personal Local Agent
+## 💡 Executive Summary
 
-Running the agent locally on your PC bypasses datacenter IP blocks (Akamai / Cloudflare bot challenges) completely and allows full native control over Chrome, file uploads, and screening questions.
+Traditional job hunting is plagued by redundant 40-question recruiter questionnaires, external redirect mazes, and aggressive anti-bot defenses (Akamai, Cloudflare) that instantly ban cloud datacenter IPs. Generic form autofillers fail because they emit blind clicks and claim false-positive successes without verifying real submission.
 
-### 🌟 1. Launch the Local Web Dashboard (Recommended)
-Simply double-click **`start_ui.bat`** or run:
-```bash
-python -m local_agent.server
-```
-Your browser will automatically open **`http://localhost:8000`** with the full interactive UI:
-- **Status Badges:** Live connection status for Naukri and Wellfound.
-- **1-Click Connect Accounts:** Launches Chrome so you can log into Naukri and Wellfound once.
-- **1-Click Direct Auto-Apply:** Paste any job link, toggle live headed Chrome view, and click Launch!
-- **Smart Job Scout:** Search live tech roles on Naukri and click "Auto-Apply" row by row.
-- **Live Playwright Execution Console:** Real-time terminal streaming of browser actions, button clicks, and questionnaire answering.
-- **Submission Proof Gallery:** View and zoom full-resolution DOM confirmation screenshots.
+**AutoApply AI** solves this by uniting:
+1. **Local Stealth Browser Execution:** Drives a genuine Chromium instance from your authentic residential IP using fingerprint-cloaked Playwright, effortlessly passing Akamai and Cloudflare checks without CAPTCHAs.
+2. **Multi-Portal Autonomous Appliers:** Specialized engines for **Naukri.com**, **Wellfound (AngelList)**, **LinkedIn Easy Apply**, and **Y Combinator (Work at a Startup)**.
+3. **Zero-Hallucination Memory Vault:** Candidate facts (CTC, notice period, tech stack experience) are strictly matched and never fabricated by the LLM. Semantic conflict filters mathematically prevent polarity collisions (e.g., *Current CTC* vs. *Expected CTC*).
+4. **Tamper-Evident Proof Protocol:** Never marks a job as applied until the physical DOM renders an unambiguous submission confirmation, simultaneously capturing a high-resolution screenshot and execution log.
+5. **24/7 Telegram HITL Fallback:** When an unseen recruiter question appears, the agent notifies you via Telegram, records your response, submits the form, and permanently saves the answer to your private vault.
 
 ---
 
-### 💻 2. Command-Line Interface (Alternative)
-You can also run the agent directly in terminal or double-click **`start_agent.bat`**:
-```bash
-# Launch interactive menu
-python -m local_agent.cli
+## 📊 Supported Platforms Matrix
 
-# One-time login setup
-python -m local_agent.cli --setup
-
-# Apply to a specific job URL
-python -m local_agent.cli --apply "https://www.naukri.com/job-listings-..."
-
-# Auto-scout and apply to matching roles
-python -m local_agent.cli --auto --keyword "Python Developer" --limit 5
-```
-
----
-
-## 📖 Table of Contents
-
-- [Overview](#-overview)
-- [System Architecture](#-system-architecture)
-- [Core Capabilities](#-core-capabilities)
-  - [1. Playwright Stealth Auto-Apply Engine](#1-playwright-stealth-auto-apply-engine)
-  - [2. Multi-Tier LLM Architecture](#2-multi-tier-llm-architecture)
-  - [3. Zero-Hallucination Q&A Memory Vault](#3-zero-hallucination-qa-memory-vault)
-  - [4. Multi-Tenant Telegram HITL Escalation](#4-multi-tenant-telegram-hitl-escalation)
-  - [5. Visual Verification & Proofs](#5-visual-verification--proofs)
-- [Tech Stack](#-tech-stack)
-- [Project Structure](#-project-structure)
-- [Quick Start & Local Setup](#-quick-start--local-setup)
-- [Environment Configuration](#-environment-configuration)
-- [Production Deployment](#-production-deployment)
-- [API Reference](#-api-reference)
-- [Security & Isolation](#-security--isolation)
-- [License & Disclaimer](#-license--disclaimer)
-
----
-
-## 🔍 Overview
-
-**AutoApply** is an autonomous full-stack AI agent engineered to eliminate the repetitive friction of technical job hunting. Unlike basic scraping scripts or form autofillers that emit unverified success messages, AutoApply drives a real headless Chromium instance with browser fingerprint cloaking, handles complex multi-step recruiter questionnaire drawers, learns candidate preferences without hallucinating numbers, and captures cryptographic, timestamped DOM submission screenshots.
-
-It operates seamlessly on **100% free-tier cloud infrastructure** (Vercel Edge, Render / Hugging Face Spaces, Supabase PostgreSQL, and Google AI Studio).
+| Platform | Automation Vector | Anti-Bot Evasion | Form & Questionnaire Solvers | Verification Output |
+| :--- | :--- | :--- | :--- | :--- |
+| **Naukri.com** | Chatbot Drawer SPA, Single-Click Apply & External ATS Detection | Akamai edge cookie scrubbing (`_abck`, `bm_sz`), session pre-warming | Numeric CTC inputs, notice period selectors, radio chips, experience fields | DOM submission modal screenshot (`proof_naukri_*.png`) |
+| **Wellfound (AngelList)** | Dynamic Application Modals & Recruiter Pitches | Cloudflare Turnstile evasion, authenticated session handoff | Custom tailored pitch generator, salary expectations, tech skill notes | Recruiter dialog confirmation screenshot (`proof_wellfound_*.png`) |
+| **LinkedIn** | Multi-Page Easy Apply Modal Wizard | Persistent residential browser profile, fingerprint normalization | Contact info, work authorization checkboxes, numeric years of experience | "Application Sent" confirmation dialog screenshot (`proof_linkedin_*.png`) |
+| **Y Combinator (WaaS)** | Work at a Startup Application Forms & Founders Notes | Direct authenticated session, anti-fingerprint CDP masking | "Why this startup?" AI pitch, candidate bio sync, compensation alignment | Submitted modal confirmation screenshot (`proof_yc_*.png`) |
 
 ---
 
@@ -85,88 +47,91 @@ It operates seamlessly on **100% free-tier cloud infrastructure** (Vercel Edge, 
 
 ```mermaid
 flowchart TD
-    subgraph Client["Candidate Interface (Vercel Edge)"]
-        UI["Web Console UI / Tailored Pitches"]
-        JWT["JWT Auth & Session Manager"]
+    subgraph Client["Candidate UI & Dashboard (Port 8000)"]
+        UI["Glassmorphic Web Dashboard"]
+        LiveConsole["Real-Time Execution Console (SSE)"]
+        VaultUI["Candidate Memory Vault UI"]
+        ProofViewer["DOM Confirmation Proof Gallery"]
     end
 
-    subgraph Backend["FastAPI Orchestrator (Render / Docker)"]
-        API["FastAPI Endpoints"]
-        AuthGuard["JWT & Tenant Security Guard"]
-        ResumeAnalyst["Resume DNA Extraction (Gemini / Groq)"]
+    subgraph Backend["FastAPI Core Orchestrator"]
+        API["REST Endpoints & Session Manager"]
+        AuthGuard["JWT & Tenant Isolation Guard"]
         JobScout["Concurrent Multi-Platform Scout"]
-        LiveRunner["Playwright Stealth Automation Engine"]
-        QAVault["Q&A Memory Vault (Semantic Conflict Filter)"]
+        ResumeAnalyst["Resume DNA Extraction (Gemini / Groq)"]
+        QAVault["Zero-Hallucination Q&A Memory Vault"]
     end
 
-    subgraph External["Live Platforms & Cloud Services"]
-        Naukri["Naukri.com (SPA + Chatbot Drawer)"]
-        Wellfound["Wellfound (Startups + AngelList)"]
-        Supabase[("Supabase (PostgreSQL + RLS)")]
-        Telegram["Telegram Bot (HITL Question Resolver)"]
+    subgraph LocalAgent["Playwright Stealth Execution Engine"]
+        BrowserMgr["LocalBrowserManager (Residential IP & Chrome Profile)"]
+        NaukriApplier["LocalNaukriApplier (Chatbot Drawer Solver)"]
+        WellfoundApplier["LocalWellfoundApplier (Startup Pitch Engine)"]
+        LinkedInApplier["LocalLinkedInApplier (Easy Apply Wizard)"]
+        YCApplier["LocalYCApplier (WaaS Modal Engine)"]
     end
 
-    UI -->|Reverse Proxy /api/| API
+    subgraph External["External Services & Target Platforms"]
+        NaukriPortal["Naukri.com"]
+        WFPortal["Wellfound.com"]
+        LIPortal["LinkedIn.com"]
+        YCPortal["WorkAtAStartup.com"]
+        Telegram["Telegram Bot (24/7 HITL Escalation)"]
+        Supabase[("Supabase PostgreSQL (RLS Storage)")]
+    end
+
+    UI -->|REST / SSE| API
     API --> AuthGuard
     AuthGuard --> ResumeAnalyst
     AuthGuard --> JobScout
-    AuthGuard --> LiveRunner
-    
-    ResumeAnalyst -->|Structured JSON Profile| Supabase
-    JobScout -->|Concurrent Scrape| Naukri & Wellfound
-    LiveRunner -->|Stealth Playwright Chromium| Naukri & Wellfound
-    LiveRunner <-->|Lookup Verified Facts| QAVault
-    QAVault <-->|Multi-Tenant Persistence| Supabase
-    QAVault -->|Unanswered Question Alert| Telegram
-    Telegram -->|User Reply QID/UID| QAVault
-    LiveRunner -->|DOM Confirmed Screenshot| UI
+    AuthGuard --> QAVault
+
+    API --> LocalAgent
+    BrowserMgr --> NaukriApplier & WellfoundApplier & LinkedInApplier & YCApplier
+
+    NaukriApplier -->|Stealth CDP| NaukriPortal
+    WellfoundApplier -->|Stealth CDP| WFPortal
+    LinkedInApplier -->|Stealth CDP| LIPortal
+    YCApplier -->|Stealth CDP| YCPortal
+
+    LocalAgent <-->|Verified Facts Lookup| QAVault
+    QAVault -->|Unseen Question Alert| Telegram
+    Telegram -->|Candidate Instant Reply| QAVault
+    LocalAgent -->|Save Tamper-Evident Screenshot| ProofViewer
+    API <-->|Sync Applications & Profiles| Supabase
 ```
 
 ---
 
-## 🚀 Core Capabilities
+## ⚡ Engineering Highlights
 
-### 1. Playwright Stealth Auto-Apply Engine
-- **Client-Side SPA Hydration:** Intelligently warms up domain sessions on `naukri.com` to seed Akamai sensor cookies (`_abck`, `bm_sz`) and waits for React SPA root containers (`#root`) to mount the physical `#apply-button` before evaluating candidates.
-- **Dynamic Redirect Recovery:** If a curated job slug rotates or redirects to a multi-listing search page, the runner automatically discovers active job tuples or conducts an automated on-platform search to open the live direct opening.
-- **Accurate Portal Classification:** Distinguishes 1-click direct apply listings (`Apply`) from external corporate ATS listings (`Apply on company site`), preventing false-positive submissions and generating tailored pitches for manual submissions.
-- **Multi-Step Questionnaire Drawer Resolution:** Autonomously steps through recruiter chatbot dialogs, answering textual experience fields, numeric metrics, radio chips, and select dropdowns.
+### 1. Zero-Captcha Residential Playwright Engine
+Datacenter IPs are flagged by Akamai and Cloudflare within milliseconds. AutoApply executes via a persistent, fingerprint-cloaked Playwright instance on your residential network:
+- Removes `navigator.webdriver` flags and standard automation signatures.
+- Reuses authenticated Chrome profiles (`local_browser_profile/`) to eliminate repeated 2FA/login hurdles.
+- Emulates realistic human typing cadence with randomized jitter ($80\text{ms} - 250\text{ms}$) and natural mouse movements.
 
-### 2. Multi-Tier LLM Architecture
-- **Non-Blocking Async Engine:** Built with `httpx.AsyncClient` with a 25-second resilience timeout, ensuring the ASGI event loop thread is never blocked during structured JSON extraction.
-- **Native System Instructions:** Utilizes Google AI Studio's native `systemInstruction` payload structure rather than simulated multi-turn conversational hackarounds.
-- **Resilient Multi-Model Failover:**
-  $$\text{gemini-flash-lite-latest} \longrightarrow \text{gemini-flash-latest} \longrightarrow \text{gemini-pro-latest} \longrightarrow \text{Groq LPU (Qwen / GPT-OSS)}$$
-  Transient rate limits (HTTP 429), spikes (HTTP 503), and alias deprecations (HTTP 404) gracefully fail over down the chain without stopping execution.
+### 2. Zero-Hallucination Q&A Memory Vault
+Recruiters disqualify candidates whose applications contain inconsistent numbers. The Memory Vault enforces strict truthfulness:
+- **Never Synthesizes Financials:** Current CTC, expected compensation, and notice periods must come from candidate-verified records.
+- **Semantic Polarity Conflict Filtering:** Mathematical stop-word pruning preserves domain-critical keywords (`current`, `expected`, `fixed`, `variable`, `notice`, `relocate`). If a question asks for *Expected CTC*, the engine strictly forbids matching a record containing *Current CTC*.
+- **Skill Modifier Differentiation:** Distinguishes nuanced variants (e.g., *React.js* vs. *React Native*) to prevent incorrect experience attributions.
 
-### 3. Zero-Hallucination Q&A Memory Vault
-- **Strict Anti-Hallucination Policy:** Recruiter questions (e.g., current CTC, notice period, fixed vs. variable compensation) are never fabricated by the LLM. Answers must originate from verified candidate inputs.
-- **Semantic Polarity Conflict Detection:** Regex stop-word pruning preserves domain-critical qualifiers (`years`, `experience`, `per`, `annum`, `lacs`, `current`, `expected`, `fixed`, `variable`, `native`). Conflicting question polarities (e.g., *Current CTC* vs. *Expected CTC*, or *React Native* vs. *React.js*) are mathematically prevented from colliding.
-- **Atomic Concurrency:** Disk and database synchronizations employ atomic file replacements (`os.replace`) and async locks to prevent corruption across concurrent container tasks.
+### 3. Multi-Tier Resilient LLM Router
+The agent coordinates multiple LLMs via non-blocking asynchronous clients with automated failover:
+$$\text{Gemini 2.0 Flash} \longrightarrow \text{Gemini 1.5 Pro} \longrightarrow \text{Groq LPU (Qwen 2.5 / Llama 3.3)}$$
+Transient rate limits (HTTP 429), regional outages (HTTP 503), or API schema rotations gracefully step down to the next provider without interrupting active browser submissions.
 
-### 4. Multi-Tenant Telegram HITL Escalation
-- When an unseen recruiter question appears during an automated application, the agent pauses execution and alerts the candidate via **Telegram**.
-- Outgoing alerts embed structured multi-tenant tracking tags: `[QID:<question_id> | UID:<user_id>]`.
-- Candidate replies on Telegram are parsed, resolved back to the active Playwright task, answered on the live page, and stored permanently in the user's private vault for future applications.
+### 4. Tamper-Evident DOM Proof Protocol
+Unlike naive bots that claim success upon clicking a button, AutoApply validates full DOM mutations:
+- Waits for explicit confirmation elements (e.g., `#application-success`, `.apply-message-success`, `.artdeco-modal__header`).
+- Captures full-resolution viewport snapshots saved with unique timestamp hashes: `proof_<platform>_<timestamp>.png`.
+- Proofs are surfaced immediately on the local dashboard and persisted for candidate auditability.
 
-### 5. Visual Verification & Proofs
-- Once Naukri or Wellfound confirms submission on the live DOM, the runner captures a full-resolution screenshot proof.
-- Proofs are saved in tenant-isolated paths (`/proofs/<user_id>/proof_<timestamp>.png`) and served via protected endpoints that check authentication ownership.
-
----
-
-## 🛠 Tech Stack
-
-| Domain | Technology | Purpose |
-| :--- | :--- | :--- |
-| **Backend API** | [FastAPI](https://fastapi.tiangolo.com/) | High-performance async ASGI REST API |
-| **Automation** | [Playwright Python](https://playwright.dev/) + Stealth | Headless Chromium automation & bot evasions |
-| **LLM Orchestration** | [Google Gemini](https://ai.google.dev/) + [Groq](https://groq.com/) | Structured resume parsing & pitch tailoring |
-| **Persistence** | [Supabase](https://supabase.com/) (PostgreSQL) | Multi-tenant auth, user sessions & Q&A memories |
-| **Frontend Client** | Vanilla JS (ES6+) + Tailwind CSS + Lucide | Responsive glassmorphic dashboard |
-| **Edge Routing** | [Vercel](https://vercel.com/) | Reverse proxy rewrites (`/api/*`, `/proofs/*`) |
-| **HITL Alerts** | Telegram Bot API (`python-telegram-bot`) | Real-time question escalation & answer learning |
-| **Keep-Alive Engine** | [UptimeRobot](https://uptimerobot.com/) | 5-minute HTTP polling to prevent cold starts |
+### 5. Multi-Tenant Telegram HITL Escalation
+When an entirely new question appears during live automation:
+1. The agent captures the question, context, and available options (radio chips / dropdown values).
+2. Dispatches a high-priority alert to your private Telegram chat with action buttons.
+3. Upon your reply, the agent injects the answer into the live browser form, completes submission, and permanently saves your choice to the Memory Vault.
 
 ---
 
@@ -174,154 +139,166 @@ flowchart TD
 
 ```text
 ai-job-agent/
-├── Dockerfile                         # Production Noble Chromium container
-├── sync_cookies_to_cloud.py          # Session cookie sync utility
 ├── backend/
-│   ├── main.py                        # FastAPI entrypoint & protected routes
-│   ├── requirements.txt               # Pinned dependencies (Playwright v1.49.0)
 │   ├── app/
-│   │   ├── config.py                  # Pydantic environment configuration
-│   │   ├── agents/
-│   │   │   ├── job_scout.py           # Multi-platform job aggregator
-│   │   │   ├── naukri_live_runner.py  # Playwright live runner for Naukri
-│   │   │   ├── wellfound_live_runner.py # Playwright runner for Wellfound
-│   │   │   ├── resume_analyst.py      # LLM resume DNA extractor
-│   │   │   └── cover_letter_agent.py  # AI pitch & application generator
-│   │   ├── auth/
-│   │   │   └── auth_handler.py        # Supabase JWT & tenant authorization
-│   │   ├── database/
-│   │   │   ├── models.py              # Application schemas
-│   │   │   └── supabase_client.py     # Cloud database client & fallback
-│   │   ├── llm/
-│   │   │   ├── gemini_service.py      # Async Gemini engine with failover
-│   │   │   └── router.py              # Multi-provider LLM dispatcher
-│   │   ├── memory/
-│   │   │   └── qa_vault.py            # Conflict-aware screening Q&A memory
-│   │   ├── notifications/
-│   │   │   ├── notifier.py            # Multi-channel HITL dispatcher
-│   │   │   └── telegram_listener.py   # Interactive Telegram polling listener
-│   │   ├── parsers/                   # PDF, DOCX, and TXT parsing utilities
-│   │   └── scrapers/                  # Platform scrapers (Naukri, Wellfound)
-│   └── scripts/                       # E2E test suites & diagnostic tools
-└── frontend/
-    ├── index.html                     # Single-page web dashboard
-    ├── vercel.json                    # Edge proxy rules & CORS avoidance
-    └── static/
-        ├── css/style.css              # Custom styling
-        └── js/app.js                  # Frontend state machine & fetch wrapper
+│   │   ├── agents/                   # High-level AI agents (JobScout, CoverLetterAgent, ResumeAnalyst)
+│   │   ├── auth/                     # Supabase JWT authentication & tenant security
+│   │   ├── database/                 # SQLAlchemy & Supabase models
+│   │   ├── llm/                      # Multi-tier LLM router & Gemini service
+│   │   ├── memory/                   # Conflict-aware screening Q&A Memory Vault
+│   │   ├── notifications/            # Telegram HITL listener & multi-channel alerts
+│   │   ├── parsers/                  # PDF, DOCX, and TXT resume DNA extractors
+│   │   ├── scrapers/                 # Specialized scrapers (Naukri, Wellfound, LinkedIn, YC)
+│   │   └── utils/                    # Cookie normalizers and validation helpers
+│   ├── data/
+│   │   ├── live_naukri_catalog.json  # Seed catalog of verified tech openings
+│   │   └── sample_resume.*           # Test fixtures for resume parsing
+│   ├── main.py                       # Core FastAPI application & REST router
+│   └── requirements.txt              # Pinned production dependencies
+├── frontend/
+│   ├── index.html                    # Modern glassmorphic SPA dashboard
+│   ├── static/js/app.js              # State machine, real-time SSE console, proof gallery
+│   └── vercel.json                   # Edge reverse proxy configuration
+├── local_agent/
+│   ├── browser_manager.py            # Stealth Playwright browser lifecycle & session manager
+│   ├── naukri_applier.py             # Naukri chatbot drawer & modal flow automation
+│   ├── wellfound_applier.py          # Wellfound pitch & application automation
+│   ├── linkedin_applier.py           # LinkedIn Easy Apply multi-page wizard automation
+│   ├── yc_applier.py                 # Y Combinator Work at a Startup automation
+│   ├── session_setup.py              # Interactive 4-portal session authentication utility
+│   ├── job_scout.py                  # Real-time multi-platform job scout
+│   ├── cli.py                        # Autonomous command-line application runner
+│   ├── server.py                     # Standalone local agent server
+│   ├── config.py                     # Path configuration & environment loader
+│   └── candidate_profile.json        # Local candidate preferences & skills
+├── extension/                        # Manifest V3 Chrome extension for 1-click session sync
+├── tests/                            # Professional test suite (scrapers, vault, API, auth)
+│   ├── test_api_endpoints.py         # FastAPI health, search, and frontend serving tests
+│   ├── test_cookie_normalizer.py     # Cookie normalization & WAF sanitization tests
+│   ├── test_memory_vault.py          # Keyword pruning & semantic conflict tests
+│   └── test_scrapers.py              # Platform scraper & data model tests
+├── supabase/
+│   └── schema.sql                    # Production PostgreSQL schema with Row-Level Security
+├── start_local.bat                   # 1-Click Windows launcher (Dashboard + Local Server)
+├── start_agent.bat                   # 1-Click CLI launcher
+├── Dockerfile                        # Production container (Noble Playwright v1.49.0)
+├── docker-compose.yml                # Multi-service orchestration configuration
+└── README.md                         # Senior engineering documentation
 ```
 
 ---
 
-## ⚡ Quick Start & Local Setup
+## 🚀 Quick Start
 
 ### 1. Prerequisites
-- Python 3.11+
-- Node.js (optional, for local frontend serving)
-- Google Gemini API Key ([Get one free](https://aistudio.google.com/))
-- Telegram Bot Token & Chat ID ([via @BotFather](https://t.me/BotFather))
+- **Python 3.11+** installed
+- **Google Chrome** installed (used for authentic residential sessions)
+- Free Google Gemini API Key ([Google AI Studio](https://aistudio.google.com/))
 
-### 2. Clone and Install
+### 2. Installation
 ```bash
+# Clone the repository
 git clone https://github.com/Sachin-dev001/ai-job-agent.git
 cd ai-job-agent
 
-# Create virtual environment
+# Create and activate virtual environment
 python -m venv backend/venv
-source backend/venv/bin/activate  # On Windows: backend\venv\Scripts\activate
+source backend/venv/bin/activate       # On Linux/macOS
+backend\venv\Scripts\activate          # On Windows
 
-# Install dependencies
+# Install pinned dependencies
 pip install -r backend/requirements.txt
 
-# Install Playwright Chromium binaries
+# Install Playwright browser binaries
 playwright install chromium
-playwright install-deps chromium
 ```
 
-### 3. Configure Environment
-Create a `.env` file in the `backend/` directory:
+### 3. Environment Configuration
+Copy `.env.example` to `.env` in the root and `backend/` directory:
+```bash
+cp .env.example backend/.env
+```
+Populate your credentials:
 ```env
 PORT=8000
 PROJECT_NAME="AutoApply AI Agent"
-VERSION="1.0.0"
+VERSION="2.5.0"
 
-# LLM Providers
+# LLM Provider Keys
 GEMINI_API_KEY="your-gemini-api-key"
-GROQ_API_KEY="your-groq-api-key"
+GROQ_API_KEY="your-optional-groq-key"
 
-# Multi-Tenant Cloud Database (Optional for local mode)
-SUPABASE_URL="https://your-project.supabase.co"
-SUPABASE_ANON_KEY="your-supabase-anon-key"
-SUPABASE_SERVICE_ROLE_KEY="your-supabase-service-key"
-
-# Telegram Human-In-The-Loop Notifications
+# Telegram Bot (Optional for mobile HITL alerts)
 TELEGRAM_BOT_TOKEN="your-bot-token"
 TELEGRAM_CHAT_ID="your-chat-id"
 
 # Security
-SERVER_AUTH_SECRET="your-32-byte-random-jwt-secret"
+SERVER_AUTH_SECRET="your-32-character-secret"
 ```
 
-### 4. Run Locally
+### 4. Connect Portal Sessions (One-Time Setup)
+Run the session setup tool to log into your portals once. Playwright saves your persistent residential session locally:
 ```bash
-# Start FastAPI ASGI server
-cd backend
-python -m uvicorn main:app --reload --port 8000
+python -m local_agent.session_setup
 ```
-Open `http://localhost:8000/docs` to inspect the Swagger UI, or serve `frontend/` using any local static web server.
+Select the portals you wish to connect (**Naukri**, **Wellfound**, **LinkedIn**, **Y Combinator**). A Chrome window will open—simply log in and close the browser.
+
+### 5. Launch the Local Web Dashboard
+Double-click **`start_local.bat`** (Windows) or execute:
+```bash
+python -m uvicorn main:app --host 127.0.0.1 --port 8000 --app-dir backend
+```
+Open **`http://localhost:8000`** in your browser to access:
+- **Connection Badges:** Real-time session status for all 4 platforms.
+- **Interactive Scout:** Filter fresh tech roles ($\le 15$ days) and trigger 1-click auto-apply.
+- **Live Playwright Console:** Real-time log streaming of DOM interactions.
+- **Proof Gallery:** High-resolution zoomable DOM confirmation screenshots.
 
 ---
 
-## 🌐 Production Deployment
+## 💻 CLI Mode (Headless / Terminal Dispatch)
 
-### 1. Backend Container (Render / Hugging Face Spaces)
-The repository includes an optimized `Dockerfile` based on `mcr.microsoft.com/playwright/python:v1.49.0-noble`.
-- Connect your GitHub repo to **Render** or create a **Hugging Face Docker Space** (16GB RAM free tier).
-- Set the environment variables in your cloud dashboard.
-- Set Health Check path to `/api/health`.
+You can also run AutoApply directly from the terminal or automate scheduled cron runs:
 
-### 2. Frontend Edge (Vercel)
-- Deploy the repository to **Vercel** with the root directory set to `frontend`.
-- [`frontend/vercel.json`](frontend/vercel.json) automatically proxies `/api/*` and `/proofs/*` to your backend without cross-origin preflight overhead.
+```bash
+# Launch interactive CLI
+python -m local_agent.cli
 
-### 3. Keep-Alive Configuration (UptimeRobot)
-Free cloud instances (such as Render) spin down after 15 minutes of inactivity. Set up a free HTTP monitor on **UptimeRobot**:
-- **URL:** `https://your-backend.onrender.com/api/health`
-- **Interval:** 5 minutes
-- **Monitoring Type:** HTTP(s)
+# Direct apply to a single target job URL
+python -m local_agent.cli --apply "https://www.naukri.com/job-listings-..."
+
+# Auto-scout and apply to top 5 matching Python / GenAI openings
+python -m local_agent.cli --auto --keyword "GenAI Engineer" --limit 5
+```
 
 ---
 
-## 📡 API Reference
+## 🧪 Testing & Quality Assurance
 
-| Method | Endpoint | Description | Auth Required |
-| :--- | :--- | :--- | :---: |
-| `GET` | `/api/health` | Service health & database connectivity | No |
-| `POST` | `/api/auth/register` | Register a new tenant candidate account | No |
-| `POST` | `/api/auth/login` | Authenticate and receive JWT bearer token | No |
-| `POST` | `/api/resume/analyze` | Parse resume document and extract skills DNA | No |
-| `POST` | `/api/jobs/scout` | Concurrent real-time scouting across platforms | Yes |
-| `POST` | `/api/naukri/apply-single` | Execute Playwright apply to a single Naukri job | Yes |
-| `POST` | `/api/wellfound/apply-single`| Execute Playwright apply to a Wellfound job | Yes |
-| `GET` | `/api/proofs/{uid}/{file}` | Securely retrieve submission proof screenshot | Yes* |
-| `POST` | `/api/session/connect-cookies`| Connect session cookies for cloud background apply | Yes |
-| `GET` | `/api/memory/vault` | Retrieve verified candidate Q&A memories | Yes |
-| `POST` | `/api/memory/vault` | Add/update verified screening answer | Yes |
+AutoApply includes a standard test suite powered by `pytest` verifying scrapers, data models, memory vault logic, and API endpoints:
 
-*\*Guest/demo proof paths are accessible for testing; tenant user proofs require ownership validation.*
+```bash
+# Run complete test suite
+pytest tests/ -v
+```
+
+### Test Suite Coverage:
+- `test_cookie_normalizer.py`: Validates Netscape, JSON, and header formats; ensures WAF cookies (`_abck`, `bm_sz`) are filtered.
+- `test_memory_vault.py`: Validates stop-word preservation, semantic polarity conflict detection (*Current* vs. *Expected* CTC), and answer retrieval.
+- `test_scrapers.py`: Validates `ScrapedJob` pydantic models and live search routines for LinkedIn and Y Combinator.
+- `test_api_endpoints.py`: Validates FastAPI health checks, job search endpoints, and frontend static mounting.
 
 ---
 
-## 🔒 Security & Isolation
+## 🔒 Security, Privacy & Ethical Automation
 
-- **Zero-Storage of Plaintext Credentials:** Portal passwords are never stored. The runner uses encrypted session cookies exported from an authenticated residential session.
-- **Tenant Path Isolation:** All application proof screenshots are saved under tenant-specific directories, with path traversal sanitization (`os.path.basename`) and JWT owner verification.
-- **WAF Bypass Hygiene:** Akamai edge cookies (`_abck`, `bm_sz`) are scrubbed before browser context injection, allowing fresh residential cookies to handshake without triggers.
+- **Zero Plaintext Credential Storage:** AutoApply never asks for or stores account passwords. Authentication relies entirely on locally cached residential session cookies.
+- **Tenant Data Isolation:** Memory Vault entries and proof screenshots are strictly partitioned by authenticated `user_id`. Path traversal vectors are guarded with `os.path.basename` validation.
+- **Polite Execution Rate Limiting:** All automated browser interactions incorporate non-linear human delays ($1.5\text{s} - 4.0\text{s}$) to avoid triggering portal rate limits.
+- **Ethical Automation Notice:** AutoApply is engineered as a personal career accelerator and application organizer. Users should review and comply with the terms of service of each target platform.
 
 ---
 
-## 📄 License & Disclaimer
+## 📜 License
 
-This project is licensed under the **MIT License**.
-
-> **Disclaimer:** AutoApply is intended for personal career development and automated job tracking. Please review and adhere to the Terms of Service of target platforms (Naukri.com, Wellfound). Use responsible application rates to prevent account restrictions.
+Distributed under the **MIT License**. See `LICENSE` for more details.

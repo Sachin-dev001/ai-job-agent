@@ -1,58 +1,105 @@
+# ==============================================================================
+# AutoApply AI - Clean Production Git Ignore Specification
+# ==============================================================================
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
+.Python
+
+# Testing & Code Coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
 
 # Environments & Virtual Environments
 .env
 *.env
 !.env.example
+!backend/.env.example
 venv/
 .venv/
 env/
 ENV/
 env.bak/
 venv.bak/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# Authentication & Session Cookies (NEVER commit credentials)
+# Authentication & Session Data (NEVER commit credentials or cookies)
 **/cookies/*.json
 backend/cookies/
+backend/data/cookies/
 backend/browser_profile/
 local_browser_profile/
 *.session
+*.cookie
+*.auth
 
-# Playwright & Runtime Artifacts
-backend/proofs/*.png
-proofs/*.png
-backend/*.png
+# Ephemeral Scripts, Dumps & Network Diagnostics
+backend/scripts/
+scripts/
 *.log
+*.jsonl
+*.dump
+history_api_responses.json
+history_page_content.html
+naukri_network_log.json
+drawer_dump.html
+wellfound_modal.html
 
-# Uploaded Files & Resumes (User data)
-backend/uploads/*
-!backend/uploads/.gitkeep
-
-# Database & SQLite
+# Database & Runtime State (Keep schema and seed catalogs only)
 *.db
 *.sqlite
 *.sqlite3
-
-# Runtime Tenant & Vault Data
 backend/data/*.json
 !backend/data/.gitkeep
+!backend/data/live_naukri_catalog.json
 
-# IDE / Editor Files
+# User Uploads
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Proofs, Screenshots & Video Recordings
+proofs/
+backend/proofs/*
+!backend/proofs/.gitkeep
+*.png
+*.jpg
+*.jpeg
+*.mp4
+*.webm
+*.gif
+# Allow UI assets if placed in frontend or extension
+!frontend/static/images/**
+!extension/icons/**
+
+# IDE & OS Files
 .vscode/
 .idea/
 *.swp
 *.swo
-
-# OS Generated Files
+*~
 .DS_Store
 Thumbs.db
- 
-# Proofs
-proofs/
-backend/proofs/
-*.png
-backend/data/cookies/
+desktop.ini
