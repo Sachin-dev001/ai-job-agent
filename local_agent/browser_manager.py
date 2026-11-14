@@ -55,6 +55,8 @@ class LocalBrowserManager:
             Path(__file__).resolve().parent.parent / "backend" / "cookies" / "fresh_naukri_cookies.json",
             Path(__file__).resolve().parent.parent / "backend" / "cookies" / "naukri_cookies.json",
             Path(__file__).resolve().parent.parent / "backend" / "cookies" / "wellfound_cookies.json",
+            Path(__file__).resolve().parent.parent / "backend" / "cookies" / "linkedin_cookies.json",
+            Path(__file__).resolve().parent.parent / "backend" / "cookies" / "yc_cookies.json",
         ]
         all_cookies = []
         for cf in cookie_files:

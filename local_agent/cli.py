@@ -6,6 +6,8 @@ from local_agent.browser_manager import LocalBrowserManager
 from local_agent.session_setup import run_session_setup
 from local_agent.naukri_applier import LocalNaukriApplier
 from local_agent.wellfound_applier import LocalWellfoundApplier
+from local_agent.linkedin_applier import LocalLinkedInApplier
+from local_agent.yc_applier import LocalYCApplier
 from local_agent.job_scout import LocalJobScout
 from local_agent.config import PROOFS_DIR, HEADLESS
 
@@ -23,9 +25,13 @@ async def check_status():
         cookies = await bm.context.cookies()
         naukri_c = [c['name'] for c in cookies if 'naukri' in c.get('domain', '')]
         wellfound_c = [c['name'] for c in cookies if 'wellfound' in c.get('domain', '') or 'angel' in c.get('domain', '')]
+        linkedin_c = [c['name'] for c in cookies if 'linkedin' in c.get('domain', '')]
+        yc_c = [c['name'] for c in cookies if 'workatastartup' in c.get('domain', '') or 'ycombinator' in c.get('domain', '')]
 
-        print(f" - Naukri Status:    {'✅ Logged In' if len(naukri_c) >= 5 else '⚠️ Not Logged In'}")
-        print(f" - Wellfound Status: {'✅ Logged In' if len(wellfound_c) >= 2 else '⚠️ Not Logged In'}")
+        print(f" - Naukri Status:     {'✅ Logged In' if len(naukri_c) >= 5 else '⚠️ Not Logged In'}")
+        print(f" - Wellfound Status:  {'✅ Logged In' if len(wellfound_c) >= 2 else '⚠️ Not Logged In'}")
+        print(f" - LinkedIn Status:   {'✅ Logged In' if len(linkedin_c) >= 2 else '⚠️ Not Logged In'}")
+        print(f" - Y Combinator:      {'✅ Logged In' if len(yc_c) >= 1 else '⚠️ Not Logged In'}")
         print("==================================================================\n")
 
 async def apply_single_url(url: str, headless: bool = False):
@@ -38,6 +44,12 @@ async def apply_single_url(url: str, headless: bool = False):
             res = await applier.apply_to_job(url)
         elif "wellfound.com" in url:
             applier = LocalWellfoundApplier(page)
+            res = await applier.apply_to_job(url)
+        elif "linkedin.com" in url:
+            applier = LocalLinkedInApplier(page)
+            res = await applier.apply_to_job(url)
+        elif "workatastartup.com" in url or "ycombinator.com" in url:
+            applier = LocalYCApplier(page)
             res = await applier.apply_to_job(url)
         else:
             print(f"[!] Unsupported portal URL: {url}")

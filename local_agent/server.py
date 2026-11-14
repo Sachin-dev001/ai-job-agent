@@ -24,6 +24,8 @@ from local_agent.config import (
 from local_agent.browser_manager import LocalBrowserManager
 from local_agent.naukri_applier import LocalNaukriApplier
 from local_agent.wellfound_applier import LocalWellfoundApplier
+from local_agent.linkedin_applier import LocalLinkedInApplier
+from local_agent.yc_applier import LocalYCApplier
 from local_agent.job_scout import LocalJobScout
 from local_agent.session_setup import run_session_setup
 
@@ -92,18 +94,30 @@ async def stream_logs():
 async def get_system_status():
     naukri_logged_in = False
     wellfound_logged_in = False
+    linkedin_logged_in = False
+    yc_logged_in = False
     naukri_cookies_count = 0
     wellfound_cookies_count = 0
+    linkedin_cookies_count = 0
+    yc_cookies_count = 0
 
     try:
         async with LocalBrowserManager(headless=True) as bm:
             cookies = await bm.context.cookies()
             nc = [c['name'] for c in cookies if 'naukri' in c.get('domain', '')]
             wc = [c['name'] for c in cookies if 'wellfound' in c.get('domain', '') or 'angel' in c.get('domain', '')]
+            lc = [c['name'] for c in cookies if 'linkedin' in c.get('domain', '')]
+            yc = [c['name'] for c in cookies if 'workatastartup' in c.get('domain', '') or 'ycombinator' in c.get('domain', '')]
+
             naukri_cookies_count = len(nc)
             wellfound_cookies_count = len(wc)
+            linkedin_cookies_count = len(lc)
+            yc_cookies_count = len(yc)
+
             naukri_logged_in = len(nc) >= 5
             wellfound_logged_in = len(wc) >= 2
+            linkedin_logged_in = len(lc) >= 2
+            yc_logged_in = len(yc) >= 1
     except Exception as e:
         print(f"[Status Error] {e}")
 
@@ -117,6 +131,10 @@ async def get_system_status():
         "naukri_cookies_count": naukri_cookies_count,
         "wellfound_connected": wellfound_logged_in,
         "wellfound_cookies_count": wellfound_cookies_count,
+        "linkedin_connected": linkedin_logged_in,
+        "linkedin_cookies_count": linkedin_cookies_count,
+        "yc_connected": yc_logged_in,
+        "yc_cookies_count": yc_cookies_count,
         "candidate_name": profile.get("full_name", "Sachin Sharma"),
         "active_resume": resume_file.name if resume_file.exists() else "None",
         "proofs_count": len(proof_files),
@@ -166,7 +184,12 @@ async def execute_apply(req: ApplyRequest):
     if not url.startswith("http"):
         raise HTTPException(status_code=400, detail="Invalid job URL. Must start with http:// or https://")
 
-    portal = "Naukri" if "naukri.com" in url else ("Wellfound" if "wellfound.com" in url else "Unknown")
+    portal = (
+        "Naukri" if "naukri.com" in url else
+        ("Wellfound" if "wellfound.com" in url else
+        ("LinkedIn" if "linkedin.com" in url else
+        ("YC" if ("workatastartup.com" in url or "ycombinator.com" in url) else "Unknown")))
+    )
     await broadcast_log("info", f"🚀 Starting auto-apply for {portal} job: {url}")
     await broadcast_log("info", f"🖥️ Launching browser ({'Headless' if req.headless else 'Headed mode - visible on screen'})...")
 
@@ -182,9 +205,17 @@ async def execute_apply(req: ApplyRequest):
                 await broadcast_log("info", "🌐 Navigating to Wellfound job listing...")
                 applier = LocalWellfoundApplier(page)
                 res = await applier.apply_to_job(url)
+            elif "linkedin.com" in url:
+                await broadcast_log("info", "🌐 Navigating to LinkedIn job listing...")
+                applier = LocalLinkedInApplier(page)
+                res = await applier.apply_to_job(url)
+            elif "workatastartup.com" in url or "ycombinator.com" in url:
+                await broadcast_log("info", "🌐 Navigating to Y Combinator job listing...")
+                applier = LocalYCApplier(page)
+                res = await applier.apply_to_job(url)
             else:
                 await broadcast_log("error", f"Unsupported job portal: {url}")
-                return {"status": "error", "message": "Only Naukri.com and Wellfound.com job URLs are supported."}
+                return {"status": "error", "message": "Only Naukri, Wellfound, LinkedIn, and Y Combinator job URLs are supported."}
 
             proof_filename = os.path.basename(res.get("proof_path", ""))
             proof_url = f"/proofs/{proof_filename}" if proof_filename else None
@@ -203,21 +234,22 @@ async def execute_apply(req: ApplyRequest):
         return {"status": "error", "message": str(e)}
 
 class ScoutRequest(BaseModel):
+    platform: Optional[str] = "all"
     keyword: Optional[str] = "Python Developer"
     location: Optional[str] = "Bengaluru"
     limit: Optional[int] = 5
 
 @app.post("/api/scout")
 async def scout_jobs(req: ScoutRequest):
-    await broadcast_log("info", f"🔍 Scouting jobs for '{req.keyword}' in '{req.location}'...")
+    await broadcast_log("info", f"🔍 Scouting {req.platform} jobs for '{req.keyword}' in '{req.location}'...")
     try:
         async with LocalBrowserManager(headless=True) as bm:
             page = await bm.get_page()
             scout = LocalJobScout(page)
-            naukri_jobs = await scout.scout_naukri(keyword=req.keyword, location=req.location, limit=req.limit)
+            jobs = await scout.scout_jobs(platform=req.platform, keyword=req.keyword, location=req.location, limit=req.limit)
             
-            await broadcast_log("success", f"Found {len(naukri_jobs)} matching jobs!")
-            return {"jobs": naukri_jobs}
+            await broadcast_log("success", f"Found {len(jobs)} matching jobs!")
+            return {"jobs": jobs}
     except Exception as e:
         await broadcast_log("error", f"Scout error: {e}")
         return {"jobs": [], "error": str(e)}

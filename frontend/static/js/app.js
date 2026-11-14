@@ -302,12 +302,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Auto-restore cookies in background if stored in localStorage
     if (typeof getStoredCookiesFromLocalStorage === "function") {
-        if (getStoredCookiesFromLocalStorage("naukri")) {
-            tryRestoreSessionCookies("naukri");
-        }
-        if (getStoredCookiesFromLocalStorage("wellfound")) {
-            tryRestoreSessionCookies("wellfound");
-        }
+        ["naukri", "wellfound", "linkedin", "yc"].forEach(p => {
+            if (getStoredCookiesFromLocalStorage(p)) {
+                tryRestoreSessionCookies(p);
+            }
+        });
     }
 });
 
@@ -318,29 +317,27 @@ function switchPlatform(platformName) {
     currentSelectedPlatform = platformName;
     const tabNaukri = document.getElementById("tabNaukri");
     const tabWellfound = document.getElementById("tabWellfound");
+    const tabLinkedIn = document.getElementById("tabLinkedIn");
+    const tabYC = document.getElementById("tabYC");
     const runBtnText = document.getElementById("runPlatformBtnText");
 
-    if (platformName === "naukri") {
-        if (tabNaukri) {
-            tabNaukri.className = "platform-tab px-3 py-1.5 rounded-md text-xs font-medium transition flex items-center gap-1.5 bg-zinc-800 text-white shadow-sm";
+    const tabs = [
+        { el: tabNaukri, name: "naukri", label: "Run Autonomous Naukri Apply" },
+        { el: tabWellfound, name: "wellfound", label: "Run Autonomous Wellfound Apply" },
+        { el: tabLinkedIn, name: "linkedin", label: "Run Autonomous LinkedIn Apply" },
+        { el: tabYC, name: "yc", label: "Run Autonomous YC Apply" },
+    ];
+
+    tabs.forEach(t => {
+        if (t.el) {
+            if (t.name === platformName) {
+                t.el.className = "platform-tab flex-1 sm:flex-initial px-3 py-1.5 rounded-md text-xs font-medium transition flex items-center justify-center gap-1.5 bg-zinc-800 text-white shadow-sm whitespace-nowrap";
+                if (runBtnText) runBtnText.textContent = t.label;
+            } else {
+                t.el.className = "platform-tab flex-1 sm:flex-initial px-3 py-1.5 rounded-md text-xs font-medium transition flex items-center justify-center gap-1.5 text-zinc-400 hover:text-zinc-200 whitespace-nowrap";
+            }
         }
-        if (tabWellfound) {
-            tabWellfound.className = "platform-tab px-3 py-1.5 rounded-md text-xs font-medium transition flex items-center gap-1.5 text-zinc-400 hover:text-zinc-200";
-        }
-        if (runBtnText) {
-            runBtnText.textContent = "Run Autonomous Naukri Apply";
-        }
-    } else if (platformName === "wellfound") {
-        if (tabWellfound) {
-            tabWellfound.className = "platform-tab px-3 py-1.5 rounded-md text-xs font-medium transition flex items-center gap-1.5 bg-zinc-800 text-white shadow-sm";
-        }
-        if (tabNaukri) {
-            tabNaukri.className = "platform-tab px-3 py-1.5 rounded-md text-xs font-medium transition flex items-center gap-1.5 text-zinc-400 hover:text-zinc-200";
-        }
-        if (runBtnText) {
-            runBtnText.textContent = "Run Autonomous Wellfound Apply";
-        }
-    }
+    });
 
     // Guard: Prevent job scouting before resume analysis
     if (!currentAnalysis) {
@@ -377,6 +374,13 @@ function showYCNotice() {
 // ==========================================
 // Empty State & Job Scouting
 // ==========================================
+function getPlatformLabel(plat = currentSelectedPlatform) {
+    if (plat === "wellfound") return "Wellfound Startups";
+    if (plat === "linkedin") return "LinkedIn";
+    if (plat === "yc" || plat === "ycombinator") return "Y Combinator";
+    return "Naukri";
+}
+
 function renderJobsEmptyState() {
     const tableBody = document.getElementById("jobsTableBody");
     const mobileCards = document.getElementById("jobsCardsMobile");
@@ -384,7 +388,7 @@ function renderJobsEmptyState() {
     const statFound = document.getElementById("statFound");
     if (statFound) statFound.textContent = "0";
 
-    const platLabel = currentSelectedPlatform === "wellfound" ? "Wellfound Startups" : "Naukri";
+    const platLabel = getPlatformLabel();
     if (openingsHeading) {
         openingsHeading.innerHTML = `
             <i data-lucide="briefcase" class="w-5 h-5 text-indigo-400"></i>
@@ -450,7 +454,7 @@ async function triggerJobSearch(query) {
     if (!query) query = currentSelectedRole || "Software Engineer";
     currentSelectedRole = query;
 
-    const platLabel = currentSelectedPlatform === "wellfound" ? "Wellfound Startups" : "Naukri";
+    const platLabel = getPlatformLabel();
     const openingsHeading = document.getElementById("openingsHeading");
     if (openingsHeading) {
         openingsHeading.innerHTML = `
@@ -936,9 +940,28 @@ async function directApplyRow(idx) {
 
     const originalContent = actionCell ? actionCell.innerHTML : "";
     const originalCardContent = actionCard ? actionCard.innerHTML : "";
-    const isWellfound = job.platform === "Wellfound";
-    const endpoint = isWellfound ? "/api/wellfound/apply-single" : "/api/naukri/apply-single";
-    const platformLabel = isWellfound ? "Wellfound" : "Naukri";
+    const platLow = (job.platform || currentSelectedPlatform || "").toLowerCase();
+    const isWellfound = platLow.includes("wellfound");
+    const isLinkedIn = platLow.includes("linkedin");
+    const isYC = platLow.includes("yc") || platLow.includes("y combinator") || platLow.includes("workatastartup");
+
+    let endpoint = "/api/naukri/apply-single";
+    let platformLabel = "Naukri";
+    let platformKey = "naukri";
+
+    if (isWellfound) {
+        endpoint = "/api/wellfound/apply-single";
+        platformLabel = "Wellfound";
+        platformKey = "wellfound";
+    } else if (isLinkedIn) {
+        endpoint = "/api/linkedin/apply-single";
+        platformLabel = "LinkedIn";
+        platformKey = "linkedin";
+    } else if (isYC) {
+        endpoint = "/api/yc/apply-single";
+        platformLabel = "Y Combinator";
+        platformKey = "yc";
+    }
 
     const loadingHtml = `<span class="text-xs text-indigo-400 animate-spin mr-1">⟳</span> <span class="text-xs text-indigo-300 font-medium">Applying on ${platformLabel}...</span>`;
     if (actionCell) actionCell.innerHTML = loadingHtml;
@@ -962,7 +985,6 @@ async function directApplyRow(idx) {
             }
         }
 
-        const platformKey = isWellfound ? "wellfound" : "naukri";
         const storedCookiesRaw = localStorage.getItem(`autoapply_${platformKey}_cookies`);
         let attachedCookies = null;
         if (storedCookiesRaw) {
@@ -991,7 +1013,7 @@ async function directApplyRow(idx) {
         // Auto-retry once if backend returns session_required and cookies are stored in localStorage
         if (data && data.status === "session_required") {
             console.log(`[Apply] Received session_required for ${platformLabel}. Auto-restoring cookies from localStorage...`);
-            const restored = await tryRestoreSessionCookies(isWellfound ? "wellfound" : "naukri");
+            const restored = await tryRestoreSessionCookies(platformKey);
             if (restored) {
                 console.log(`[Apply] Session restored! Retrying application for ${job.title}...`);
                 res = await fetch(endpoint, {
@@ -3078,7 +3100,11 @@ async function testBackendUrl() {
 // =============================================================================
 function saveCookiesToLocalStorage(platform, cookieData) {
     try {
-        const platKey = (platform || "naukri").toLowerCase().trim().includes("wellfound") ? "wellfound" : "naukri";
+        const rawPlat = (platform || "naukri").toLowerCase().trim();
+    let platKey = "naukri";
+    if (rawPlat.includes("wellfound")) platKey = "wellfound";
+    else if (rawPlat.includes("linkedin")) platKey = "linkedin";
+    else if (rawPlat.includes("yc") || rawPlat.includes("ycombinator") || rawPlat.includes("startup")) platKey = "yc";
         const storageKey = platKey === "wellfound" ? "autoapply_wellfound_cookies" : "autoapply_naukri_cookies";
         let cleanData = cookieData;
         if (platKey === "naukri" && Array.isArray(cookieData)) {
@@ -3097,7 +3123,11 @@ function saveCookiesToLocalStorage(platform, cookieData) {
 
 function getStoredCookiesFromLocalStorage(platform) {
     try {
-        const platKey = (platform || "naukri").toLowerCase().trim().includes("wellfound") ? "wellfound" : "naukri";
+        const rawPlat = (platform || "naukri").toLowerCase().trim();
+    let platKey = "naukri";
+    if (rawPlat.includes("wellfound")) platKey = "wellfound";
+    else if (rawPlat.includes("linkedin")) platKey = "linkedin";
+    else if (rawPlat.includes("yc") || rawPlat.includes("ycombinator") || rawPlat.includes("startup")) platKey = "yc";
         const storageKey = platKey === "wellfound" ? "autoapply_wellfound_cookies" : "autoapply_naukri_cookies";
         const raw = localStorage.getItem(storageKey);
         if (!raw) return null;
@@ -3119,7 +3149,11 @@ async function handleConnectCookies(platform, cookieData) {
 let isRestoringSession = false;
 async function tryRestoreSessionCookies(platform) {
     if (isRestoringSession) return false;
-    const platKey = (platform || "naukri").toLowerCase().trim().includes("wellfound") ? "wellfound" : "naukri";
+    const rawPlat = (platform || "naukri").toLowerCase().trim();
+    let platKey = "naukri";
+    if (rawPlat.includes("wellfound")) platKey = "wellfound";
+    else if (rawPlat.includes("linkedin")) platKey = "linkedin";
+    else if (rawPlat.includes("yc") || rawPlat.includes("ycombinator") || rawPlat.includes("startup")) platKey = "yc";
     const stored = getStoredCookiesFromLocalStorage(platKey);
     if (!stored) {
         return false;
@@ -3170,6 +3204,8 @@ async function tryRestoreSessionCookies(platform) {
 async function checkPortalSessionStatus() {
     const badgeN = document.getElementById("badgeNaukriStatus");
     const badgeW = document.getElementById("badgeWellfoundStatus");
+    const badgeL = document.getElementById("badgeLinkedInStatus");
+    const badgeY = document.getElementById("badgeYCStatus");
     try {
         const token = getAuthToken();
         const headers = {};
@@ -3184,6 +3220,14 @@ async function checkPortalSessionStatus() {
             if (badgeW) {
                 badgeW.textContent = data.wellfound_connected ? `Connected (${data.wellfound_cookies_count})` : "Not Synced";
                 badgeW.className = data.wellfound_connected ? "text-emerald-400 font-semibold" : "text-amber-400 font-semibold";
+            }
+            if (badgeL) {
+                badgeL.textContent = data.linkedin_connected ? `Connected (${data.linkedin_cookies_count})` : "Not Synced";
+                badgeL.className = data.linkedin_connected ? "text-emerald-400 font-semibold" : "text-amber-400 font-semibold";
+            }
+            if (badgeY) {
+                badgeY.textContent = data.yc_connected ? `Connected (${data.yc_cookies_count})` : "Not Synced";
+                badgeY.className = data.yc_connected ? "text-emerald-400 font-semibold" : "text-amber-400 font-semibold";
             }
             return data;
         }

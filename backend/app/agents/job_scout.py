@@ -2,13 +2,18 @@ import asyncio
 from typing import List, Dict, Any
 from app.scrapers.naukri_scraper import naukri_scraper
 from app.scrapers.wellfound_scraper import wellfound_scraper
+from app.scrapers.linkedin_scraper import linkedin_scraper
+from app.scrapers.yc_scraper import yc_scraper
 from app.scrapers.base_scraper import ScrapedJob
 
 class JobScoutAgent:
     def __init__(self):
         self.scrapers = {
             "naukri": naukri_scraper,
-            "wellfound": wellfound_scraper
+            "wellfound": wellfound_scraper,
+            "linkedin": linkedin_scraper,
+            "yc": yc_scraper,
+            "ycombinator": yc_scraper
         }
 
     async def find_jobs(self, query: str, platform: str = "all", limit: int = 25, location: str = "India", max_days_old: int = 15) -> List[ScrapedJob]:
@@ -16,7 +21,9 @@ class JobScoutAgent:
         Platform-targeted search:
         - platform='naukri': 100% verified Naukri openings.
         - platform='wellfound': 100% verified Wellfound startup openings.
-        - platform='all': returns both platforms.
+        - platform='linkedin': 100% verified LinkedIn Easy Apply openings.
+        - platform='yc' or 'ycombinator': 100% verified YC startup openings.
+        - platform='all': returns balanced jobs from all platforms.
         Strictly role-relevant within 15 days, newest first.
         """
         plat = (platform or "all").lower().strip()
@@ -25,20 +32,25 @@ class JobScoutAgent:
             return await naukri_scraper.search_jobs(query=query, location=location, max_days_old=max_days_old, limit=limit)
         elif plat == "wellfound":
             return await wellfound_scraper.search_jobs(query=query, location=location, max_days_old=max_days_old, limit=limit)
+        elif plat == "linkedin":
+            return await linkedin_scraper.search_jobs(query=query, location=location, max_days_old=max_days_old, limit=limit)
+        elif plat in ("yc", "ycombinator"):
+            return await yc_scraper.search_jobs(query=query, location=location, max_days_old=max_days_old, limit=limit)
         else:
-            # Query both concurrently with fault tolerance
-            n_task = naukri_scraper.search_jobs(query=query, location=location, max_days_old=max_days_old, limit=limit // 2)
-            w_task = wellfound_scraper.search_jobs(query=query, location=location, max_days_old=max_days_old, limit=limit // 2)
-            results = await asyncio.gather(n_task, w_task, return_exceptions=True)
-            n_res = results[0] if len(results) > 0 and not isinstance(results[0], Exception) else []
-            w_res = results[1] if len(results) > 1 and not isinstance(results[1], Exception) else []
+            # Query all distinct scrapers concurrently with fault tolerance
+            active_scrapers = [naukri_scraper, wellfound_scraper, linkedin_scraper, yc_scraper]
+            per_platform_limit = max(2, (limit // len(active_scrapers)) + 1)
+            tasks = [s.search_jobs(query=query, location=location, max_days_old=max_days_old, limit=per_platform_limit) for s in active_scrapers]
+            raw_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            lists = [r if isinstance(r, list) else [] for r in raw_results]
             combined = []
-            max_len = max(len(n_res), len(w_res))
+            max_len = max((len(l) for l in lists), default=0)
             for i in range(max_len):
-                if i < len(n_res):
-                    combined.append(n_res[i])
-                if i < len(w_res):
-                    combined.append(w_res[i])
+                for l in lists:
+                    if i < len(l):
+                        combined.append(l[i])
+
             return combined[:limit]
 
 job_scout = JobScoutAgent()
