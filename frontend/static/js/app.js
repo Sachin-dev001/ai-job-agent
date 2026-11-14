@@ -92,6 +92,12 @@ async function safeParseJson(res) {
     }
 
     if (!res.ok) {
+        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        if (res.status === 401 && isLocal) {
+            localStorage.removeItem("autoapply_auth_token");
+            localStorage.removeItem("supabase_jwt_token");
+            currentAuthToken = null;
+        }
         const errorMsg = data.detail || data.message || data.error || `Request failed with status ${res.status}`;
         throw new Error(errorMsg);
     }
@@ -223,6 +229,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Restore cached candidate profile if available or initialize default for localhost
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    if (isLocal) {
+        // Clear any stale demo or expired cloud tokens so localhost is 100% clean & unblocked
+        const savedUrl = localStorage.getItem("supabase_url") || "";
+        if (!savedUrl || savedUrl.includes("iyqcrvdmlbtzrehwaxvl")) {
+            localStorage.removeItem("autoapply_auth_token");
+            localStorage.removeItem("supabase_jwt_token");
+            currentAuthToken = null;
+        }
+    }
     const cachedProfileRaw = localStorage.getItem("autoapply_candidate_profile");
     if (cachedProfileRaw) {
         try {

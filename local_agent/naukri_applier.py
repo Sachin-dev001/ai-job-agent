@@ -43,7 +43,7 @@ class LocalNaukriApplier:
         print(f"[Naukri Agent] Target: '{job_title}' at '{company}'")
 
         # 1. Check if login is required
-        login_btn = self.page.locator("#login-apply-button, button:has-text('Login to apply'), a:has-text('Login to apply')").first
+        login_btn = self.page.locator("#login-apply-button, button:has-text('Login to apply'), a:has-text('Login to apply'), button:has-text('Continue with Google')").first
         if await login_btn.is_visible():
             msg = "Login required on Naukri! Please run session setup or log in."
             print(f"[Naukri Agent] ⚠️ {msg}")
@@ -59,13 +59,14 @@ class LocalNaukriApplier:
 
         # 2. Check if already applied
         body_text = (await self.page.inner_text("body") or "").lower()
-        already_applied = self.page.locator("#already-applied, button:has-text('Already Applied'), span:has-text('Already Applied')").first
+        already_applied = self.page.locator("#already-applied, button:has-text('Already Applied'), button:has-text('Applied'), span:has-text('Already Applied'), span:has-text('Applied')").first
         if await already_applied.is_visible() or "you have already applied" in body_text or "already applied on" in body_text:
             msg = "Already applied to this job earlier on Naukri."
             print(f"[Naukri Agent] ℹ️ {msg}")
             await self.page.screenshot(path=str(proof_path))
             return {
                 "status": "already_applied",
+                "applied": True,
                 "job_title": job_title,
                 "company": company,
                 "job_url": job_url,
@@ -132,91 +133,126 @@ class LocalNaukriApplier:
             }
 
     async def _handle_questionnaire(self):
-        """Answers screening questions, notice period, and fills CTC/experience inputs."""
-        for attempt in range(8):
+        """Answers screening questions, notice period, and fills CTC/experience inputs in drawer/modal."""
+        for step in range(10):
             # Check if drawer or chatbot questions are visible
-            drawer = self.page.locator(".drawer, .chatbot_drawer, .ssrc__chat-container, .apply-drawer, [class*='drawer']").first
+            drawer = self.page.locator(".drawer, .chatbot_drawer, ._chatBotContainer, .ssrc__chat-container, .apply-drawer, [class*='drawer']").first
             is_drawer = await drawer.is_visible()
 
-            # A. Select affirmative options / Yes-No radios
-            radios = await self.page.locator("label, div[class*='radio'], div[class*='option'], [role='radio'], [class*='chip'], [class*='bot-option']").all()
-            for r in radios:
-                try:
-                    if not await r.is_visible(): continue
-                    txt = (await r.inner_text() or "").lower().strip()
-                    
-                    # 1. Yes / Availability / Screening
-                    if txt in ("yes", "available") or txt.startswith("yes,") or txt.startswith("yes "):
-                        print(f"[Naukri Agent] 👉 Answering YES: '{txt}'")
-                        await r.click()
-                        await asyncio.sleep(0.3)
-                    
-                    # 2. Notice period
-                    elif any(k in txt for k in ("15 days or less", "< 15 days", "immediate", "serving notice", "ready to join")):
-                        print(f"[Naukri Agent] 👉 Selecting Notice Period: '{txt}'")
-                        await r.click()
-                        await asyncio.sleep(0.3)
+            # 1. Check for Radio options (e.g. 15 Days or less / Yes / Experience)
+            radio_answered = False
+            try:
+                radio_answered = await self.page.evaluate("""() => {
+                    const radios = Array.from(document.querySelectorAll("input[type='radio'], .ssrc__radio, .ssrc__label, .ssrc__radio-btn-container, label, [role='radio']"));
+                    for (const el of radios) {
+                        const txt = (el.innerText || el.value || el.id || '').toLowerCase();
+                        if (txt.includes('15 days') || txt.includes('< 15') || txt.includes('immediate') || txt.includes('serving notice') || txt === 'yes' || txt.includes('3-5') || txt.includes('3 to 5')) {
+                            el.click();
+                            if (el.tagName === 'INPUT') {
+                                el.checked = true;
+                                el.dispatchEvent(new Event('change', { bubbles: true }));
+                                el.dispatchEvent(new Event('input', { bubbles: true }));
+                            }
+                            return true;
+                        }
+                    }
+                    return false;
+                }""")
+                if radio_answered:
+                    print(f"[Naukri Agent] 👉 Step {step+1}: Selected candidate option / notice period")
+                    await asyncio.sleep(0.5)
+            except Exception:
+                pass
 
-                    # 3. Experience ranges (e.g. 3-5 years)
-                    elif any(k in txt for k in ("3-5", "3 to 5", "2-4", "2-5", "1-3")):
-                        print(f"[Naukri Agent] 👉 Selecting Experience: '{txt}'")
-                        await r.click()
-                        await asyncio.sleep(0.3)
+            # 2. Check for contenteditable textArea in chatbot
+            editable = self.page.locator(".chatbot_Drawer .textArea[contenteditable='true'], .textArea[contenteditable='true']").first
+            if await editable.is_visible():
+                latest_question = ""
+                try:
+                    latest_question = await self.page.evaluate("""() => {
+                        const msgs = Array.from(document.querySelectorAll('.botMsg span, .botItem span, .botMsg div'));
+                        return msgs.length > 0 ? msgs[msgs.length - 1].innerText : '';
+                    }""")
+                except Exception:
+                    pass
+                q_lower = (latest_question or "").lower()
+                print(f"[Naukri Agent] 🤖 Step {step+1}: Chatbot asked: '{latest_question.strip()}'")
+
+                answer = "3.5"
+                if "ctc" in q_lower or "salary" in q_lower:
+                    answer = str(self.profile.get("current_ctc_lakhs", "12"))
+                elif "expected" in q_lower:
+                    answer = str(self.profile.get("expected_ctc_lakhs", "18"))
+                elif "experience" in q_lower or "years" in q_lower:
+                    answer = str(self.profile.get("total_experience_years", "3.5"))
+                elif "notice" in q_lower:
+                    answer = str(self.profile.get("notice_period_days", "15"))
+                elif any(k in q_lower for k in ("location", "city")):
+                    answer = self.profile.get("location", "Bengaluru")
+                else:
+                    answer = "Yes, available and experienced."
+
+                print(f"[Naukri Agent] ✍️ Step {step+1}: Typing answer: '{answer}'")
+                try:
+                    await editable.click()
+                    await self.page.keyboard.type(answer, delay=40)
+                    await asyncio.sleep(0.8)
                 except Exception:
                     pass
 
-            # B. Fill text inputs
-            inputs = await self.page.locator("input[type='text'], input[type='number'], textarea").all()
+            # 3. Check for standard inputs
+            inputs = await self.page.locator("input[type='text']:not([class*='suggestor']):not(#experienceDD), input[type='number'], textarea").all()
             for inp in inputs:
                 try:
                     if not await inp.is_visible() or await inp.is_disabled(): continue
                     val = await inp.input_value()
                     if val and len(val.strip()) > 0: continue
-
                     placeholder = (await inp.get_attribute("placeholder") or "").lower()
                     name = (await inp.get_attribute("name") or "").lower()
                     combined = f"{placeholder} {name}"
-
                     if any(k in combined for k in ("experience", "exp", "year")):
-                        fill_val = str(self.profile.get("total_experience_years", "3.5"))
-                        await inp.fill(fill_val)
-                        print(f"[Naukri Agent] ✍️ Filled Experience: {fill_val}")
-                    elif any(k in combined for k in ("current ctc", "current salary")):
-                        fill_val = str(self.profile.get("current_ctc_lakhs", "12"))
-                        await inp.fill(fill_val)
-                        print(f"[Naukri Agent] ✍️ Filled Current CTC: {fill_val}")
-                    elif any(k in combined for k in ("expected ctc", "expected salary")):
-                        fill_val = str(self.profile.get("expected_ctc_lakhs", "18"))
-                        await inp.fill(fill_val)
-                        print(f"[Naukri Agent] ✍️ Filled Expected CTC: {fill_val}")
+                        await inp.fill(str(self.profile.get("total_experience_years", "3.5")))
+                    elif any(k in combined for k in ("ctc", "salary")):
+                        await inp.fill(str(self.profile.get("current_ctc_lakhs", "12")))
                     elif "notice" in combined:
-                        fill_val = str(self.profile.get("notice_period_days", "15"))
-                        await inp.fill(fill_val)
-                        print(f"[Naukri Agent] ✍️ Filled Notice Period: {fill_val}")
+                        await inp.fill(str(self.profile.get("notice_period_days", "15")))
                     else:
-                        await inp.fill("Yes, experienced in this domain and ready to join immediately.")
+                        await inp.fill("Yes")
                     await asyncio.sleep(0.2)
                 except Exception:
                     pass
 
-            # C. Check mandatory checkboxes
-            cbs = await self.page.locator("input[type='checkbox']").all()
-            for cb in cbs:
+            # 4. Click Save / Submit
+            save_clicked = False
+            chatbot_send = self.page.locator(".sendMsgbtn_container, .sendMsg, div.send:not(.disabled) .sendMsg").first
+            if await chatbot_send.is_visible():
+                print(f"[Naukri Agent] 🚀 Step {step+1}: Clicking Chatbot Save button...")
                 try:
-                    if await cb.is_visible() and not await cb.is_checked():
-                        await cb.check()
-                        await asyncio.sleep(0.2)
+                    await chatbot_send.click(force=True)
+                    save_clicked = True
+                    await asyncio.sleep(2.5)
                 except Exception:
                     pass
 
-            # D. Click Submit / Next / Save and Apply
             submit_btn = self.page.locator("button:has-text('Submit application'), button:has-text('Submit'), button:has-text('Save and Apply'), button:has-text('Next'), input[type='submit']").first
             if await submit_btn.is_visible() and not await submit_btn.is_disabled():
                 btn_text = await submit_btn.text_content()
-                print(f"[Naukri Agent] 🚀 Clicking Submit/Next button: '{btn_text.strip()}'")
-                await submit_btn.click()
-                await asyncio.sleep(1.5)
-            else:
+                print(f"[Naukri Agent] 🚀 Step {step+1}: Clicking Submit/Next button: '{btn_text.strip()}'")
+                try:
+                    await submit_btn.click(force=True)
+                    save_clicked = True
+                    await asyncio.sleep(2.5)
+                except Exception:
+                    pass
+
+            # 5. Check if application has completed
+            body_text = (await self.page.inner_text("body") or "").lower()
+            if "applied to" in body_text or "successfully applied" in body_text or "application submitted" in body_text or "power up your applies" in body_text:
+                print(f"[Naukri Agent] 🎉 100% CONFIRMED: Application submitted on Naukri DOM!")
+                break
+
+            if not is_drawer and not save_clicked and not radio_answered:
+                break
                 break
 
     async def _handle_resume_upload(self):

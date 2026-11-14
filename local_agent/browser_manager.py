@@ -1,5 +1,6 @@
 import os
 import asyncio
+from pathlib import Path
 from playwright.async_api import async_playwright, BrowserContext, Page
 from playwright_stealth import Stealth
 from local_agent.config import BROWSER_PROFILE_DIR, HEADLESS
@@ -18,9 +19,14 @@ class LocalBrowserManager:
             "--no-sandbox",
             "--disable-infobars",
             "--disable-dev-shm-usage",
-            "--start-maximized"
         ]
+        if self.headless:
+            args.append("--headless=new")
+        else:
+            args.append("--start-maximized")
         
+        user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+
         # Prefer installed Google Chrome channel to ensure authentic consumer TLS and OS signature
         try:
             self.context = await self.playwright.chromium.launch_persistent_context(
@@ -28,7 +34,9 @@ class LocalBrowserManager:
                 channel="chrome",
                 headless=self.headless,
                 args=args,
-                no_viewport=True
+                user_agent=user_agent,
+                viewport={"width": 1366, "height": 768} if self.headless else None,
+                no_viewport=not self.headless
             )
         except Exception as e:
             print(f"[BrowserManager] Installed Chrome channel notice ({e}), launching bundled Chromium...")
@@ -36,8 +44,49 @@ class LocalBrowserManager:
                 user_data_dir=str(BROWSER_PROFILE_DIR),
                 headless=self.headless,
                 args=args,
+                user_agent=user_agent,
                 viewport={"width": 1366, "height": 768}
             )
+
+        await self.context.add_init_script("delete Object.getPrototypeOf(navigator).webdriver; window.navigator.chrome = { runtime: {} };")
+
+        # Auto-load saved session cookies into context for seamless authenticated actions
+        cookie_files = [
+            Path(__file__).resolve().parent.parent / "backend" / "cookies" / "fresh_naukri_cookies.json",
+            Path(__file__).resolve().parent.parent / "backend" / "cookies" / "naukri_cookies.json",
+            Path(__file__).resolve().parent.parent / "backend" / "cookies" / "wellfound_cookies.json",
+        ]
+        all_cookies = []
+        for cf in cookie_files:
+            if cf.exists():
+                try:
+                    import json
+                    with open(cf, "r", encoding="utf-8") as f:
+                        raw_c = json.load(f)
+                    if isinstance(raw_c, list):
+                        for c in raw_c:
+                            domain = c.get("domain", "")
+                            if domain and not domain.startswith("."):
+                                domain = "." + domain
+                            pc = {
+                                "name": c.get("name"),
+                                "value": c.get("value"),
+                                "domain": domain,
+                                "path": c.get("path", "/"),
+                                "httpOnly": c.get("httpOnly", False),
+                                "secure": c.get("secure", False),
+                            }
+                            if "sameSite" in c and c["sameSite"] in ["Strict", "Lax", "None"]:
+                                pc["sameSite"] = c["sameSite"]
+                            all_cookies.append(pc)
+                except Exception:
+                    pass
+        if all_cookies:
+            try:
+                await self.context.add_cookies(all_cookies)
+                print(f"[BrowserManager] Auto-loaded {len(all_cookies)} authenticated session cookies.")
+            except Exception as ce:
+                print(f"[BrowserManager] Notice loading cookies: {ce}")
 
         return self
 
