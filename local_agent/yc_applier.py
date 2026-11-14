@@ -23,7 +23,17 @@ class LocalYCApplier:
                 await self.page.goto(job_url, wait_until="domcontentloaded", timeout=35000)
                 await asyncio.sleep(2.5)
             except Exception as e:
+                err_str = str(e).lower()
                 print(f"[YC Agent] Navigation warning: {e}", flush=True)
+                if "err_too_many_redirects" in err_str or "redirect" in err_str:
+                    print("[YC Agent] 🔄 Redirect loop detected due to stale/invalid cookies. Clearing YC cookies and retrying cleanly...", flush=True)
+                    try:
+                        await self.page.context.clear_cookies()
+                        await asyncio.sleep(1.0)
+                        await self.page.goto(job_url, wait_until="domcontentloaded", timeout=25000)
+                        await asyncio.sleep(2.0)
+                    except Exception as retry_err:
+                        print(f"[YC Agent] Retry after cookie clear notice: {retry_err}", flush=True)
 
         # Extract Job Title & Startup Name
         job_title = "Startup Software / AI Engineer"

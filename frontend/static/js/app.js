@@ -1139,15 +1139,15 @@ async function directApplyRow(idx) {
             if (statusCell) statusCell.innerHTML = challengeStatusHtml;
             if (statusCard) statusCard.innerHTML = challengeStatusHtml;
             openQuickApplyModal(idx, data.message, data.proof_image || data.proof_url, data.status);
-        } else if (data.status === "session_required") {
+        } else if (data.status === "session_required" || data.status === "login_required") {
             const sessBtnHtml = `
-                <button type="button" onclick="openQuickApplyModal(${idx}, 'Session connection required', null, 'session_required')" class="w-full sm:w-auto px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-[11px] border border-amber-500/40 transition flex items-center justify-center gap-1 cursor-pointer">
+                <button type="button" onclick="openQuickApplyModal(${idx}, 'Login session required', null, 'session_required')" class="w-full sm:w-auto px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-[11px] border border-amber-500/40 transition flex items-center justify-center gap-1 cursor-pointer">
                     🔑 Connect Session
                 </button>
             `;
             if (actionCell) actionCell.innerHTML = sessBtnHtml;
             if (actionCard) actionCard.innerHTML = sessBtnHtml;
-            openQuickApplyModal(idx, data.message || "Session connection required", data.proof_image || data.proof_url, data.status);
+            openQuickApplyModal(idx, data.message || "Login session required", data.proof_image || data.proof_url, "session_required");
         } else {
             if (actionCell) actionCell.innerHTML = originalContent;
             if (actionCard) actionCard.innerHTML = originalCardContent;

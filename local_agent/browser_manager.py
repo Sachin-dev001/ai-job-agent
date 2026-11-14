@@ -67,12 +67,16 @@ class LocalBrowserManager:
                         raw_c = json.load(f)
                     if isinstance(raw_c, list):
                         for c in raw_c:
+                            val = str(c.get("value", "")).strip()
+                            # Skip dummy / placeholder cookies to prevent ERR_TOO_MANY_REDIRECTS
+                            if not val or any(dummy in val.lower() for dummy in ["example", "sample", "placeholder", "dummy"]):
+                                continue
                             domain = c.get("domain", "")
                             if domain and not domain.startswith("."):
                                 domain = "." + domain
                             pc = {
                                 "name": c.get("name"),
-                                "value": c.get("value"),
+                                "value": val,
                                 "domain": domain,
                                 "path": c.get("path", "/"),
                                 "httpOnly": c.get("httpOnly", False),
