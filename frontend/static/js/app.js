@@ -221,12 +221,8 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // Default to clean empty state on fresh load
-    if (!currentAnalysis) {
-        renderJobsEmptyState();
-    }
-
-    // Restore cached candidate profile if available
+    // Restore cached candidate profile if available or initialize default for localhost
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     const cachedProfileRaw = localStorage.getItem("autoapply_candidate_profile");
     if (cachedProfileRaw) {
         try {
@@ -239,6 +235,33 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
             }
         } catch (_) {}
+    } else if (isLocal) {
+        const defaultProfile = {
+            candidate_name: "Sachin Sharma",
+            full_name: "Sachin Sharma",
+            email: "sachin.sharma.engineer@gmail.com",
+            phone: "+91 9876543210",
+            experience_years: 3.5,
+            notice_period: "15 Days or less",
+            skills: ["Python", "FastAPI", "GenAI", "LLMs", "LangChain", "Docker", "React"],
+            technical_skills: ["Python", "FastAPI", "GenAI", "LLMs", "LangChain", "Docker", "React"],
+            primary_domain: "GenAI Developer",
+            resume_analyzed: true
+        };
+        currentAnalysis = defaultProfile;
+        try { localStorage.setItem("autoapply_candidate_profile", JSON.stringify(defaultProfile)); } catch (_) {}
+        renderProfile(defaultProfile);
+        currentSelectedRole = "GenAI Developer";
+    }
+
+    if (!currentAnalysis) {
+        renderJobsEmptyState();
+    } else if (isLocal && (!foundJobs || foundJobs.length === 0)) {
+        setTimeout(() => {
+            if (typeof triggerJobSearch === "function") {
+                triggerJobSearch(currentSelectedRole || "GenAI Developer");
+            }
+        }, 600);
     }
 
     // Restore candidate profile if authenticated
@@ -2355,7 +2378,8 @@ function initSupabase() {
         supabaseClient = null;
     }
 
-    // Restore existing session or default to logged-out Guest state (NO auto-login as Sachin!)
+    // Restore existing session or default to local developer state on localhost
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     const storedUser = localStorage.getItem("autoapply_user");
     const storedToken = localStorage.getItem("autoapply_auth_token");
     if (storedUser) {
@@ -2366,6 +2390,15 @@ function initSupabase() {
         } catch (e) {
             setLoggedOutUser();
         }
+    } else if (isLocal) {
+        currentAuthUser = {
+            id: "local-dev-user-001",
+            name: "sachin",
+            email: "sachin.sharma.engineer@gmail.com",
+            full_name: "Sachin Sharma"
+        };
+        try { localStorage.setItem("autoapply_user", JSON.stringify(currentAuthUser)); } catch (_) {}
+        renderAuthNavbar();
     } else {
         setLoggedOutUser();
     }

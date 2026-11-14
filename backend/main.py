@@ -139,6 +139,7 @@ async def get_proof_screenshot(user_id: str, filename: str, user: Optional[Curre
 
 
 @app.get("/api/proofs/{filename}")
+@app.get("/proofs/{filename}")
 async def get_root_proof_screenshot(filename: str):
     """
     Safely serves root-level or legacy proof screenshots.
@@ -703,6 +704,35 @@ async def apply_single_job(req: SingleJobApplyRequest, user: CurrentUser = Depen
     if not await has_analyzed_resume(user.id, req.candidate_profile):
         return resume_required_response()
 
+    # On local machine, execute directly via LocalNaukriApplier with Playwright & persistent context
+    is_cloud = os.getenv("RENDER") or os.getenv("VERCEL") or os.getenv("SPACE_ID")
+    if not is_cloud:
+        try:
+            from local_agent.browser_manager import LocalBrowserManager
+            from local_agent.naukri_applier import LocalNaukriApplier
+
+            async with LocalBrowserManager(headless=False) as bm:
+                page = await bm.get_page()
+                applier = LocalNaukriApplier(page)
+                res = await applier.apply_to_job(req.job_url)
+
+                proof_filename = os.path.basename(res.get("proof_path", ""))
+                proof_url = f"/proofs/{proof_filename}" if proof_filename else None
+
+                status_code = res.get("status", "applied_successfully")
+                return {
+                    "status": status_code,
+                    "applied": status_code in ["applied_successfully", "applied"],
+                    "job_title": res.get("job_title", req.job_title),
+                    "company": res.get("company", req.company),
+                    "job_url": req.job_url,
+                    "proof_image": proof_url,
+                    "proof_url": proof_url,
+                    "message": res.get("message", "Application submitted & verified on Naukri DOM!")
+                }
+        except Exception as local_err:
+            logger.warning(f"[Local Apply] Notice: {local_err}")
+
     try:
         result = await naukri_live_runner.apply_single_job(
             job_url=req.job_url,
@@ -769,6 +799,35 @@ async def apply_single_wellfound_job(req: WellfoundSingleApplyRequest, user: Cur
 
     if not await has_analyzed_resume(user.id, req.candidate_profile):
         return resume_required_response()
+
+    # On local machine, execute directly via LocalWellfoundApplier with Playwright & persistent context
+    is_cloud = os.getenv("RENDER") or os.getenv("VERCEL") or os.getenv("SPACE_ID")
+    if not is_cloud:
+        try:
+            from local_agent.browser_manager import LocalBrowserManager
+            from local_agent.wellfound_applier import LocalWellfoundApplier
+
+            async with LocalBrowserManager(headless=False) as bm:
+                page = await bm.get_page()
+                applier = LocalWellfoundApplier(page)
+                res = await applier.apply_to_job(req.job_url)
+
+                proof_filename = os.path.basename(res.get("proof_path", ""))
+                proof_url = f"/proofs/{proof_filename}" if proof_filename else None
+
+                status_code = res.get("status", "applied_successfully")
+                return {
+                    "status": status_code,
+                    "applied": status_code in ["applied_successfully", "applied"],
+                    "job_title": res.get("job_title", req.job_title),
+                    "company": res.get("company", req.company),
+                    "job_url": req.job_url,
+                    "proof_image": proof_url,
+                    "proof_url": proof_url,
+                    "message": res.get("message", "Application submitted & verified on Wellfound DOM!")
+                }
+        except Exception as local_err:
+            logger.warning(f"[Local Apply] Wellfound notice: {local_err}")
 
     try:
         result = await wellfound_live_runner.apply_single_job(

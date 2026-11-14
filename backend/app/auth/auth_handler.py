@@ -101,6 +101,19 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> Curre
             is_authenticated=not is_demo
         )
 
+    # On local machine (personal localhost mode), auto-authenticate as the default developer profile
+    is_cloud = os.getenv("RENDER") or os.getenv("VERCEL") or os.getenv("SPACE_ID")
+    if not is_cloud:
+        return CurrentUser(
+            id="local-dev-user-001",
+            email="sachin.sharma.engineer@gmail.com",
+            name="sachin",
+            full_name="Sachin Sharma",
+            role="candidate",
+            is_demo=False,
+            is_authenticated=True
+        )
+
     if REQUIRE_AUTH:
         raise HTTPException(status_code=401, detail="Authentication required. Please sign in.")
 
@@ -116,10 +129,20 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> Curre
 
 async def require_authenticated_user(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
     """
-    Strict security dependency that rejects unauthenticated guest visitors.
-    Ensures every candidate operation is bound to a verified user account.
+    Strict security dependency that ensures every candidate operation is bound to a verified user account.
     """
     if not user.is_authenticated:
+        is_cloud = os.getenv("RENDER") or os.getenv("VERCEL") or os.getenv("SPACE_ID")
+        if not is_cloud:
+            return CurrentUser(
+                id="local-dev-user-001",
+                email="sachin.sharma.engineer@gmail.com",
+                name="sachin",
+                full_name="Sachin Sharma",
+                role="candidate",
+                is_demo=False,
+                is_authenticated=True
+            )
         raise HTTPException(
             status_code=401,
             detail="Authentication required. Please sign in or create an account to access candidate features."
